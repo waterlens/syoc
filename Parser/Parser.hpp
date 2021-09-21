@@ -100,7 +100,7 @@ struct Parser {
   void skipBlockComment() {
     index += 2;
     auto begin = input.c_str() + index;
-    char *closed = strstr(begin, "*/");
+    auto closed = strstr(begin, "*/");
     if (!closed)
       throw runtime_error("block comment doesn't have a close tag");
     index += closed - begin;
