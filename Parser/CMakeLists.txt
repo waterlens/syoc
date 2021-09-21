@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE Parser.cpp Parser.hpp)
+target_sources(syoc PRIVATE Parser.hpp)

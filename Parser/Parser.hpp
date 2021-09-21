@@ -1,3 +1,4 @@
+#pragma once
 #include <cctype>
 #include <cstddef>
 #include <cstring>
@@ -6,11 +7,17 @@
 #include <functional>
 #include <iterator>
 #include <stdexcept>
+#include <stdlib.h>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_set>
 #include <vector>
+
+#include "IR/Constant.hpp"
+#include "IR/Type.hpp"
+#include "IR/Variable.hpp"
 
 using namespace std;
 
@@ -130,15 +137,28 @@ struct Parser {
     tokens.emplace_back(TokenType::EndOfFile, string_view("@EOF"));
   }
 
+  bool peek(string_view s) {
+    return token_index < tokens.size() && tokens[token_index].text == s;
+  }
+
+  void skip() { token_index++; }
+
   void expect(string_view s) {
-    if (token_index < tokens.size() && tokens[token_index].text == s) {
-      ++token_index;
+    if (peek(s)) {
+      skip();
       return;
     }
     throw runtime_error(
         fmt::format("expect {} but got {}", s, tokens[token_index].text));
   }
 
+  bool consume(string_view s) {
+    if (peek(s)) {
+      skip();
+      return true;
+    }
+    return false;
+  }
   Token expectIdentifier() {
     if (token_index < tokens.size() &&
         tokens[token_index].token_type == TokenType::Identifier) {
@@ -146,6 +166,170 @@ struct Parser {
     }
     throw runtime_error(
         fmt::format("expect identifier but got {}", tokens[token_index].text));
+  }
+
+  Token expectIntegerConstant() {
+    if (token_index < tokens.size() &&
+        tokens[token_index].token_type == TokenType::IntegerConstant) {
+      return tokens[token_index++];
+    }
+    throw runtime_error(fmt::format("expect integer constant but got {}",
+                                    tokens[token_index].text));
+  }
+
+  tuple<bool, Token> peekIdentifier() {
+    if (token_index < tokens.size() &&
+        tokens[token_index].token_type == TokenType::Identifier) {
+      return {true, tokens[token_index]};
+    }
+    return {false, {}};
+  }
+
+  tuple<bool, Token> peekIntegerConstant() {
+    if (token_index < tokens.size() &&
+        tokens[token_index].token_type == TokenType::IntegerConstant) {
+      return {true, tokens[token_index]};
+    }
+    return {false, {}};
+  }
+
+  template <bool constEval> void initializer() {}
+
+  template <bool constEval> void initDeclarator() {}
+
+  void externalDeclaration() {
+    Type declspec = declarationSpecifiers();
+    auto [name, paramList, dimensions] = declarator();
+    if (!paramList.empty()) {
+      // TODO: functionDefinition
+    } else {
+      if (consume("=")) {
+        initializer<true>();
+      }
+      while (consume(",")) {
+        initDeclarator<true>();
+      }
+    }
+  }
+
+  Variable parameterDeclaration() {
+    Type declspec = declarationSpecifiers();
+    auto [name, paramList, dimensions] = declarator();
+    if (!paramList.empty())
+      throw std::runtime_error(
+          "can't use function declarator in a parameter list");
+    Variable var;
+    return Variable{declspec, name, dimensions};
+  }
+
+  vector<Variable> parameterTypeList() {
+    vector<Variable> param;
+    expect("(");
+    if (!peek(")")) {
+      param.push_back(parameterDeclaration());
+      while (consume(","))
+        param.push_back(parameterDeclaration());
+    }
+    consume(",");
+    expect(")");
+    return param;
+  }
+
+  vector<IntegerConstant> arrayDimmension() {
+    vector<IntegerConstant> dimensions;
+    while (peek("[")) {
+      skip();
+      // TODO: assignment expression
+      expect("]");
+    }
+    return dimensions;
+  }
+
+  tuple<string_view, vector<Variable>, vector<IntegerConstant>> declarator() {
+    Token name = expectIdentifier();
+    vector<Variable> paramList;
+    vector<IntegerConstant> dimensions;
+    if (peek("(")) {
+      paramList = parameterTypeList();
+    } else if (peek("[")) {
+      dimensions = arrayDimmension();
+    }
+    return {name.text, paramList, dimensions};
+  }
+
+  Type declarationSpecifiers() {
+    Type ty{};
+    for (;;) {
+      if (consume("const"))
+        ty.ty_qual |= CONST;
+      else if (consume("void"))
+        ty.ty_spec += VOID;
+      else if (consume("int"))
+        ty.ty_spec += INT;
+      else
+        break;
+    }
+    return ty;
+  }
+
+  void translationUnit() {}
+
+  IntegerConstant constEvalAssignExpr() {}
+
+  IntegerConstant constEvalLogicalOrExpr() {}
+
+  IntegerConstant constEvalLogicalAndExpr() {}
+
+  IntegerConstant constEvalEqualityExpr() {}
+
+  IntegerConstant constEvalRelExpr() {}
+
+  IntegerConstant constEvalAddExpr() {}
+
+  IntegerConstant constEvalMulExpr() {}
+
+  IntegerConstant constEvalCastExpr() {}
+
+  IntegerConstant constEvalUnaryExpr() {
+    
+  }
+
+  IntegerConstant constEvalPostfixExpr() {
+    auto i = constEvalPrimaryExpr();
+    if (peek("[") || peek("("))
+      throw runtime_error("initializer element is not constant");
+    return i;
+  }
+
+  IntegerConstant constEvalPrimaryExpr() {
+    if (peek("(")) {
+      skip();
+      auto i = constEvalExpr();
+      expect(")");
+      return i;
+    } else {
+      auto [is_ident, ident] = peekIdentifier();
+      if (is_ident) {
+        skip();
+        // TODO: lookup in scope
+        return {0};
+      } else {
+        auto [is_int_const, int_const] = peekIntegerConstant();
+        if (is_int_const) {
+          skip();
+          int i = strtol(int_const.text.data(), nullptr, 10);
+          return {i};
+        }
+      }
+    }
+    throw runtime_error("initializer element is not constant");
+  }
+
+  IntegerConstant constEvalExpr() {
+    auto i = constEvalAssignExpr();
+    if (peek(","))
+      throw runtime_error("initializer element is not constant");
+    return i;
   }
 
   Parser(const string &input)
