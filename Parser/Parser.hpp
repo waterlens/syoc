@@ -274,24 +274,115 @@ struct Parser {
 
   void translationUnit() {}
 
-  IntegerConstant constEvalAssignExpr() {}
+  IntegerConstant constEvalAssignExpr() { return constEvalLogicalOrExpr(); }
 
-  IntegerConstant constEvalLogicalOrExpr() {}
+  IntegerConstant constEvalLogicalOrExpr() {
+    auto v1 = constEvalLogicalAndExpr();
+    for (;;) {
+      if (consume("||")) {
+        auto v2 = constEvalLogicalAndExpr();
+        v1 = {v1.literal || v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalLogicalAndExpr() {}
+  IntegerConstant constEvalLogicalAndExpr() {
+    auto v1 = constEvalEqualityExpr();
+    for (;;) {
+      if (consume("&&")) {
+        auto v2 = constEvalEqualityExpr();
+        v1 = {v1.literal && v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalEqualityExpr() {}
+  IntegerConstant constEvalEqualityExpr() {
+    auto v1 = constEvalRelExpr();
+    for (;;) {
+      if (consume("==")) {
+        auto v2 = constEvalRelExpr();
+        v1 = {v1.literal == v2.literal};
+      } else if (consume("!=")) {
+        auto v2 = constEvalRelExpr();
+        v1 = {v1.literal != v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalRelExpr() {}
+  IntegerConstant constEvalRelExpr() {
+    auto v1 = constEvalAddExpr();
+    for (;;) {
+      if (consume("<")) {
+        auto v2 = constEvalAddExpr();
+        v1 = {v1.literal < v2.literal};
+      } else if (consume(">")) {
+        auto v2 = constEvalAddExpr();
+        v1 = {v1.literal > v2.literal};
+      } else if (consume("<=")) {
+        auto v2 = constEvalAddExpr();
+        v1 = {v1.literal <= v2.literal};
+      } else if (consume(">=")) {
+        auto v2 = constEvalAddExpr();
+        v1 = {v1.literal >= v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalAddExpr() {}
+  IntegerConstant constEvalAddExpr() {
+    auto v1 = constEvalMulExpr();
+    for (;;) {
+      if (consume("+")) {
+        auto v2 = constEvalMulExpr();
+        v1 = {v1.literal + v2.literal};
+      } else if (consume("-")) {
+        auto v2 = constEvalMulExpr();
+        v1 = {v1.literal - v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalMulExpr() {}
+  IntegerConstant constEvalMulExpr() {
+    auto v1 = constEvalCastExpr();
+    for (;;) {
+      if (consume("*")) {
+        auto v2 = constEvalCastExpr();
+        v1 = {v1.literal * v2.literal};
+      } else if (consume("/")) {
+        auto v2 = constEvalCastExpr();
+        if (v2.literal == 0)
+          throw runtime_error("division by 0");
+        v1 = {v1.literal / v2.literal};
+      } else if (consume("%")) {
+        auto v2 = constEvalCastExpr();
+        if (v2.literal == 0)
+          throw runtime_error("division by 0");
+        v1 = {v1.literal % v2.literal};
+      } else
+        break;
+    }
+    return v1;
+  }
 
-  IntegerConstant constEvalCastExpr() {}
+  IntegerConstant constEvalCastExpr() { return constEvalUnaryExpr(); }
 
   IntegerConstant constEvalUnaryExpr() {
-    
+    if (consume("+"))
+      return constEvalCastExpr();
+    if (consume("-"))
+      return {-constEvalCastExpr().literal};
+    if (consume("!"))
+      return {!constEvalRelExpr().literal};
+    return constEvalPostfixExpr();
   }
 
   IntegerConstant constEvalPostfixExpr() {
@@ -302,8 +393,7 @@ struct Parser {
   }
 
   IntegerConstant constEvalPrimaryExpr() {
-    if (peek("(")) {
-      skip();
+    if (consume("(")) {
       auto i = constEvalExpr();
       expect(")");
       return i;
