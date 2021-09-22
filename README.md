@@ -7,11 +7,32 @@ in comparison with **gcc -O3**.
 
 ### Features
 
+If possible, the compiler may include the following optimization
+passes (in my hope).
+
 #### Front-end
+- [ ] Top-down parser
 
-#### Mid-end
+#### Mid-end & Back-end
 
-#### Back-end
+- [ ] Array SSA
+- [ ] Dominator Tree
+- [ ] Sparse conditional constant propagation
+- [ ] Dead code elimination
+- [ ] Partial redundancy elimination
+- [ ] Strength reduction
+- [ ] Data layout transformation
+- [ ] Polyhedral compilation
+- [ ] Auto vectorization
+- [ ] Multithreading
+- [ ] If conversion
+- [ ] Hoisting
+- [ ] Jump table optimization
+- [ ] Peephole optimization
+- [ ] Software pipelining
+- [ ] Graph coloring register allocation / optimal register allocation
+- [ ] Instruction selection over DAG
+- [ ] Superblock instruction scheduling
 
 #### Utility
 - [ ] Machine code analyzer

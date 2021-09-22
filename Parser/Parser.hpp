@@ -239,7 +239,7 @@ struct Parser {
     vector<IntegerConstant> dimensions;
     while (peek("[")) {
       skip();
-      // TODO: assignment expression
+      dimensions.push_back(constEvalAssignExpr());
       expect("]");
     }
     return dimensions;
