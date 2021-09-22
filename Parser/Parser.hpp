@@ -45,11 +45,11 @@ struct Parser {
   Scope function_scope, variable_scope;
 
   inline static unordered_set<string_view> keywords = {
-      "break", "const",  "continue", "else",  "if",
-      "int",   "return", "void",     "while",
+    "break", "const",  "continue", "else",  "if",
+    "int",   "return", "void",     "while",
   };
   inline static string_view long_operators[] = {
-      "<=", ">=", "==", "!=", "&&", "||"};
+    "<=", ">=", "==", "!=", "&&", "||"};
   inline static string_view operators = "()[]{}<>+-*/%!;,=";
 
   void skipWhitespace() {
@@ -96,8 +96,7 @@ struct Parser {
 
   void skipLineComment() {
     index += 2;
-    while (index < input.length() && input[index] != '\n')
-      index++;
+    while (index < input.length() && input[index] != '\n') index++;
   }
 
   void skipBlockComment() {
@@ -122,9 +121,8 @@ struct Parser {
       } else if ((len = delimitIdentifier())) {
         index += len;
         auto id = input_view.substr(start, len);
-        tokens.emplace_back(keywords.count(id) ? TokenType::Keyword
-                                               : TokenType::Identifier,
-                            id);
+        tokens.emplace_back(
+          keywords.count(id) ? TokenType::Keyword : TokenType::Identifier, id);
       } else if ((len = delimitOperator())) {
         index += len;
         tokens.emplace_back(TokenType::Operator, input_view.substr(start, len));
@@ -133,8 +131,8 @@ struct Parser {
         tokens.emplace_back(TokenType::IntegerConstant,
                             input_view.substr(start, len));
       } else if (index != input.length())
-        throw runtime_error(fmt::format("unexpected token {} ...",
-                                        input_view.substr(start, 16)));
+        throw runtime_error(
+          fmt::format("unexpected token {} ...", input_view.substr(start, 16)));
     }
 
     tokens.emplace_back(TokenType::EndOfFile, string_view("@EOF"));
@@ -152,7 +150,7 @@ struct Parser {
       return;
     }
     throw runtime_error(
-        fmt::format("expect {} but got {}", s, tokens[token_index].text));
+      fmt::format("expect {} but got {}", s, tokens[token_index].text));
   }
 
   bool consume(string_view s) {
@@ -168,7 +166,7 @@ struct Parser {
       return tokens[token_index++];
     }
     throw runtime_error(
-        fmt::format("expect identifier but got {}", tokens[token_index].text));
+      fmt::format("expect identifier but got {}", tokens[token_index].text));
   }
 
   Token expectIntegerConstant() {
@@ -207,8 +205,7 @@ struct Parser {
       Type declspec = declarationSpecifiers();
       if (!peek(";")) {
         initDeclarator<false>(declspec);
-        while (consume(","))
-          initDeclarator<false>(declspec);
+        while (consume(",")) initDeclarator<false>(declspec);
       }
       expect(";");
     } else
@@ -217,8 +214,7 @@ struct Parser {
 
   void compoundStatement() {
     expect("{");
-    while (!peek("}"))
-      blockItem();
+    while (!peek("}")) blockItem();
     expect("}");
   }
 
@@ -275,7 +271,7 @@ struct Parser {
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
-          "can't use function declarator in a parameter list");
+        "can't use function declarator in a parameter list");
     Variable var;
     return Variable{declspec, name, dimensions};
   }
@@ -285,8 +281,7 @@ struct Parser {
     expect("(");
     if (!peek(")")) {
       param.push_back(parameterDeclaration());
-      while (consume(","))
-        param.push_back(parameterDeclaration());
+      while (consume(",")) param.push_back(parameterDeclaration());
     }
     consume(",");
     expect(")");
@@ -493,5 +488,5 @@ struct Parser {
   }
 
   Parser(const string &input)
-      : input(input), input_view(input), index(0), token_index(0) {}
+    : input(input), input_view(input), index(0), token_index(0) {}
 };

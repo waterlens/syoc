@@ -22,7 +22,5 @@ struct Type {
     }
   }
 
-  bool isVoid() {
-    return ty_spec & VOID;
-  }
+  bool isVoid() { return ty_spec & VOID; }
 };

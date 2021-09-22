@@ -1,10 +1,9 @@
-#include "IR/Constant.hpp"
-#include "Type.hpp"
 #pragma once
 #include <string_view>
 #include <vector>
 
 #include "Constant.hpp"
+#include "Type.hpp"
 
 using namespace std;
 
