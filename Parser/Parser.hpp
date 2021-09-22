@@ -1,13 +1,13 @@
 #pragma once
 #include <cctype>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
 #include <iterator>
 #include <stdexcept>
-#include <stdlib.h>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -194,10 +194,25 @@ struct Parser {
     return {false, {}};
   }
 
+  void selectionStatement() {}
+
+  void iterationStatement() {}
+
+  void jumpStatement() {}
+
+  void expressionStatement() {}
+
   void statement() {
     if (peek("{"))
       compoundStatement();
-    // TODO: other statements
+    else if (peek("if"))
+      selectionStatement();
+    else if (peek("while"))
+      iterationStatement();
+    else if (peek("break") || peek("continue") || peek("return"))
+      jumpStatement();
+    else
+      expressionStatement();
   }
 
   void blockItem() {
