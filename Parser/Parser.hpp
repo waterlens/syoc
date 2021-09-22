@@ -13,9 +13,11 @@
 #include <tuple>
 #include <type_traits>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 #include "IR/Constant.hpp"
+#include "IR/Scope.hpp"
 #include "IR/Type.hpp"
 #include "IR/Variable.hpp"
 
@@ -40,6 +42,7 @@ struct Parser {
   size_t index;
   vector<Token> tokens;
   size_t token_index;
+  Scope function_scope, variable_scope;
 
   inline static unordered_set<string_view> keywords = {
       "break", "const",  "continue", "else",  "if",
@@ -193,29 +196,84 @@ struct Parser {
     return {false, {}};
   }
 
-  template <bool constEval> void initializer() {}
+  void statement() {
+    if (peek("{"))
+      compoundStatement();
+    // TODO: other statements;
+  }
 
-  template <bool constEval> void initDeclarator() {}
+  void blockItem() {
+    if (peek("void") || peek("int") || peek("const")) {
+      Type declspec = declarationSpecifiers();
+      if (!peek(";")) {
+        initDeclarator<false>(declspec);
+        while (consume(","))
+          initDeclarator<false>(declspec);
+      }
+      expect(";");
+    } else
+      statement();
+  }
+
+  void compoundStatement() {
+    expect("{");
+    while (!peek("}"))
+      blockItem();
+    expect("}");
+  }
+
+  template <bool constEval> Value initializerList() {
+    vector<Value> vals;
+    if (!peek("}")) {
+      vals.emplace_back(initializer<constEval>());
+      while (consume(",") && !peek("}"))
+        vals.emplace_back(initializer<constEval>());
+    }
+    return {vals};
+  }
+
+  template <bool constEval> Value initializer() {
+    if (consume("{")) {
+      auto initList = initializerList<true>();
+      consume(",");
+      expect("}");
+      return initList;
+    } else if constexpr (constEval) {
+      auto i = constEvalAssignExpr();
+      return {i};
+    } else {
+      // TODO: assignment expression
+      return {};
+    }
+  }
+
+  template <bool constEval> void initDeclarator(Type t) {
+    auto [name, index, paramList, dimensions] = declarator();
+    if (consume("=")) {
+      auto init = initializer<constEval>();
+    }
+  }
 
   void externalDeclaration() {
     Type declspec = declarationSpecifiers();
-    auto [name, paramList, dimensions] = declarator();
-    if (!paramList.empty()) {
-      // TODO: functionDefinition
+    auto [name, index, paramList, dimensions] = declarator();
+    if (index == 0) {
+      compoundStatement();
     } else {
       if (consume("=")) {
-        initializer<true>();
+        auto init = initializer<true>();
       }
       while (consume(",")) {
-        initDeclarator<true>();
+        initDeclarator<true>(declspec);
       }
+      expect(";");
     }
   }
 
   Variable parameterDeclaration() {
     Type declspec = declarationSpecifiers();
-    auto [name, paramList, dimensions] = declarator();
-    if (!paramList.empty())
+    auto [name, index, paramList, dimensions] = declarator();
+    if (index == 0)
       throw std::runtime_error(
           "can't use function declarator in a parameter list");
     Variable var;
@@ -245,16 +303,23 @@ struct Parser {
     return dimensions;
   }
 
-  tuple<string_view, vector<Variable>, vector<IntegerConstant>> declarator() {
+  tuple<string_view, size_t, vector<Variable>, vector<IntegerConstant>>
+  declarator() {
     Token name = expectIdentifier();
     vector<Variable> paramList;
     vector<IntegerConstant> dimensions;
+    size_t index;
     if (peek("(")) {
+      index = 0;
       paramList = parameterTypeList();
     } else if (peek("[")) {
+      index = 1;
       dimensions = arrayDimmension();
+    } else {
+      index = 2;
     }
-    return {name.text, paramList, dimensions};
+
+    return {name.text, index, paramList, dimensions};
   }
 
   Type declarationSpecifiers() {
@@ -401,8 +466,13 @@ struct Parser {
       auto [is_ident, ident] = peekIdentifier();
       if (is_ident) {
         skip();
-        // TODO: lookup in scope
-        return {0};
+        if (variable_scope.table.count(ident.text)) {
+          auto val = variable_scope.table.find(ident.text)->second;
+          if (auto int_const_p = get_if<IntegerConstant>(&val.v)) {
+            return *int_const_p;
+          }
+        }
+        throw runtime_error(fmt::format("{} is not a constant", ident.text));
       } else {
         auto [is_int_const, int_const] = peekIntegerConstant();
         if (is_int_const) {

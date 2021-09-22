@@ -8,5 +8,5 @@
 using namespace std;
 
 struct Value {
-  variant<Variable, IntegerConstant> v;
+  variant<Variable, IntegerConstant, vector<Value>> v;
 };
