@@ -199,7 +199,7 @@ struct Parser {
   void statement() {
     if (peek("{"))
       compoundStatement();
-    // TODO: other statements;
+    // TODO: other statements
   }
 
   void blockItem() {
