@@ -1,3 +1,9 @@
+// Brainfuck Interpreter
+// Reads program from stdin, interprets and outputs to stdout.
+//
+// Main optimization targets:
+// jump table, inline variables, etc.
+
 int program_length = 0;
 int program[65536] = {};
 int tape[65536] = {};
