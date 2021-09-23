@@ -12,6 +12,7 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -51,6 +52,73 @@ struct Parser {
   inline static string_view long_operators[] = {
     "<=", ">=", "==", "!=", "&&", "||"};
   inline static string_view operators = "()[]{}<>+-*/%!;,=";
+
+  inline static unordered_map<string_view, int> bin_op_precedence = {
+    {"*", 30},  {"/", 30},   {"%", 30},   {"+", 40},  {"-", 40},
+    {"<", 60},  {">", 60},   {"<=", 60},  {">=", 60}, {"==", 70},
+    {"!=", 70}, {"&&", 110}, {"||", 120},
+  };
+
+  inline static unordered_map<
+    string_view, function<IntegerConstant(IntegerConstant, IntegerConstant)>>
+    bin_op_const_eval = {
+      {"*",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal * v2.literal};
+       }},
+      {"/",
+       [](auto v1, auto v2) -> IntegerConstant {
+         if (v2.literal == 0)
+           throw runtime_error("division by 0");
+         return {v1.literal / v2.literal};
+       }},
+      {"%",
+       [](auto v1, auto v2) -> IntegerConstant {
+         if (v2.literal == 0)
+           throw runtime_error("division by 0");
+         return {v1.literal % v2.literal};
+       }},
+      {"+",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal + v2.literal};
+       }},
+      {"-",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal - v2.literal};
+       }},
+      {"<",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal < v2.literal};
+       }},
+      {">",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal > v2.literal};
+       }},
+      {"<=",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal <= v2.literal};
+       }},
+      {">=",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal >= v2.literal};
+       }},
+      {"==",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal == v2.literal};
+       }},
+      {"!=",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal != v2.literal};
+       }},
+      {"&&",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal && v2.literal};
+       }},
+      {"||",
+       [](auto v1, auto v2) -> IntegerConstant {
+         return {v1.literal || v2.literal};
+       }},
+  };
 
   void skipWhitespace() {
     for (; index < input.size() && isspace(input[index]); index++)
@@ -160,6 +228,9 @@ struct Parser {
     }
     return false;
   }
+
+  Token peek() { return tokens[token_index]; }
+
   Token expectIdentifier() {
     if (token_index < tokens.size() &&
         tokens[token_index].token_type == TokenType::Identifier) {
@@ -349,103 +420,31 @@ struct Parser {
 
   void translationUnit() {}
 
-  IntegerConstant constEvalAssignExpr() { return constEvalLogicalOrExpr(); }
-
-  IntegerConstant constEvalLogicalOrExpr() {
-    auto v1 = constEvalLogicalAndExpr();
-    for (;;) {
-      if (consume("||")) {
-        auto v2 = constEvalLogicalAndExpr();
-        v1 = {v1.literal || v2.literal};
-      } else
-        break;
-    }
-    return v1;
+  IntegerConstant constEvalAssignExpr() {
+    return constEvalBinOpExpr(0, constEvalCastExpr());
   }
 
-  IntegerConstant constEvalLogicalAndExpr() {
-    auto v1 = constEvalEqualityExpr();
+  IntegerConstant constEvalBinOpExpr(int prec, IntegerConstant lhs) {
     for (;;) {
-      if (consume("&&")) {
-        auto v2 = constEvalEqualityExpr();
-        v1 = {v1.literal && v2.literal};
-      } else
-        break;
+      auto tok = peek();
+      size_t tok_prec, next_prec;
+      if (!bin_op_precedence.count(tok.text))
+        tok_prec = -1;
+      else
+        tok_prec = bin_op_precedence.find(tok.text)->second;
+      if (tok_prec < prec)
+        return lhs;
+      skip();
+      auto rhs = constEvalCastExpr();
+      auto next_tok = peek();
+      if (!bin_op_precedence.count(next_tok.text))
+        next_prec = -1;
+      else
+        next_prec = bin_op_precedence.find(next_tok.text)->second;
+      if (tok_prec < next_prec)
+        rhs = constEvalBinOpExpr(tok_prec + 1, rhs);
+      lhs = bin_op_const_eval.find(tok.text)->second(lhs, rhs);
     }
-    return v1;
-  }
-
-  IntegerConstant constEvalEqualityExpr() {
-    auto v1 = constEvalRelExpr();
-    for (;;) {
-      if (consume("==")) {
-        auto v2 = constEvalRelExpr();
-        v1 = {v1.literal == v2.literal};
-      } else if (consume("!=")) {
-        auto v2 = constEvalRelExpr();
-        v1 = {v1.literal != v2.literal};
-      } else
-        break;
-    }
-    return v1;
-  }
-
-  IntegerConstant constEvalRelExpr() {
-    auto v1 = constEvalAddExpr();
-    for (;;) {
-      if (consume("<")) {
-        auto v2 = constEvalAddExpr();
-        v1 = {v1.literal < v2.literal};
-      } else if (consume(">")) {
-        auto v2 = constEvalAddExpr();
-        v1 = {v1.literal > v2.literal};
-      } else if (consume("<=")) {
-        auto v2 = constEvalAddExpr();
-        v1 = {v1.literal <= v2.literal};
-      } else if (consume(">=")) {
-        auto v2 = constEvalAddExpr();
-        v1 = {v1.literal >= v2.literal};
-      } else
-        break;
-    }
-    return v1;
-  }
-
-  IntegerConstant constEvalAddExpr() {
-    auto v1 = constEvalMulExpr();
-    for (;;) {
-      if (consume("+")) {
-        auto v2 = constEvalMulExpr();
-        v1 = {v1.literal + v2.literal};
-      } else if (consume("-")) {
-        auto v2 = constEvalMulExpr();
-        v1 = {v1.literal - v2.literal};
-      } else
-        break;
-    }
-    return v1;
-  }
-
-  IntegerConstant constEvalMulExpr() {
-    auto v1 = constEvalCastExpr();
-    for (;;) {
-      if (consume("*")) {
-        auto v2 = constEvalCastExpr();
-        v1 = {v1.literal * v2.literal};
-      } else if (consume("/")) {
-        auto v2 = constEvalCastExpr();
-        if (v2.literal == 0)
-          throw runtime_error("division by 0");
-        v1 = {v1.literal / v2.literal};
-      } else if (consume("%")) {
-        auto v2 = constEvalCastExpr();
-        if (v2.literal == 0)
-          throw runtime_error("division by 0");
-        v1 = {v1.literal % v2.literal};
-      } else
-        break;
-    }
-    return v1;
   }
 
   IntegerConstant constEvalCastExpr() { return constEvalUnaryExpr(); }
@@ -456,7 +455,7 @@ struct Parser {
     if (consume("-"))
       return {-constEvalCastExpr().literal};
     if (consume("!"))
-      return {!constEvalRelExpr().literal};
+      return {!constEvalCastExpr().literal};
     return constEvalPostfixExpr();
   }
 
