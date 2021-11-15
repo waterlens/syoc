@@ -39,7 +39,6 @@ passes (in my hope).
 
 ### Checklist
 
-#### Before 2020/9/30
 - [x] Create the project
 - [ ] Finish the parser
 - [ ] Definition of IR
