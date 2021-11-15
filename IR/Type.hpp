@@ -1,4 +1,5 @@
 #pragma once
+#include <string_view>
 enum {
   VOID = 1 << 0,
   INT = 1 << 4,
@@ -23,4 +24,12 @@ struct Type {
   }
 
   bool isVoid() { return ty_spec & VOID; }
+
+  std::string_view to_string() const {
+    if (ty_qual == CONST) {
+      return std::string_view(ty_spec & INT ? "const int" : "const void");
+    } else {
+      return std::string_view(ty_spec & INT ? "int" : "void");
+    }
+  }
 };

@@ -24,7 +24,7 @@ passes (in my hope).
 - [ ] Data layout transformation
 - [ ] Polyhedral compilation
 - [ ] Auto vectorization
-- [ ] Multithreading
+- [ ] Multi-threading
 - [ ] If conversion
 - [ ] Hoisting
 - [ ] Jump table optimization

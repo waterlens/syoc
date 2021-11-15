@@ -4,14 +4,19 @@
 
 using namespace std;
 
-int main() {
+int main(int argc, char *argv[]) {
+  string fileName;
   string fileContent;
-  getline(ifstream(".\\Test\\brainfuck-bootstrap.sy"), fileContent, '\0');
+  if (argc > 1)
+    fileName = argv[1];
+  else
+    getline(ifstream("current.txt"), fileName, '\0');
+  getline(ifstream(fileName), fileContent, '\0');
 
   Parser parser(fileContent);
   parser.tokenize();
-  for (auto &&s : parser.tokens)
-    fmt::print("{}\n", s.text);
+  for (auto &&s : parser.tokens) fmt::print("{}\n", s.text);
+  parser.parse();
 
   return 0;
 }

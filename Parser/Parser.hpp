@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -155,8 +156,14 @@ struct Parser {
   size_t delimitIntegerConstant() {
     if (index < input.length()) {
       auto i = index;
-      for (; i < input.length() && isdigit(input[i]); ++i)
-        ;
+      if (startWith("0x")) {
+        i += 2;
+        for (; i < input.length() && isxdigit(input[i]); i++)
+          ;
+      } else {
+        for (; i < input.length() && isdigit(input[i]); i++)
+          ;
+      }
       return i - index;
     }
     return 0;
@@ -174,6 +181,7 @@ struct Parser {
     if (!closed)
       throw runtime_error("block comment doesn't have a close tag");
     index += closed - begin;
+    index += 2;
   }
 
   void tokenize() {
@@ -265,13 +273,124 @@ struct Parser {
     return {false, {}};
   }
 
-  void selectionStatement() {}
+  Value expression() { return assignmentExpression(); }
 
-  void iterationStatement() {}
+  Value assignmentExpression() {
+    auto lhs = conditionalExpression();
+    Value rhs;
+    if (consume("=")) {
+      rhs = assignmentExpression();
+    }
+    return _dummy(lhs, rhs);
+  }
 
-  void jumpStatement() {}
+  Value conditionalExpression() {
+    return binaryOpExpression(0, castExpression());
+  }
 
-  void expressionStatement() {}
+  Value binaryOpExpression(int prec, Value lhs) {
+    for (;;) {
+      auto tok = peek();
+      int tok_prec, next_prec;
+      if (!bin_op_precedence.count(tok.text))
+        tok_prec = -1;
+      else
+        tok_prec = bin_op_precedence.find(tok.text)->second;
+      if (tok_prec < prec)
+        return lhs;
+      skip();
+      auto rhs = castExpression();
+      auto next_tok = peek();
+      if (!bin_op_precedence.count(next_tok.text))
+        next_prec = -1;
+      else
+        next_prec = bin_op_precedence.find(next_tok.text)->second;
+      if (tok_prec < next_prec)
+        rhs = binaryOpExpression(tok_prec + 1, rhs);
+      lhs = _dummy(lhs, rhs);
+    }
+  }
+
+  Value castExpression() { return unaryExpression(); }
+
+  Value unaryExpression() {
+    auto next_tok = peek();
+    if (next_tok.text == "-" || next_tok.text == "+" || next_tok.text == "!") {
+      skip();
+      return castExpression();
+    }
+    return postfixExpression();
+  }
+
+  Value postfixExpression() {
+    auto expr = primaryExpression();
+    while (peek("[") || peek("("))
+      if (consume("[")) {
+        auto dim = expression();
+        expect("]");
+      } else if (consume("(")) {
+        if (!peek(")"))
+          auto args = argumentExpressionList();
+        expect(")");
+      }
+    return expr;
+  }
+
+  Value argumentExpressionList() {
+    vector<Value> args;
+    args.push_back(assignmentExpression());
+    while (consume(",")) args.push_back(assignmentExpression());
+    return {args};
+  }
+
+  Value primaryExpression() {
+    if (consume("(")) {
+      auto expr = expression();
+      expect(")");
+      return expr;
+    }
+    auto tok = peek();
+    skip();
+    return {};
+  }
+
+  Value _dummy(Value lhs, Value rhs) { return lhs; }
+
+  void selectionStatement() {
+    expect("if");
+    expect("(");
+    auto cond = expression();
+    expect(")");
+    statement();
+    if (consume("else"))
+      statement();
+  }
+
+  void iterationStatement() {
+    expect("while");
+    expect("(");
+    auto cond = expression();
+    expect(")");
+    statement();
+  }
+
+  void jumpStatement() {
+    if (consume("continue"))
+      ;
+    else if (consume("break"))
+      ;
+    else if (consume("return")) {
+      if (!peek(";"))
+        auto expr = expression();
+    }
+    expect(";");
+  }
+
+  void expressionStatement() {
+    if (!peek(";"))
+      auto expr = expression();
+    expect(";");
+  }
 
   void statement() {
     if (peek("{"))
@@ -290,8 +409,8 @@ struct Parser {
     if (peek("void") || peek("int") || peek("const")) {
       Type declspec = declarationSpecifiers();
       if (!peek(";")) {
-        initDeclarator<false>(declspec);
-        while (consume(",")) initDeclarator<false>(declspec);
+        initDeclarator(declspec);
+        while (consume(",")) initDeclarator(declspec);
       }
       expect(";");
     } else
@@ -304,49 +423,60 @@ struct Parser {
     expect("}");
   }
 
-  template <bool constEval> Value initializerList() {
+  Value initializerList() {
     vector<Value> vals;
     if (!peek("}")) {
-      vals.emplace_back(initializer<constEval>());
-      while (consume(",") && !peek("}"))
-        vals.emplace_back(initializer<constEval>());
+      vals.emplace_back(initializer());
+      while (consume(",") && !peek("}")) vals.emplace_back(initializer());
     }
     return {vals};
   }
 
-  template <bool constEval> Value initializer() {
+  Value initializer() {
     if (consume("{")) {
-      auto initList = initializerList<true>();
+      auto initList = initializerList();
       consume(",");
       expect("}");
       return initList;
-    } else if constexpr (constEval) {
-      auto i = constEvalAssignExpr();
-      return {i};
     } else {
-      // TODO: assignment expression
-      return {};
+      auto expr = assignmentExpression();
+      return expr;
     }
   }
 
-  template <bool constEval> void initDeclarator(Type t) {
+  void initDeclarator(Type declspec) {
     auto [name, index, paramList, dimensions] = declarator();
+    Value init;
     if (consume("=")) {
-      auto init = initializer<constEval>();
+      init = initializer();
+    }
+    if (index == 1) {
+      fmt::print("array: type: {} | name: {}\n", declspec.to_string(), name);
+    } else if (index == 2) {
+      fmt::print("variable: type: {} | name: {}\n", declspec.to_string(), name);
     }
   }
 
   void externalDeclaration() {
     Type declspec = declarationSpecifiers();
+    Value init;
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0) {
       compoundStatement();
+      fmt::print("function: return type: {} | name: {}\n", declspec.to_string(),
+                 name);
     } else {
       if (consume("=")) {
-        auto init = initializer<true>();
+        init = initializer();
+      }
+      if (index == 1) {
+        fmt::print("array: type: {} | name: {}\n", declspec.to_string(), name);
+      } else if (index == 2) {
+        fmt::print("variable: type: {} | name: {}\n", declspec.to_string(),
+                   name);
       }
       while (consume(",")) {
-        initDeclarator<true>(declspec);
+        initDeclarator(declspec);
       }
       expect(";");
     }
@@ -359,7 +489,7 @@ struct Parser {
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
     Variable var;
-    return Variable{declspec, name, dimensions};
+    return Variable{declspec, name, make_shared<Value>(dimensions)};
   }
 
   vector<Variable> parameterTypeList() {
@@ -374,21 +504,22 @@ struct Parser {
     return param;
   }
 
-  vector<IntegerConstant> arrayDimmension() {
-    vector<IntegerConstant> dimensions;
+  vector<Value> arrayDimmension() {
+    vector<Value> dimensions;
     while (peek("[")) {
       skip();
-      dimensions.push_back(constEvalAssignExpr());
+      if (!peek("]")) {
+        assignmentExpression();
+      }
       expect("]");
     }
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<Variable>, vector<IntegerConstant>>
-  declarator() {
+  tuple<string_view, size_t, vector<Variable>, vector<Value>> declarator() {
     Token name = expectIdentifier();
     vector<Variable> paramList;
-    vector<IntegerConstant> dimensions;
+    vector<Value> dimensions;
     size_t index;
     if (peek("(")) {
       index = 0;
@@ -418,88 +549,16 @@ struct Parser {
     return ty;
   }
 
-  void translationUnit() {}
-
-  IntegerConstant constEvalAssignExpr() {
-    return constEvalBinOpExpr(0, constEvalCastExpr());
-  }
-
-  IntegerConstant constEvalBinOpExpr(int prec, IntegerConstant lhs) {
+  void translationUnit() {
     for (;;) {
       auto tok = peek();
-      size_t tok_prec, next_prec;
-      if (!bin_op_precedence.count(tok.text))
-        tok_prec = -1;
-      else
-        tok_prec = bin_op_precedence.find(tok.text)->second;
-      if (tok_prec < prec)
-        return lhs;
-      skip();
-      auto rhs = constEvalCastExpr();
-      auto next_tok = peek();
-      if (!bin_op_precedence.count(next_tok.text))
-        next_prec = -1;
-      else
-        next_prec = bin_op_precedence.find(next_tok.text)->second;
-      if (tok_prec < next_prec)
-        rhs = constEvalBinOpExpr(tok_prec + 1, rhs);
-      lhs = bin_op_const_eval.find(tok.text)->second(lhs, rhs);
+      if (tok.token_type == TokenType::EndOfFile)
+        break;
+      externalDeclaration();
     }
   }
 
-  IntegerConstant constEvalCastExpr() { return constEvalUnaryExpr(); }
-
-  IntegerConstant constEvalUnaryExpr() {
-    if (consume("+"))
-      return constEvalCastExpr();
-    if (consume("-"))
-      return {-constEvalCastExpr().literal};
-    if (consume("!"))
-      return {!constEvalCastExpr().literal};
-    return constEvalPostfixExpr();
-  }
-
-  IntegerConstant constEvalPostfixExpr() {
-    auto i = constEvalPrimaryExpr();
-    if (peek("[") || peek("("))
-      throw runtime_error("initializer element is not constant");
-    return i;
-  }
-
-  IntegerConstant constEvalPrimaryExpr() {
-    if (consume("(")) {
-      auto i = constEvalExpr();
-      expect(")");
-      return i;
-    } else {
-      auto [is_ident, ident] = peekIdentifier();
-      if (is_ident) {
-        skip();
-        if (variable_scope.table.count(ident.text)) {
-          auto val = variable_scope.table.find(ident.text)->second;
-          if (auto int_const_p = get_if<IntegerConstant>(&val.v)) {
-            return *int_const_p;
-          }
-        }
-        throw runtime_error(fmt::format("{} is not a constant", ident.text));
-      } else {
-        auto [is_int_const, int_const] = peekIntegerConstant();
-        if (is_int_const) {
-          skip();
-          int i = strtol(int_const.text.data(), nullptr, 10);
-          return {i};
-        }
-      }
-    }
-    throw runtime_error("initializer element is not constant");
-  }
-
-  IntegerConstant constEvalExpr() {
-    auto i = constEvalAssignExpr();
-    if (peek(","))
-      throw runtime_error("initializer element is not constant");
-    return i;
-  }
+  void parse() { translationUnit(); }
 
   Parser(const string &input)
     : input(input), input_view(input), index(0), token_index(0) {}

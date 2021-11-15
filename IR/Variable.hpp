@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -7,8 +8,10 @@
 
 using namespace std;
 
+struct Value;
 struct Variable {
   Type ty;
   string_view name;
-  vector<IntegerConstant> dimension;
+  std::shared_ptr<Value> dimension;
+  std::string to_string() const;
 };
