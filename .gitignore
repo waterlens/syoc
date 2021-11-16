@@ -36,4 +36,5 @@ Misc/
 .cache/
 .vscode/
 current.txt
-
+Test/Binary/
+Test/Output/
