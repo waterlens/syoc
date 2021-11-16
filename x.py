@@ -130,6 +130,10 @@ def run(args):
 def compile(args):
     cc, cc_path = get_cc_path(args.cc, args.path)
     cc_args = get_cc_args(cc)
+    if args.flags is not None:
+        cc_args += args.flags.split()
+
+    print(f'Flags: {cc_args}')
 
     if args.command == 'compileall':
         for root, dirs, files in os.walk(test_dir):
@@ -172,6 +176,8 @@ def filepath(path):
 def main():
     parser = argparse.ArgumentParser(
         description='SysY Optimizing Compiler Test Script')
+    flags = None
+    
     subparser = parser.add_subparsers(dest='command')
 
     cc = subparser.add_parser(
@@ -180,12 +186,15 @@ def main():
                     'syoc'], default='clang', help='select one compiler')
     cc.add_argument('--path', dest='path', type=filepath,
                     help='path to the compiler')
+    cc.add_argument('--flags', dest=flags, type=str, help='extra compiler flags')
     cc.add_argument('test', help='the name of the test you want to compile')
     cc_all = subparser.add_parser('compileall', help='compile all binary')
     cc_all.add_argument('cc', choices=['gcc', 'clang',
                                        'syoc'], default='clang', help='select one compiler')
     cc_all.add_argument('--path', dest='path', type=filepath,
                         help='path to the compiler')
+
+    cc_all.add_argument('--flags', dest=flags, type=str, help='extra compiler flags')
     rn = subparser.add_parser('run', help='run the binary')
     rn.add_argument('cc', choices=['gcc', 'clang',
                                    'syoc'], default='clang', help='select one compiler')
