@@ -14,16 +14,7 @@ struct Scope {
   vector<Scope *> children;
   unordered_map<string_view, Value> table;
 
-  Scope &entry() {
-    auto newScope = new Scope();
-    newScope->top = this;
-    children.push_back(newScope);
-    return *newScope;
-  }
+  Scope &entry();
 
-  Scope &leave() {
-    if (!top)
-      throw runtime_error("can't leave top scope");
-    return *top;
-  }
+  Scope &leave();
 };
