@@ -7,6 +7,7 @@ add_executable(syoc Driver.cpp)
 
 add_subdirectory(IR)
 add_subdirectory(Parser)
+add_subdirectory(CodeGen)
 add_subdirectory(ThirdParty)
 
 include_directories(ThirdParty/fmt/include)

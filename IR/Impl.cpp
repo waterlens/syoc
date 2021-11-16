@@ -1,5 +1,7 @@
 #include <fmt/format.h>
 
+#include "BasicBlock.hpp"
+#include "Instruction.hpp"
 #include "Scope.hpp"
 #include "Type.hpp"
 #include "Value.hpp"
@@ -57,4 +59,31 @@ std::string_view Type::to_string() const {
   } else {
     return std::string_view(ty_spec & INT ? "int" : "void");
   }
+}
+
+std::string Instruction::to_string() const {
+  if (type >= NONE && type < END) {
+    if (operands.index() == 0)
+      return fmt::format("{} {} {}", op_name[type],
+                         get<0>(operands).first->to_string(),
+                         get<0>(operands).second->to_string());
+    if (operands.index() == 1)
+      return fmt::format("{} {} {}", op_name[type],
+                         get<1>(operands).first->get_id_string(),
+                         get<1>(operands).second->get_id_string());
+  }
+  return "";
+}
+
+std::string BasicBlock::to_string() const {
+  std::string s;
+  s += get_id_string();
+  s.push_back('\n');
+  auto p = begin;
+  while (p != end) {
+    s += p->to_string();
+    s.push_back('\n');
+    p = p->next;
+  }
+  return s;
 }
