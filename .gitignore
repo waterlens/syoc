@@ -35,3 +35,5 @@ build/
 Misc/
 .cache/
 .vscode/
+current.txt
+
