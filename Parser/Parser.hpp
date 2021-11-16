@@ -60,67 +60,6 @@ struct Parser {
     {"!=", 70}, {"&&", 110}, {"||", 120},
   };
 
-  inline static unordered_map<
-    string_view, function<IntegerConstant(IntegerConstant, IntegerConstant)>>
-    bin_op_const_eval = {
-      {"*",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal * v2.literal};
-       }},
-      {"/",
-       [](auto v1, auto v2) -> IntegerConstant {
-         if (v2.literal == 0)
-           throw runtime_error("division by 0");
-         return {v1.literal / v2.literal};
-       }},
-      {"%",
-       [](auto v1, auto v2) -> IntegerConstant {
-         if (v2.literal == 0)
-           throw runtime_error("division by 0");
-         return {v1.literal % v2.literal};
-       }},
-      {"+",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal + v2.literal};
-       }},
-      {"-",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal - v2.literal};
-       }},
-      {"<",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal < v2.literal};
-       }},
-      {">",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal > v2.literal};
-       }},
-      {"<=",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal <= v2.literal};
-       }},
-      {">=",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal >= v2.literal};
-       }},
-      {"==",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal == v2.literal};
-       }},
-      {"!=",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal != v2.literal};
-       }},
-      {"&&",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal && v2.literal};
-       }},
-      {"||",
-       [](auto v1, auto v2) -> IntegerConstant {
-         return {v1.literal || v2.literal};
-       }},
-  };
-
   void skipWhitespace() {
     for (; index < input.size() && isspace(input[index]); index++)
       ;
