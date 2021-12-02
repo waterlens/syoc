@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE Instruction.hpp BasicBlock.hpp Type.hpp Variable.hpp Constant.hpp Value.hpp Scope.hpp Impl.cpp)
+target_sources(syoc PRIVATE IR.cpp IR.hpp IR.def)

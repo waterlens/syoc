@@ -18,10 +18,7 @@
 #include <variant>
 #include <vector>
 
-#include "IR/Constant.hpp"
-#include "IR/Scope.hpp"
-#include "IR/Type.hpp"
-#include "IR/Variable.hpp"
+#include "IR/IR.hpp"
 
 using namespace std;
 
@@ -41,10 +38,9 @@ struct Token {
 struct Parser {
   string input;
   string_view input_view;
-  size_t index;
   vector<Token> tokens;
+  size_t index;
   size_t token_index;
-  Scope function_scope, variable_scope;
 
   inline static unordered_set<string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
@@ -212,22 +208,22 @@ struct Parser {
     return {false, {}};
   }
 
-  Value expression() { return assignmentExpression(); }
+  Value *expression() { return assignmentExpression(); }
 
-  Value assignmentExpression() {
+  Value *assignmentExpression() {
     auto lhs = conditionalExpression();
-    Value rhs;
+    Value *rhs = nullptr;
     if (consume("=")) {
       rhs = assignmentExpression();
     }
     return _dummy(lhs, rhs);
   }
 
-  Value conditionalExpression() {
+  Value *conditionalExpression() {
     return binaryOpExpression(0, castExpression());
   }
 
-  Value binaryOpExpression(int prec, Value lhs) {
+  Value *binaryOpExpression(int prec, Value *lhs) {
     for (;;) {
       auto tok = peek();
       int tok_prec, next_prec;
@@ -250,9 +246,9 @@ struct Parser {
     }
   }
 
-  Value castExpression() { return unaryExpression(); }
+  Value *castExpression() { return unaryExpression(); }
 
-  Value unaryExpression() {
+  Value *unaryExpression() {
     auto next_tok = peek();
     if (next_tok.text == "-" || next_tok.text == "+" || next_tok.text == "!") {
       skip();
@@ -261,7 +257,7 @@ struct Parser {
     return postfixExpression();
   }
 
-  Value postfixExpression() {
+  Value *postfixExpression() {
     auto expr = primaryExpression();
     while (peek("[") || peek("("))
       if (consume("[")) {
@@ -275,14 +271,14 @@ struct Parser {
     return expr;
   }
 
-  Value argumentExpressionList() {
-    vector<Value> args;
+  Value *argumentExpressionList() {
+    vector<Value *> args;
     args.push_back(assignmentExpression());
     while (consume(",")) args.push_back(assignmentExpression());
-    return {args};
+    return _dummy(nullptr, nullptr);
   }
 
-  Value primaryExpression() {
+  Value *primaryExpression() {
     if (consume("(")) {
       auto expr = expression();
       expect(")");
@@ -293,7 +289,7 @@ struct Parser {
     return {};
   }
 
-  Value _dummy(Value lhs, Value rhs) { return lhs; }
+  Value *_dummy(Value *lhs, Value *rhs) { return lhs; }
 
   void selectionStatement() {
     expect("if");
@@ -362,16 +358,16 @@ struct Parser {
     expect("}");
   }
 
-  Value initializerList() {
-    vector<Value> vals;
+  Value *initializerList() {
+    vector<Value *> vals;
     if (!peek("}")) {
       vals.emplace_back(initializer());
       while (consume(",") && !peek("}")) vals.emplace_back(initializer());
     }
-    return {vals};
+    return nullptr;
   }
 
-  Value initializer() {
+  Value *initializer() {
     if (consume("{")) {
       auto initList = initializerList();
       consume(",");
@@ -385,7 +381,7 @@ struct Parser {
 
   void initDeclarator(Type declspec) {
     auto [name, index, paramList, dimensions] = declarator();
-    Value init;
+    Value *init;
     if (consume("=")) {
       init = initializer();
     }
@@ -398,7 +394,7 @@ struct Parser {
 
   void externalDeclaration() {
     Type declspec = declarationSpecifiers();
-    Value init;
+    Value *init;
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0) {
       compoundStatement();
@@ -428,7 +424,7 @@ struct Parser {
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
     Variable var;
-    return Variable{declspec, name, make_shared<Value>(dimensions)};
+    return var;
   }
 
   vector<Variable> parameterTypeList() {
@@ -475,6 +471,7 @@ struct Parser {
 
   Type declarationSpecifiers() {
     Type ty{};
+    /*
     for (;;) {
       if (consume("const"))
         ty.ty_qual |= CONST;
@@ -484,7 +481,7 @@ struct Parser {
         ty.ty_spec += INT;
       else
         break;
-    }
+    }*/
     return ty;
   }
 

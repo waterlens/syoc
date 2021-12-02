@@ -1,0 +1,49 @@
+#ifndef OpcodeDefine
+#define OpcodeDefine(x)
+#endif
+
+#ifndef ValueTypeDefine
+#define ValueTypeDefine(x)
+#endif
+
+#ifndef TypeSpecifierDefine
+#define TypeSpecifierDefine(x, y)
+#endif
+
+#ifndef TypeQualifierDefine
+#define TypeQualifierDefine(x, y)
+#endif
+
+OpcodeDefine(OP_None)
+OpcodeDefine(OP_Phi)
+OpcodeDefine(OP_Mul)
+OpcodeDefine(OP_Div)
+OpcodeDefine(OP_Mod)
+OpcodeDefine(OP_Add)
+OpcodeDefine(OP_Sub)
+OpcodeDefine(OP_Lt)
+OpcodeDefine(OP_Gt)
+OpcodeDefine(OP_Le)
+OpcodeDefine(OP_Ge)
+OpcodeDefine(OP_Eq)
+OpcodeDefine(OP_Ne)
+OpcodeDefine(OP_Land)
+OpcodeDefine(OP_Lor)
+OpcodeDefine(OP_Branch)
+OpcodeDefine(OP_End)
+
+ValueTypeDefine(VT_BasicBlock)
+ValueTypeDefine(VT_Constant)
+ValueTypeDefine(VT_User)
+ValueTypeDefine(VT_Function)
+ValueTypeDefine(VT_Instruction)
+
+TypeSpecifierDefine(TS_Void,  1 << 0)
+TypeSpecifierDefine(TS_Int,   1 << 4)
+
+TypeQualifierDefine(TQ_Const, 1 << 0)
+
+#undef OpcodeDefine
+#undef ValueTypeDefine
+#undef TypeSpecifierDefine
+#undef TypeQualifierDefine
