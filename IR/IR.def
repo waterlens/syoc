@@ -6,6 +6,10 @@
 #define ValueTypeDefine(x)
 #endif
 
+#ifndef ConstantTypeDefine
+#define ConstantTypeDefine(x)
+#endif
+
 #ifndef TypeSpecifierDefine
 #define TypeSpecifierDefine(x, y)
 #endif
@@ -34,7 +38,6 @@ OpcodeDefine(OP_End)
 
 ValueTypeDefine(VT_BasicBlock)
 ValueTypeDefine(VT_Constant)
-ValueTypeDefine(VT_User)
 ValueTypeDefine(VT_Function)
 ValueTypeDefine(VT_Instruction)
 
@@ -43,7 +46,12 @@ TypeSpecifierDefine(TS_Int,   1 << 4)
 
 TypeQualifierDefine(TQ_Const, 1 << 0)
 
+ConstantTypeDefine(CT_Integer)
+ConstantTypeDefine(CT_Array)
+ConstantTypeDefine(CT_Expression)
+
 #undef OpcodeDefine
 #undef ValueTypeDefine
+#undef ConstantTypeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine

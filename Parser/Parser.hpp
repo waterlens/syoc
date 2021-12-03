@@ -386,9 +386,9 @@ struct Parser {
       init = initializer();
     }
     if (index == 1) {
-      fmt::print("array: type: {} | name: {}\n", declspec.to_string(), name);
+      fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
     } else if (index == 2) {
-      fmt::print("variable: type: {} | name: {}\n", declspec.to_string(), name);
+      fmt::print("index_t: type: {} | name: {}\n", declspec.toString(), name);
     }
   }
 
@@ -398,16 +398,16 @@ struct Parser {
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0) {
       compoundStatement();
-      fmt::print("function: return type: {} | name: {}\n", declspec.to_string(),
+      fmt::print("function: return type: {} | name: {}\n", declspec.toString(),
                  name);
     } else {
       if (consume("=")) {
         init = initializer();
       }
       if (index == 1) {
-        fmt::print("array: type: {} | name: {}\n", declspec.to_string(), name);
+        fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
       } else if (index == 2) {
-        fmt::print("variable: type: {} | name: {}\n", declspec.to_string(),
+        fmt::print("index_t: type: {} | name: {}\n", declspec.toString(),
                    name);
       }
       while (consume(",")) {
@@ -417,18 +417,18 @@ struct Parser {
     }
   }
 
-  Variable parameterDeclaration() {
+  index_t parameterDeclaration() {
     Type declspec = declarationSpecifiers();
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
-    Variable var;
+    index_t var;
     return var;
   }
 
-  vector<Variable> parameterTypeList() {
-    vector<Variable> param;
+  vector<index_t> parameterTypeList() {
+    vector<index_t> param;
     expect("(");
     if (!peek(")")) {
       param.push_back(parameterDeclaration());
@@ -451,9 +451,9 @@ struct Parser {
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<Variable>, vector<Value>> declarator() {
+  tuple<string_view, size_t, vector<index_t>, vector<Value>> declarator() {
     Token name = expectIdentifier();
-    vector<Variable> paramList;
+    vector<index_t> paramList;
     vector<Value> dimensions;
     size_t index;
     if (peek("(")) {
