@@ -64,9 +64,9 @@ inline constexpr std::string_view constant_type_name[]{
 #include "IR.def"
 };
 
-using index_t = uint32_t;
-inline bool is_index_valid(index_t index) {
-  return index != std::numeric_limits<index_t>::max();
+using ValueHandle = uint32_t;
+inline bool is_index_valid(ValueHandle index) {
+  return index != std::numeric_limits<ValueHandle>::max();
 }
 
 class Module;
@@ -84,12 +84,17 @@ class IRBuilder;
 class Type {
   TypeSpecifier spec;
   TypeQualifier qual;
-  void setTypeSpecifier(TypeSpecifier spec) { this->spec = spec; }
-  void setTypeQualifier(TypeQualifier qual) { this->qual = qual; }
+  std::vector<uint32_t> dim;
   friend IRBuilder;
 
 public:
+  Type(TypeSpecifier spec, TypeQualifier qual, std::vector<uint32_t> dim)
+    : spec(spec), qual(qual), dim(dim) {}
+  Type() : spec(), qual(), dim() {}
   std::string toString() { return ""; }
+  TypeSpecifier &refTypeSpecifier() { return spec; }
+  TypeQualifier &refTypeQualifier() { return qual; }
+  std::vector<uint32_t> &refDimension() { return dim; }
 };
 
 struct Value {
@@ -104,88 +109,102 @@ struct Value {
 };
 
 class BasicBlock {
-  std::vector<index_t> insn;
-  index_t parent;
-  index_t identity;
+  std::vector<ValueHandle> insn;
+  ValueHandle parent;
+  ValueHandle identity;
   friend IRBuilder;
 
 public:
-  BasicBlock(index_t parent, index_t identity)
+  BasicBlock(ValueHandle parent, ValueHandle identity)
     : parent(parent), identity(identity) {}
 };
 
 class Instruction {
   OpType op;
   Type type;
-  index_t parent;
-  index_t identity;
-  std::array<index_t, 3> arg;
+  ValueHandle parent;
+  ValueHandle identity;
+  std::array<ValueHandle, 3> arg;
   friend IRBuilder;
 
 public:
-  Instruction(OpType op, index_t parent, index_t identity, index_t arg0,
-              index_t arg1, index_t arg2)
+  Instruction(OpType op, ValueHandle parent, ValueHandle identity,
+              ValueHandle arg0, ValueHandle arg1, ValueHandle arg2)
     : op(op), parent(parent), identity(identity), arg{arg0, arg1, arg2} {}
 };
 
 class Constant {
   ConstantType constant_type;
   Type type;
-  index_t parent;
-  index_t identity;
+  ValueHandle parent;
+  ValueHandle identity;
+  std::string_view name;
   friend IRBuilder;
 
 public:
-  Constant(ConstantType constant_type, index_t parent, index_t identity)
-    : constant_type(constant_type), parent(parent), identity(identity) {}
+  Constant(ConstantType constant_type, Type type, ValueHandle parent,
+           ValueHandle identity, std::string_view name)
+    : constant_type(constant_type), type(type), parent(parent),
+      identity(identity), name(name) {}
+  auto &refName() { return name; }
+  auto &refType() { return type; }
+  auto &refConstantType() { return constant_type; }
 };
 
 class ConstantInteger : public Constant {
   uint64_t value;
 
 public:
-  ConstantInteger(uint64_t value, index_t parent, index_t identity)
-    : Constant(ConstantType::CT_Integer, parent, identity), value(value) {}
+  ConstantInteger(uint64_t value, ValueHandle parent, ValueHandle identity,
+                  std::string_view name = "(integer)")
+    : Constant(ConstantType::CT_Integer, Type{TS_Int, TQ_Const, {}}, parent,
+               identity, name),
+      value(value) {}
 };
 
 class ConstantArray : public Constant {
-  std::vector<index_t> element;
+  std::vector<ValueHandle> element;
 
 public:
-  ConstantArray(index_t parent, index_t identity)
-    : Constant(ConstantType::CT_Array, parent, identity) {}
+  ConstantArray(ValueHandle parent, ValueHandle identity,
+                std::string_view name = "(constant array)")
+    : Constant(ConstantType::CT_Array, {}, parent, identity, name) {}
+  auto &refElement() { return element; }
 };
 
 class ConstantExpr : public Constant {
   OpType op;
-  index_t left;
-  index_t right;
+  ValueHandle left;
+  ValueHandle right;
 
 public:
-  ConstantExpr(OpType op, index_t parent, index_t identity, index_t left,
-               index_t right)
-    : Constant(ConstantType::CT_Expression, parent, identity), op(op),
-      left(left), right(right) {}
+  ConstantExpr(OpType op, ValueHandle parent, ValueHandle identity,
+               ValueHandle left, ValueHandle right,
+               std::string_view name = "(constant expression")
+    : Constant(ConstantType::CT_Expression, Type{TS_Int, TQ_Const, {}}, parent,
+               identity, name),
+      op(op), left(left), right(right) {}
 };
 
 class Function {
   Type ret;
   std::vector<Type> arg_type;
-  index_t parent;
-  index_t identity;
-  std::vector<index_t> basic_block;
+  ValueHandle parent;
+  ValueHandle identity;
+  std::vector<ValueHandle> basic_block;
+  std::string_view name;
   friend IRBuilder;
 
 public:
-  Function(index_t parent, index_t identity)
-    : ret(), arg_type(), parent(parent), identity(identity), basic_block() {}
+  Function(ValueHandle parent, ValueHandle identity)
+    : ret(), arg_type(), parent(parent), identity(identity), basic_block(),
+      name() {}
 };
 
 class Module {
   std::vector<Value> pool;
-  std::vector<index_t> function;
-  std::vector<index_t> constant;
-  std::vector<index_t> globalvalue;
+  std::vector<ValueHandle> global_function_table;
+  std::vector<ValueHandle> global_constant_table;
   friend IRBuilder;
 
 public:
@@ -220,8 +239,8 @@ private:
     }
   }
 
-  index_t create_raw_instruction(OpType op, index_t arg0, index_t arg1,
-                                 index_t arg2) {
+  ValueHandle create_raw_instruction(OpType op, ValueHandle arg0,
+                                     ValueHandle arg1, ValueHandle arg2) {
     check_module();
     check_basic_block();
     Instruction *insn = new Instruction(op, basic_block->identity,
@@ -233,17 +252,21 @@ private:
 
 public:
   IRBuilder() {}
-  void createModule() { module = new Module(); }
+  void createModule() {
+    if (module)
+      throw std::runtime_error("Module already exists");
+    module = new Module();
+  }
 
-  index_t createFunction() {
+  ValueHandle createFunction() {
     check_module();
     function = new Function(0, module->pool.size());
     module->pool.emplace_back(Value{function});
-    module->function.emplace_back(function->identity);
+    module->global_function_table.emplace_back(function->identity);
     return function->identity;
   }
 
-  index_t createBasicBlock() {
+  ValueHandle createBasicBlock() {
     check_module();
     check_function();
     basic_block = new BasicBlock(function->identity, module->pool.size());
@@ -251,25 +274,38 @@ public:
     return basic_block->identity;
   }
 
-  index_t createConstantInteger(uint64_t value) {
+  ValueHandle createConstantInteger(uint64_t value,
+                                    bool add_to_global = false) {
     check_module();
     constant_integer = new ConstantInteger(0, module->pool.size(), value);
     module->pool.emplace_back(Value{constant_integer});
+    if (add_to_global)
+      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_integer->identity;
   }
 
-  index_t createConstantArray() {
+  ValueHandle createConstantArray(bool add_to_global = false) {
     check_module();
     constant_array = new ConstantArray(0, module->pool.size());
     module->pool.emplace_back(Value{constant_array});
+    if (add_to_global)
+      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_array->identity;
   }
 
-  index_t createConstantExpr(OpType op, index_t left, index_t right) {
+  ValueHandle createConstantExpr(OpType op, ValueHandle left, ValueHandle right,
+                                 bool add_to_global = false) {
     check_module();
     constant_expr = new ConstantExpr(op, 0, module->pool.size(), left, right);
     module->pool.emplace_back(Value{constant_expr});
+    if (add_to_global)
+      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_expr->identity;
+  }
+
+  ValueHandle createInstruction(OpType op, ValueHandle left,
+                                ValueHandle right) {
+    return create_raw_instruction(op, left, right, 0);
   }
 
   ConstantArray *getConstantArray() { return constant_array; }

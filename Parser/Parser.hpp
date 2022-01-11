@@ -41,6 +41,7 @@ struct Parser {
   vector<Token> tokens;
   size_t index;
   size_t token_index;
+  IRBuilder builder;
 
   inline static unordered_set<string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
@@ -208,22 +209,22 @@ struct Parser {
     return {false, {}};
   }
 
-  Value *expression() { return assignmentExpression(); }
+  ValueHandle expression() { return assignmentExpression(); }
 
-  Value *assignmentExpression() {
+  ValueHandle assignmentExpression() {
     auto lhs = conditionalExpression();
-    Value *rhs = nullptr;
+    ValueHandle rhs = 0;
     if (consume("=")) {
       rhs = assignmentExpression();
     }
     return _dummy(lhs, rhs);
   }
 
-  Value *conditionalExpression() {
+  ValueHandle conditionalExpression() {
     return binaryOpExpression(0, castExpression());
   }
 
-  Value *binaryOpExpression(int prec, Value *lhs) {
+  ValueHandle binaryOpExpression(int prec, ValueHandle lhs) {
     for (;;) {
       auto tok = peek();
       int tok_prec, next_prec;
@@ -246,9 +247,9 @@ struct Parser {
     }
   }
 
-  Value *castExpression() { return unaryExpression(); }
+  ValueHandle castExpression() { return unaryExpression(); }
 
-  Value *unaryExpression() {
+  ValueHandle unaryExpression() {
     auto next_tok = peek();
     if (next_tok.text == "-" || next_tok.text == "+" || next_tok.text == "!") {
       skip();
@@ -257,7 +258,7 @@ struct Parser {
     return postfixExpression();
   }
 
-  Value *postfixExpression() {
+  ValueHandle postfixExpression() {
     auto expr = primaryExpression();
     while (peek("[") || peek("("))
       if (consume("[")) {
@@ -271,14 +272,14 @@ struct Parser {
     return expr;
   }
 
-  Value *argumentExpressionList() {
-    vector<Value *> args;
+  ValueHandle argumentExpressionList() {
+    vector<ValueHandle> args;
     args.push_back(assignmentExpression());
     while (consume(",")) args.push_back(assignmentExpression());
-    return _dummy(nullptr, nullptr);
+    return _dummy(0, 0);
   }
 
-  Value *primaryExpression() {
+  ValueHandle primaryExpression() {
     if (consume("(")) {
       auto expr = expression();
       expect(")");
@@ -289,7 +290,7 @@ struct Parser {
     return {};
   }
 
-  Value *_dummy(Value *lhs, Value *rhs) { return lhs; }
+  ValueHandle _dummy(ValueHandle lhs, ValueHandle rhs) { return lhs; }
 
   void selectionStatement() {
     expect("if");
@@ -358,16 +359,16 @@ struct Parser {
     expect("}");
   }
 
-  Value *initializerList() {
-    vector<Value *> vals;
+  ValueHandle initializerList() {
+    vector<ValueHandle> vals;
     if (!peek("}")) {
       vals.emplace_back(initializer());
       while (consume(",") && !peek("}")) vals.emplace_back(initializer());
     }
-    return nullptr;
+    return 0;
   }
 
-  Value *initializer() {
+  ValueHandle initializer() {
     if (consume("{")) {
       auto initList = initializerList();
       consume(",");
@@ -379,56 +380,64 @@ struct Parser {
     }
   }
 
-  void initDeclarator(Type declspec) {
+  ValueHandle initDeclarator(Type declspec) {
     auto [name, index, paramList, dimensions] = declarator();
-    Value *init;
+    ValueHandle init;
     if (consume("=")) {
       init = initializer();
     }
     if (index == 1) {
       fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
     } else if (index == 2) {
-      fmt::print("index_t: type: {} | name: {}\n", declspec.toString(), name);
+      fmt::print("variable: type: {} | name: {}\n", declspec.toString(), name);
     }
+    return init;
   }
 
   void externalDeclaration() {
     Type declspec = declarationSpecifiers();
-    Value *init;
+    ValueHandle init;
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0) {
       compoundStatement();
       fmt::print("function: return type: {} | name: {}\n", declspec.toString(),
                  name);
+
+      // IR generation for function
     } else {
       if (consume("=")) {
         init = initializer();
       }
-      if (index == 1) {
-        fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
-      } else if (index == 2) {
-        fmt::print("index_t: type: {} | name: {}\n", declspec.toString(),
-                   name);
-      }
+
       while (consume(",")) {
         initDeclarator(declspec);
       }
       expect(";");
+
+      // IR generation for global variable
+      if (index == 0) {
+        throw runtime_error("initializer element is not constant");
+      } else if (index == 1) {
+        fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
+      } else if (index == 2) {
+        fmt::print("variable: type: {} | name: {}\n", declspec.toString(),
+                   name);
+      }
     }
   }
 
-  index_t parameterDeclaration() {
+  ValueHandle parameterDeclaration() {
     Type declspec = declarationSpecifiers();
     auto [name, index, paramList, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
-    index_t var;
+    ValueHandle var;
     return var;
   }
 
-  vector<index_t> parameterTypeList() {
-    vector<index_t> param;
+  vector<ValueHandle> parameterTypeList() {
+    vector<ValueHandle> param;
     expect("(");
     if (!peek(")")) {
       param.push_back(parameterDeclaration());
@@ -451,9 +460,9 @@ struct Parser {
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<index_t>, vector<Value>> declarator() {
+  tuple<string_view, size_t, vector<ValueHandle>, vector<Value>> declarator() {
     Token name = expectIdentifier();
-    vector<index_t> paramList;
+    vector<ValueHandle> paramList;
     vector<Value> dimensions;
     size_t index;
     if (peek("(")) {
@@ -471,17 +480,17 @@ struct Parser {
 
   Type declarationSpecifiers() {
     Type ty{};
-    /*
+
     for (;;) {
       if (consume("const"))
-        ty.ty_qual |= CONST;
+        ty.refTypeQualifier() = TQ_Const;
       else if (consume("void"))
-        ty.ty_spec += VOID;
+        ty.refTypeSpecifier() = TS_Void;
       else if (consume("int"))
-        ty.ty_spec += INT;
+        ty.refTypeSpecifier() = TS_Int;
       else
         break;
-    }*/
+    }
     return ty;
   }
 
@@ -494,7 +503,10 @@ struct Parser {
     }
   }
 
-  void parse() { translationUnit(); }
+  void parse() {
+    builder.createModule();
+    translationUnit();
+  }
 
   Parser(const string &input)
     : input(input), input_view(input), index(0), token_index(0) {}
