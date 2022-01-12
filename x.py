@@ -32,7 +32,7 @@ def check_test_name_valid(name):
 
 
 def check_test_binary_valid(cc, name):
-    if not os.path.isfile(get_test_binary(cc, name)):
+    if not (os.path.isfile(get_test_binary(cc, name)) or os.path.isfile(get_test_binary(cc, name) + '.exe')):
         print(f'Error: not a binary: {get_test_binary(cc, name)}')
         exit(1)
 
@@ -87,7 +87,7 @@ def get_cc_args(cc):
 
 
 def check(args):
-    if not os.path.exists(default_syoc_path):
+    if not os.path.exists(default_syoc_path) and not os.path.exists(default_syoc_path + '.exe'):
         print(f'Error: {default_syoc_path} not found')
         return
     for root, dirs, files in os.walk(test_dir):
@@ -109,7 +109,7 @@ def run(args):
                 if name.endswith('.sy'):
                     bin_root = root.replace(test_dir, f'{binary_dir}{cc}/')
                     bin_path = os.path.join(bin_root, name.removesuffix('.sy'))
-                    if not os.path.isfile(bin_path):
+                    if not (os.path.isfile(bin_path) or os.path.isfile(bin_path + '.exe')):
                         continue
                     out_root = root.replace(test_dir, f'{output_dir}{cc}/')
                     out_path = os.path.join(out_root, name.removesuffix('.sy'))
@@ -123,8 +123,8 @@ def run(args):
         check_test_binary_valid(cc, path)
         print(f'Running ({cc}): {path}')
         create_father_dir(get_test_output(cc, path))
-        run_single(get_test_binary(path), get_test_input(
-            path), get_test_output(path))
+        run_single(get_test_binary(cc, path), get_test_input(
+            path), get_test_output(cc, path))
 
 
 def compile(args):
@@ -177,7 +177,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='SysY Optimizing Compiler Test Script')
     flags = None
-    
+
     subparser = parser.add_subparsers(dest='command')
 
     cc = subparser.add_parser(
@@ -186,7 +186,8 @@ def main():
                     'syoc'], default='clang', help='select one compiler')
     cc.add_argument('--path', dest='path', type=filepath,
                     help='path to the compiler')
-    cc.add_argument('--flags', dest=flags, type=str, help='extra compiler flags')
+    cc.add_argument('--flags', dest=flags, type=str,
+                    help='extra compiler flags')
     cc.add_argument('test', help='the name of the test you want to compile')
     cc_all = subparser.add_parser('compileall', help='compile all binary')
     cc_all.add_argument('cc', choices=['gcc', 'clang',
@@ -194,7 +195,8 @@ def main():
     cc_all.add_argument('--path', dest='path', type=filepath,
                         help='path to the compiler')
 
-    cc_all.add_argument('--flags', dest=flags, type=str, help='extra compiler flags')
+    cc_all.add_argument('--flags', dest=flags, type=str,
+                        help='extra compiler flags')
     rn = subparser.add_parser('run', help='run the binary')
     rn.add_argument('cc', choices=['gcc', 'clang',
                                    'syoc'], default='clang', help='select one compiler')
