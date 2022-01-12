@@ -78,6 +78,8 @@ class Instruction;
 class Constant;
 class ConstantArray;
 class ConstantExpr;
+class ConstantInteger;
+class GlobalVariable;
 class Function;
 class IRBuilder;
 
@@ -98,13 +100,13 @@ public:
 };
 
 struct Value {
-  std::variant<BasicBlock *, Instruction *, Constant *, Function *, Module *> _;
+  std::variant<BasicBlock *, Instruction *, GlobalVariable *, Constant *, Function *, Module *> _;
   friend IRBuilder;
   template <typename T> T *get() {
     if (std::holds_alternative<T *>(_)) {
       return std::get<T *>(_);
     }
-    throw std::runtime_error("Value holds nothing");
+    throw std::runtime_error("Value not holds T");
   }
 };
 
@@ -133,6 +135,27 @@ public:
     : op(op), parent(parent), identity(identity), arg{arg0, arg1, arg2} {}
 };
 
+class GlobalVariable {
+  Type type;
+  ValueHandle parent;
+  ValueHandle identity;
+  ValueHandle initializer;
+  std::string_view name;
+  friend IRBuilder;
+
+public:
+  GlobalVariable(ValueHandle parent, ValueHandle identity,
+                 ValueHandle initializer)
+    : parent(parent), identity(identity), initializer(initializer) {}
+  ValueHandle &refInitializer() { return initializer; }
+  Type &refType() { return type; }
+  std::string_view &refName() { return name; }
+};
+
+class ConstantArray;
+class ConstantExpr;
+class ConstantInteger;
+
 class Constant {
   ConstantType constant_type;
   Type type;
@@ -149,6 +172,7 @@ public:
   auto &refName() { return name; }
   auto &refType() { return type; }
   auto &refConstantType() { return constant_type; }
+  template <typename T> T cast();
 };
 
 class ConstantInteger : public Constant {
@@ -204,11 +228,14 @@ public:
 class Module {
   std::vector<Value> pool;
   std::vector<ValueHandle> global_function_table;
-  std::vector<ValueHandle> global_constant_table;
+  std::vector<ValueHandle> global_value_table;
   friend IRBuilder;
 
 public:
   Module() { pool.emplace_back(Value{this}); }
+  template <typename T> T handle_cast(ValueHandle handle) {
+    return pool.at(handle).get<T>();
+  }
 };
 
 class IRBuilder {
@@ -216,6 +243,7 @@ private:
   Module *module = nullptr;
   Function *function = nullptr;
   BasicBlock *basic_block = nullptr;
+  GlobalVariable *global_variable = nullptr;
   ConstantArray *constant_array = nullptr;
   ConstantExpr *constant_expr = nullptr;
   ConstantInteger *constant_integer = nullptr;
@@ -274,32 +302,31 @@ public:
     return basic_block->identity;
   }
 
-  ValueHandle createConstantInteger(uint64_t value,
-                                    bool add_to_global = false) {
+  ValueHandle createGlobalVariable() {
+    check_module();
+    global_variable = new GlobalVariable(0, module->pool.size(), 0);
+    module->pool.emplace_back(Value{global_variable});
+    return global_variable->identity;
+  }
+
+  ValueHandle createConstantInteger(uint64_t value) {
     check_module();
     constant_integer = new ConstantInteger(0, module->pool.size(), value);
     module->pool.emplace_back(Value{constant_integer});
-    if (add_to_global)
-      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_integer->identity;
   }
 
-  ValueHandle createConstantArray(bool add_to_global = false) {
+  ValueHandle createConstantArray() {
     check_module();
     constant_array = new ConstantArray(0, module->pool.size());
     module->pool.emplace_back(Value{constant_array});
-    if (add_to_global)
-      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_array->identity;
   }
 
-  ValueHandle createConstantExpr(OpType op, ValueHandle left, ValueHandle right,
-                                 bool add_to_global = false) {
+  ValueHandle createConstantExpr(OpType op, ValueHandle left, ValueHandle right) {
     check_module();
     constant_expr = new ConstantExpr(op, 0, module->pool.size(), left, right);
     module->pool.emplace_back(Value{constant_expr});
-    if (add_to_global)
-      module->global_constant_table.emplace_back(constant_array->identity);
     return constant_expr->identity;
   }
 
@@ -308,10 +335,16 @@ public:
     return create_raw_instruction(op, left, right, 0);
   }
 
+  GlobalVariable *getGlobalVariable() { return global_variable; }
   ConstantArray *getConstantArray() { return constant_array; }
   ConstantExpr *getConstantExpr() { return constant_expr; }
   ConstantInteger *getConstantInteger() { return constant_integer; }
   BasicBlock *getBasicBlock() { return basic_block; }
   Function *getFunction() { return function; }
   Module *getModule() { return module; }
+
+  void addGlobalValue(ValueHandle handle) {
+    check_module();
+    module->global_value_table.push_back(handle);
+  }
 };

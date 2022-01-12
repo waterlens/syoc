@@ -360,12 +360,13 @@ struct Parser {
   }
 
   ValueHandle initializerList() {
-    vector<ValueHandle> vals;
+    auto init = builder.createConstantArray();
+    auto &elem = builder.getConstantArray()->refElement();
     if (!peek("}")) {
-      vals.emplace_back(initializer());
-      while (consume(",") && !peek("}")) vals.emplace_back(initializer());
+      elem.emplace_back(initializer());
+      while (consume(",") && !peek("}")) elem.emplace_back(initializer());
     }
-    return 0;
+    return init;
   }
 
   ValueHandle initializer() {
@@ -414,15 +415,21 @@ struct Parser {
       }
       expect(";");
 
-      // IR generation for global variable
-      if (index == 0) {
-        throw runtime_error("initializer element is not constant");
-      } else if (index == 1) {
-        fmt::print("array: type: {} | name: {}\n", declspec.toString(), name);
+            // IR generation for global variable
+      auto gv_t = declspec;
+      auto gv = builder.createGlobalVariable();
+      auto p_gv = builder.getGlobalVariable();
+
+      if (index == 1) {
+        gv_t.refDimension() = dimensions;
       } else if (index == 2) {
-        fmt::print("variable: type: {} | name: {}\n", declspec.toString(),
-                   name);
       }
+      p_gv->refType() = gv_t;
+      p_gv->refName() = name;
+      p_gv->refInitializer() = init;
+
+      builder.addGlobalValue(gv);
+      // IR generation end
     }
   }
 
@@ -448,22 +455,22 @@ struct Parser {
     return param;
   }
 
-  vector<Value> arrayDimmension() {
-    vector<Value> dimensions;
+  vector<ValueHandle> arrayDimmension() {
+    vector<ValueHandle> dimensions;
     while (peek("[")) {
       skip();
       if (!peek("]")) {
-        assignmentExpression();
+        dimensions.push_back(assignmentExpression());
       }
       expect("]");
     }
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<ValueHandle>, vector<Value>> declarator() {
+  tuple<string_view, size_t, vector<ValueHandle>, vector<ValueHandle>>
+  declarator() {
     Token name = expectIdentifier();
-    vector<ValueHandle> paramList;
-    vector<Value> dimensions;
+    vector<ValueHandle> paramList, dimensions;
     size_t index;
     if (peek("(")) {
       index = 0;
