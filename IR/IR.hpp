@@ -65,8 +65,10 @@ inline constexpr std::string_view constant_type_name[]{
 };
 
 using ValueHandle = uint32_t;
-inline bool is_index_valid(ValueHandle index) {
-  return index != std::numeric_limits<ValueHandle>::max();
+inline constexpr ValueHandle invalid_value_handle =
+  std::numeric_limits<ValueHandle>::max();
+inline bool is_handle_valid(ValueHandle handle) {
+  return handle != invalid_value_handle;
 }
 
 class Module;
@@ -100,7 +102,9 @@ public:
 };
 
 struct Value {
-  std::variant<BasicBlock *, Instruction *, GlobalVariable *, Constant *, Function *, Module *> _;
+  std::variant<BasicBlock *, Instruction *, GlobalVariable *, Constant *,
+               Function *, Module *>
+    _;
   friend IRBuilder;
   template <typename T> T *get() {
     if (std::holds_alternative<T *>(_)) {
@@ -130,6 +134,7 @@ class Instruction {
   friend IRBuilder;
 
 public:
+  auto &refType() { return type; }
   Instruction(OpType op, ValueHandle parent, ValueHandle identity,
               ValueHandle arg0, ValueHandle arg1, ValueHandle arg2)
     : op(op), parent(parent), identity(identity), arg{arg0, arg1, arg2} {}
@@ -212,7 +217,7 @@ public:
 
 class Function {
   Type ret;
-  std::vector<Type> arg_type;
+  std::vector<ValueHandle> args;
   ValueHandle parent;
   ValueHandle identity;
   std::vector<ValueHandle> basic_block;
@@ -221,8 +226,12 @@ class Function {
 
 public:
   Function(ValueHandle parent, ValueHandle identity)
-    : ret(), arg_type(), parent(parent), identity(identity), basic_block(),
-      name() {}
+    : ret(), args(), parent(parent), identity(identity), basic_block(), name() {
+  }
+  auto &refName() { return name; }
+  auto &refReturnType() { return ret; }
+  auto &refArgumentList() { return args; }
+  auto &refBasicBlock() { return basic_block; }
 };
 
 class Module {
@@ -247,6 +256,8 @@ private:
   ConstantArray *constant_array = nullptr;
   ConstantExpr *constant_expr = nullptr;
   ConstantInteger *constant_integer = nullptr;
+  Instruction *instruction = nullptr;
+  inline static ValueHandle module_handle = 0;
 
 private:
   void check_module() {
@@ -267,15 +278,16 @@ private:
     }
   }
 
-  ValueHandle create_raw_instruction(OpType op, ValueHandle arg0,
-                                     ValueHandle arg1, ValueHandle arg2) {
+  std::tuple<ValueHandle, Instruction *>
+  create_raw_instruction(OpType op, ValueHandle arg0, ValueHandle arg1,
+                         ValueHandle arg2) {
     check_module();
     check_basic_block();
     Instruction *insn = new Instruction(op, basic_block->identity,
                                         module->pool.size(), arg0, arg1, arg2);
     basic_block->insn.push_back(insn->identity);
     module->pool.push_back(Value{insn});
-    return insn->identity;
+    return {insn->identity, insn};
   }
 
 public:
@@ -286,53 +298,57 @@ public:
     module = new Module();
   }
 
-  ValueHandle createFunction() {
+  std::tuple<ValueHandle, Function *> createFunction() {
     check_module();
-    function = new Function(0, module->pool.size());
+    function = new Function(module_handle, module->pool.size());
     module->pool.emplace_back(Value{function});
-    module->global_function_table.emplace_back(function->identity);
-    return function->identity;
+    return {function->identity, function};
   }
 
-  ValueHandle createBasicBlock() {
+  std::tuple<ValueHandle, BasicBlock *> createBasicBlock() {
     check_module();
     check_function();
     basic_block = new BasicBlock(function->identity, module->pool.size());
     module->pool.emplace_back(Value{basic_block});
-    return basic_block->identity;
+    return {basic_block->identity, basic_block};
   }
 
-  ValueHandle createGlobalVariable() {
+  std::tuple<ValueHandle, GlobalVariable *> createGlobalVariable() {
     check_module();
-    global_variable = new GlobalVariable(0, module->pool.size(), 0);
+    global_variable = new GlobalVariable(module_handle, module->pool.size(),
+                                         invalid_value_handle);
     module->pool.emplace_back(Value{global_variable});
-    return global_variable->identity;
+    return {global_variable->identity, global_variable};
   }
 
-  ValueHandle createConstantInteger(uint64_t value) {
+  std::tuple<ValueHandle, ConstantInteger *>
+  createConstantInteger(uint64_t value) {
     check_module();
-    constant_integer = new ConstantInteger(0, module->pool.size(), value);
+    constant_integer =
+      new ConstantInteger(module_handle, module->pool.size(), value);
     module->pool.emplace_back(Value{constant_integer});
-    return constant_integer->identity;
+    return {constant_integer->identity, constant_integer};
   }
 
-  ValueHandle createConstantArray() {
+  std::tuple<ValueHandle, ConstantArray *> createConstantArray() {
     check_module();
-    constant_array = new ConstantArray(0, module->pool.size());
+    constant_array = new ConstantArray(module_handle, module->pool.size());
     module->pool.emplace_back(Value{constant_array});
-    return constant_array->identity;
+    return {constant_array->identity, constant_array};
   }
 
-  ValueHandle createConstantExpr(OpType op, ValueHandle left, ValueHandle right) {
+  std::tuple<ValueHandle, ConstantExpr *>
+  createConstantExpr(OpType op, ValueHandle left, ValueHandle right) {
     check_module();
-    constant_expr = new ConstantExpr(op, 0, module->pool.size(), left, right);
+    constant_expr = new ConstantExpr(op, module_handle,
+                                     module->pool.size(), left, right);
     module->pool.emplace_back(Value{constant_expr});
-    return constant_expr->identity;
+    return {constant_expr->identity, constant_expr};
   }
 
-  ValueHandle createInstruction(OpType op, ValueHandle left,
-                                ValueHandle right) {
-    return create_raw_instruction(op, left, right, 0);
+  std::tuple<ValueHandle, Instruction *>
+  createInstruction(OpType op, ValueHandle left, ValueHandle right) {
+    return create_raw_instruction(op, left, right, invalid_value_handle);
   }
 
   GlobalVariable *getGlobalVariable() { return global_variable; }
@@ -347,4 +363,11 @@ public:
     check_module();
     module->global_value_table.push_back(handle);
   }
+
+  void addFunction(ValueHandle handle) {
+    check_module();
+    module->global_function_table.push_back(handle);
+  }
+
+  void dumpAll();
 };

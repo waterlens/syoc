@@ -87,23 +87,29 @@ def get_cc_args(cc):
 
 
 def check(args):
-    if not os.path.exists(default_syoc_path) and not os.path.exists(default_syoc_path + '.exe'):
-        print(f'Error: {default_syoc_path} not found')
-        return
-    for root, dirs, files in os.walk(test_dir):
-        for name in sorted(files):
-            if name.endswith('.sy'):
-                name = os.path.join(root, name)
-                print('Checking ' + name)
-                if subprocess.run([default_syoc_path, name], stdout=subprocess.DEVNULL).returncode != 0:
-                    print(f'Error: {name}')
-                    open('current.txt', 'wb').write(name.encode())
-                    return
-
+    cc, cc_path = get_cc_path('syoc', None)
+    if args.test is None:
+        for root, dirs, files in os.walk(test_dir):
+            for name in sorted(files):
+                if name.endswith('.sy'):
+                    name = os.path.join(root, name)
+                    print(f'Checking {name}')
+                    if subprocess.run([cc_path, name], stdout=subprocess.DEVNULL).returncode != 0:
+                        print(f'Error: {name}')
+                        open('current.txt', 'wb').write(name.encode())
+                        return
+    else:
+        for path in args.test:
+            check_test_name_valid(path)
+            print(f'Checking {path}')
+            if subprocess.run([cc_path, get_test_source(path)], stdout=subprocess.DEVNULL).returncode != 0:
+                print(f'Error: {path}')
+                open('current.txt', 'wb').write(path.encode())
+                return
 
 def run(args):
     cc = args.cc
-    if args.command == 'runall':
+    if args.test is None:
         for root, dirs, files in os.walk(test_dir):
             for name in sorted(files):
                 if name.endswith('.sy'):
@@ -119,12 +125,12 @@ def run(args):
                     print(f'Running ({cc}): {bin_path}')
                     run_single(bin_path, in_path, out_path)
     else:
-        path = args.test
-        check_test_binary_valid(cc, path)
-        print(f'Running ({cc}): {path}')
-        create_father_dir(get_test_output(cc, path))
-        run_single(get_test_binary(cc, path), get_test_input(
-            path), get_test_output(cc, path))
+        for path in args.test:
+            check_test_binary_valid(cc, path)
+            print(f'Running ({cc}): {path}')
+            create_father_dir(get_test_output(cc, path))
+            run_single(get_test_binary(cc, path), get_test_input(
+                path), get_test_output(cc, path))
 
 
 def compile(args):
@@ -135,7 +141,7 @@ def compile(args):
 
     print(f'Flags: {cc_args}')
 
-    if args.command == 'compileall':
+    if args.test is None:
         for root, dirs, files in os.walk(test_dir):
             for name in sorted(files):
                 if name.endswith('.sy'):
@@ -147,12 +153,12 @@ def compile(args):
                     print(f'Compiling ({cc}): {full}')
                     compile_single(cc_path, cc_args, full, bin_path)
     else:
-        path = args.test
-        check_test_name_valid(path)
-        print(f'Compiling ({cc}): {path}')
-        create_father_dir(get_test_binary(cc, path))
-        compile_single(cc_path, cc_args, get_test_source(
-            path), get_test_binary(cc, path))
+        for path in args.test:
+            check_test_name_valid(path)
+            print(f'Compiling ({cc}): {path}')
+            create_father_dir(get_test_binary(cc, path))
+            compile_single(cc_path, cc_args, get_test_source(
+                path), get_test_binary(cc, path))
 
 
 def clean(args):
@@ -188,34 +194,27 @@ def main():
                     help='path to the compiler')
     cc.add_argument('--flags', dest=flags, type=str,
                     help='extra compiler flags')
-    cc.add_argument('test', help='the name of the test you want to compile')
-    cc_all = subparser.add_parser('compileall', help='compile all binary')
-    cc_all.add_argument('cc', choices=['gcc', 'clang',
-                                       'syoc'], default='clang', help='select one compiler')
-    cc_all.add_argument('--path', dest='path', type=filepath,
-                        help='path to the compiler')
-
-    cc_all.add_argument('--flags', dest=flags, type=str,
-                        help='extra compiler flags')
+    cc.add_argument('--test', nargs='+',
+                    help='the name of the test you want to compile')
     rn = subparser.add_parser('run', help='run the binary')
     rn.add_argument('cc', choices=['gcc', 'clang',
                                    'syoc'], default='clang', help='select one compiler')
-    rn.add_argument('test', help='the name of the test you want to run')
-    rn_all = subparser.add_parser('runall', help='run all binary')
-    rn_all.add_argument('cc', choices=['gcc', 'clang',
-                                       'syoc'], default='clang', help='select one compiler')
+    rn.add_argument('--test', nargs='+',
+                    help='the name of the test you want to run')
     subparser.add_parser('clean', help='clean the generated files')
-    subparser.add_parser('check', help='check if syoc will crash')
+    ck = subparser.add_parser('check', help='check if syoc will crash')
+    ck.add_argument('--test', nargs='+',
+                    help='the name of the test you want to check')
 
     args = parser.parse_args()
 
-    if args.command == 'compile' or args.command == 'compileall':
+    if args.command == 'compile':
         compile(args)
     elif args.command == 'check':
         check(args)
     elif args.command == 'clean':
         clean(args)
-    elif args.command == 'run' or args.command == 'runall':
+    elif args.command == 'run':
         run(args)
 
 

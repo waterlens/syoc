@@ -36,5 +36,6 @@ Misc/
 .cache/
 .vscode/
 current.txt
+dump.dot
 Binary/
 Output/
