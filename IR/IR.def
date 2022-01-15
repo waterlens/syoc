@@ -1,13 +1,9 @@
 #ifndef OpcodeDefine
-#define OpcodeDefine(x)
+#define OpcodeDefine(x, s)
 #endif
 
 #ifndef ValueTypeDefine
 #define ValueTypeDefine(x)
-#endif
-
-#ifndef ConstantTypeDefine
-#define ConstantTypeDefine(x)
 #endif
 
 #ifndef TypeSpecifierDefine
@@ -18,26 +14,27 @@
 #define TypeQualifierDefine(x, y)
 #endif
 
-OpcodeDefine(OP_None)
-OpcodeDefine(OP_Phi)
-OpcodeDefine(OP_Mul)
-OpcodeDefine(OP_Div)
-OpcodeDefine(OP_Mod)
-OpcodeDefine(OP_Add)
-OpcodeDefine(OP_Sub)
-OpcodeDefine(OP_Lt)
-OpcodeDefine(OP_Gt)
-OpcodeDefine(OP_Le)
-OpcodeDefine(OP_Ge)
-OpcodeDefine(OP_Eq)
-OpcodeDefine(OP_Ne)
-OpcodeDefine(OP_Land)
-OpcodeDefine(OP_Lor)
-OpcodeDefine(OP_LNot)
-OpcodeDefine(OP_Neg)
-OpcodeDefine(OP_Branch)
-OpcodeDefine(OP_Allocate)
-OpcodeDefine(OP_End)
+OpcodeDefine(OP_None, "")
+OpcodeDefine(OP_Phi, "phi")
+OpcodeDefine(OP_Mul, "mul")
+OpcodeDefine(OP_Div, "div")
+OpcodeDefine(OP_Mod, "mod")
+OpcodeDefine(OP_Add, "add")
+OpcodeDefine(OP_Sub, "sub")
+OpcodeDefine(OP_Lt,  "lt")
+OpcodeDefine(OP_Gt,  "gt")
+OpcodeDefine(OP_Le,  "le")
+OpcodeDefine(OP_Ge,  "ge")
+OpcodeDefine(OP_Eq,  "eq")
+OpcodeDefine(OP_Ne,  "ne")
+OpcodeDefine(OP_Land,"land")
+OpcodeDefine(OP_Lor, "lor")
+OpcodeDefine(OP_LNot,"lnot")
+OpcodeDefine(OP_Neg, "neg")
+OpcodeDefine(OP_Br,  "br")
+OpcodeDefine(OP_Jump,"j")
+OpcodeDefine(OP_Allocate,   "alloca")
+OpcodeDefine(OP_End, "")
 
 ValueTypeDefine(VT_BasicBlock)
 ValueTypeDefine(VT_Constant)
@@ -49,12 +46,7 @@ TypeSpecifierDefine(TS_Int,   1 << 4)
 
 TypeQualifierDefine(TQ_Const, 1 << 0)
 
-ConstantTypeDefine(CT_Integer)
-ConstantTypeDefine(CT_Array)
-ConstantTypeDefine(CT_Expression)
-
 #undef OpcodeDefine
 #undef ValueTypeDefine
-#undef ConstantTypeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine

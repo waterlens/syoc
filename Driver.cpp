@@ -15,7 +15,6 @@ int main(int argc, char *argv[]) {
 
   Parser parser(fileContent);
   parser.tokenize();
-  for (auto &&s : parser.tokens) fmt::print("{}\n", s.text);
   parser.parse();
 
   return 0;

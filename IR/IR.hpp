@@ -1,12 +1,15 @@
 #pragma once
 
+#include "fmt/core.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <fmt/format.h>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <stdint.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -14,12 +17,12 @@
 #include <variant>
 #include <vector>
 
-#define OpcodeDefine(x) x,
+#define OpcodeDefine(x, n) x,
 enum OpType {
 #include "IR.def"
 };
 
-#define OpcodeDefine(x) #x,
+#define OpcodeDefine(x, n) n,
 inline constexpr std::string_view op_name[]{
 #include "IR.def"
 };
@@ -54,16 +57,6 @@ inline constexpr std::string_view type_qual_name[]{
 #include "IR.def"
 };
 
-#define ConstantTypeDefine(x) x,
-enum ConstantType {
-#include "IR.def"
-};
-
-#define COnstantTypeDefine(x) #x,
-inline constexpr std::string_view constant_type_name[]{
-#include "IR.def"
-};
-
 using ValueHandle = uint32_t;
 inline constexpr ValueHandle invalid_value_handle =
   std::numeric_limits<ValueHandle>::max();
@@ -77,7 +70,6 @@ struct Value;
 
 class BasicBlock;
 class Instruction;
-class Constant;
 class ConstantArray;
 class ConstantExpr;
 class ConstantInteger;
@@ -88,27 +80,38 @@ class IRBuilder;
 class Type {
   TypeSpecifier spec;
   TypeQualifier qual;
-  std::vector<uint32_t> dim;
+  std::vector<ValueHandle> dim;
   friend IRBuilder;
 
 public:
   Type(TypeSpecifier spec, TypeQualifier qual, std::vector<uint32_t> dim)
     : spec(spec), qual(qual), dim(dim) {}
   Type() : spec(), qual(), dim() {}
-  std::string toString() { return ""; }
+  std::string toString() {
+    static std::string base_type;
+    static std::string ret;
+    base_type = spec == TS_Int ? "i32" : spec == TS_Void ? "void" : "";
+    if (dim.empty())
+      return base_type;
+    ret.clear();
+    for (auto n : dim) ret.append(fmt::format("[%{} x ", n));
+    ret.append(base_type);
+    for (auto _ : dim) ret.push_back(']');
+    return ret;
+  }
   TypeSpecifier &refTypeSpecifier() { return spec; }
   TypeQualifier &refTypeQualifier() { return qual; }
   std::vector<uint32_t> &refDimension() { return dim; }
 };
 
 struct Value {
-  std::variant<BasicBlock *, Instruction *, GlobalVariable *, Constant *,
-               Function *, Module *>
+  std::variant<BasicBlock *, Instruction *, GlobalVariable *, ConstantInteger *,
+               ConstantArray *, ConstantExpr *, Function *, Module *>
     _;
   friend IRBuilder;
-  template <typename T> T *get() {
-    if (std::holds_alternative<T *>(_)) {
-      return std::get<T *>(_);
+  template <typename T> T get() {
+    if (std::holds_alternative<T>(_)) {
+      return std::get<T>(_);
     }
     throw std::runtime_error("Value not holds T");
   }
@@ -123,6 +126,7 @@ class BasicBlock {
 public:
   BasicBlock(ValueHandle parent, ValueHandle identity)
     : parent(parent), identity(identity) {}
+  auto &refInstruction() { return insn; }
 };
 
 class Instruction {
@@ -135,9 +139,21 @@ class Instruction {
 
 public:
   auto &refType() { return type; }
-  Instruction(OpType op, ValueHandle parent, ValueHandle identity,
+  std::string toString() {
+    static std::string arg_str;
+    arg_str.clear();
+    for (auto &a : arg)
+      if (is_handle_valid(a))
+        arg_str.append(fmt::format("%{}, ", a));
+    if (arg_str.ends_with(", "))
+      arg_str.pop_back(), arg_str.pop_back();
+    return fmt::format("%{} = {} {} {}", identity, op_name[op], type.toString(),
+                       arg_str);
+  }
+  Instruction(OpType op, Type type, ValueHandle parent, ValueHandle identity,
               ValueHandle arg0, ValueHandle arg1, ValueHandle arg2)
-    : op(op), parent(parent), identity(identity), arg{arg0, arg1, arg2} {}
+    : op(op), type(type), parent(parent),
+      identity(identity), arg{arg0, arg1, arg2} {}
 };
 
 class GlobalVariable {
@@ -157,67 +173,70 @@ public:
   std::string_view &refName() { return name; }
 };
 
-class ConstantArray;
-class ConstantExpr;
-class ConstantInteger;
-
-class Constant {
-  ConstantType constant_type;
-  Type type;
+class ConstantInteger {
   ValueHandle parent;
   ValueHandle identity;
-  std::string_view name;
+  uint64_t value;
   friend IRBuilder;
 
 public:
-  Constant(ConstantType constant_type, Type type, ValueHandle parent,
-           ValueHandle identity, std::string_view name)
-    : constant_type(constant_type), type(type), parent(parent),
-      identity(identity), name(name) {}
-  auto &refName() { return name; }
-  auto &refType() { return type; }
-  auto &refConstantType() { return constant_type; }
-  template <typename T> T cast();
+  ConstantInteger(ValueHandle parent, ValueHandle identity, uint64_t value)
+    : parent(parent), identity(identity), value(value) {}
+  uint64_t &refValue() { return value; }
+  std::string toString() {
+    return fmt::format("%{} = i32 {}", identity, value);
+  }
 };
 
-class ConstantInteger : public Constant {
-  uint64_t value;
-
-public:
-  ConstantInteger(uint64_t value, ValueHandle parent, ValueHandle identity,
-                  std::string_view name = "(integer)")
-    : Constant(ConstantType::CT_Integer, Type{TS_Int, TQ_Const, {}}, parent,
-               identity, name),
-      value(value) {}
-};
-
-class ConstantArray : public Constant {
+class ConstantArray {
+  ValueHandle parent;
+  ValueHandle identity;
   std::vector<ValueHandle> element;
+  friend IRBuilder;
 
 public:
-  ConstantArray(ValueHandle parent, ValueHandle identity,
-                std::string_view name = "(constant array)")
-    : Constant(ConstantType::CT_Array, {}, parent, identity, name) {}
+  ConstantArray(ValueHandle parent, ValueHandle identity)
+    : parent(parent), identity(identity) {}
   auto &refElement() { return element; }
+  std::string toString() {
+    static std::string buffer;
+    buffer.clear();
+    buffer.append(fmt::format("%{} = ", identity));
+    buffer.append("[");
+    for (auto &e : element) buffer.append(fmt::format("%{}, ", e));
+    if (buffer.ends_with(", "))
+      buffer.pop_back(), buffer.pop_back();
+    buffer.append("]");
+    return buffer;
+  }
 };
 
-class ConstantExpr : public Constant {
+class ConstantExpr {
+  ValueHandle parent;
+  ValueHandle identity;
   OpType op;
   ValueHandle left;
   ValueHandle right;
+  friend IRBuilder;
 
 public:
   ConstantExpr(OpType op, ValueHandle parent, ValueHandle identity,
-               ValueHandle left, ValueHandle right,
-               std::string_view name = "(constant expression")
-    : Constant(ConstantType::CT_Expression, Type{TS_Int, TQ_Const, {}}, parent,
-               identity, name),
-      op(op), left(left), right(right) {}
+               ValueHandle left, ValueHandle right)
+    : parent(parent), identity(identity), op(op), left(left), right(right) {}
+  std::string toString() {
+    static std::string arg_str;
+    arg_str.clear();
+    if (is_handle_valid(left))
+      arg_str.append(fmt::format("%{}", left));
+    if (is_handle_valid(right))
+      arg_str.append(fmt::format(", %{}", right));
+    return fmt::format("%{} = {} {}", identity, op_name[op], arg_str);
+  }
 };
 
 class Function {
   Type ret;
-  std::vector<ValueHandle> args;
+  std::vector<std::tuple<std::string_view, Type>> args;
   ValueHandle parent;
   ValueHandle identity;
   std::vector<ValueHandle> basic_block;
@@ -238,6 +257,7 @@ class Module {
   std::vector<Value> pool;
   std::vector<ValueHandle> global_function_table;
   std::vector<ValueHandle> global_value_table;
+  std::vector<ValueHandle> global_constant_table;
   friend IRBuilder;
 
 public:
@@ -279,13 +299,12 @@ private:
   }
 
   std::tuple<ValueHandle, Instruction *>
-  create_raw_instruction(OpType op, ValueHandle arg0, ValueHandle arg1,
-                         ValueHandle arg2) {
+  create_raw_instruction(OpType op, Type type, ValueHandle arg0,
+                         ValueHandle arg1, ValueHandle arg2) {
     check_module();
     check_basic_block();
-    Instruction *insn = new Instruction(op, basic_block->identity,
+    Instruction *insn = new Instruction(op, type, basic_block->identity,
                                         module->pool.size(), arg0, arg1, arg2);
-    basic_block->insn.push_back(insn->identity);
     module->pool.push_back(Value{insn});
     return {insn->identity, insn};
   }
@@ -327,6 +346,7 @@ public:
     constant_integer =
       new ConstantInteger(module_handle, module->pool.size(), value);
     module->pool.emplace_back(Value{constant_integer});
+    module->global_constant_table.push_back(constant_integer->identity);
     return {constant_integer->identity, constant_integer};
   }
 
@@ -334,21 +354,32 @@ public:
     check_module();
     constant_array = new ConstantArray(module_handle, module->pool.size());
     module->pool.emplace_back(Value{constant_array});
+    module->global_constant_table.push_back(constant_array->identity);
     return {constant_array->identity, constant_array};
   }
 
   std::tuple<ValueHandle, ConstantExpr *>
   createConstantExpr(OpType op, ValueHandle left, ValueHandle right) {
     check_module();
-    constant_expr = new ConstantExpr(op, module_handle,
-                                     module->pool.size(), left, right);
+    constant_expr =
+      new ConstantExpr(op, module_handle, module->pool.size(), left, right);
     module->pool.emplace_back(Value{constant_expr});
+    module->global_constant_table.push_back(constant_expr->identity);
     return {constant_expr->identity, constant_expr};
   }
 
   std::tuple<ValueHandle, Instruction *>
-  createInstruction(OpType op, ValueHandle left, ValueHandle right) {
-    return create_raw_instruction(op, left, right, invalid_value_handle);
+  createInstruction(OpType op, ValueHandle v1,
+                    ValueHandle v2 = invalid_value_handle,
+                    ValueHandle v3 = invalid_value_handle) {
+    return create_raw_instruction(op, {}, v1, v2, v3);
+  }
+
+  std::tuple<ValueHandle, Instruction *>
+  createInstruction(OpType op, Type type, ValueHandle v1,
+                    ValueHandle v2 = invalid_value_handle,
+                    ValueHandle v3 = invalid_value_handle) {
+    return create_raw_instruction(op, type, v1, v2, v3);
   }
 
   GlobalVariable *getGlobalVariable() { return global_variable; }
@@ -369,5 +400,6 @@ public:
     module->global_function_table.push_back(handle);
   }
 
-  void dumpAll();
+  void dumpGraph();
+  void dumpText();
 };

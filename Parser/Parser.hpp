@@ -104,12 +104,9 @@ struct Parser {
       auto i = index;
       if (startWith("0x")) {
         i += 2;
-        for (; i < input.length() && isxdigit(input[i]); i++)
-          ;
-      } else {
-        for (; i < input.length() && isdigit(input[i]); i++)
-          ;
-      }
+        while (i < input.length() && isxdigit(input[i])) i++;
+      } else
+        while (i < input.length() && isdigit(input[i])) i++;
       return i - index;
     }
     return 0;
@@ -219,7 +216,9 @@ struct Parser {
     return {false, {}};
   }
 
-  ValueHandle expression(bool is_constant_expr) { return assignmentExpression(is_constant_expr); }
+  ValueHandle expression(bool is_constant_expr) {
+    return assignmentExpression(is_constant_expr);
+  }
 
   ValueHandle assignmentExpression(bool is_constant_expr) {
     auto lhs = conditionalExpression(is_constant_expr);
@@ -231,7 +230,8 @@ struct Parser {
   }
 
   ValueHandle conditionalExpression(bool is_constant_expr) {
-    return binaryOpExpression(0, castExpression(is_constant_expr), is_constant_expr);
+    return binaryOpExpression(0, castExpression(is_constant_expr),
+                              is_constant_expr);
   }
 
   ValueHandle binaryOpExpression(int prec, ValueHandle lhs,
@@ -258,9 +258,12 @@ struct Parser {
       if (is_constant_expr)
         lhs = get<0>(builder.createConstantExpr(
           bin_op_code.find(tok.text)->second, lhs, rhs));
-      else
-        lhs = get<0>(builder.createInstruction(
-          bin_op_code.find(tok.text)->second, lhs, rhs));
+      else {
+        auto [inst, p_inst] = builder.createInstruction(
+          bin_op_code.find(tok.text)->second, lhs, rhs);
+        lhs = inst;
+        builder.getBasicBlock()->refInstruction().push_back(inst);
+      }
     }
     return lhs;
   }
@@ -282,8 +285,10 @@ struct Parser {
       if (is_constant_expr)
         return get<0>(builder.createConstantExpr(
           op, castExpression(is_constant_expr), invalid_value_handle));
-      return get<0>(builder.createInstruction(
-        op, castExpression(is_constant_expr), invalid_value_handle));
+      auto [inst, p_inst] = builder.createInstruction(
+        op, castExpression(is_constant_expr), invalid_value_handle);
+      builder.getBasicBlock()->refInstruction().push_back(inst);
+      return inst;
     }
     return postfixExpression(is_constant_expr);
   }
@@ -310,6 +315,7 @@ struct Parser {
   }
 
   ValueHandle primaryExpression(bool is_constant_expr) {
+    static string convert_buffer(16, 0);
     if (consume("(")) {
       auto expr = expression(is_constant_expr);
       expect(")");
@@ -317,7 +323,14 @@ struct Parser {
     }
     auto tok = peek();
     skip();
-    return {};
+    if (tok.token_type == TokenType::IntegerConstant) {
+      convert_buffer = tok.text;
+      return get<0>(builder.createConstantInteger(
+        strtol(convert_buffer.c_str(), nullptr, 10)));
+    } else if (tok.token_type == TokenType::Identifier) {
+      return invalid_value_handle;
+    }
+    throw std::runtime_error(fmt::format("unexpected token {}", tok.text));
   }
 
   ValueHandle _dummy(ValueHandle lhs, ValueHandle rhs) { return lhs; }
@@ -327,17 +340,63 @@ struct Parser {
     expect("(");
     auto cond = expression(false);
     expect(")");
+
+    auto cur_p_bb = builder.getBasicBlock();
+    auto [then_bb, then_p_bb] = builder.createBasicBlock();
     statement();
-    if (consume("else"))
+
+    ValueHandle else_bb = invalid_value_handle;
+    BasicBlock *else_p_bb = nullptr;
+    if (consume("else")) {
+      auto [_else_bb, _else_p_bb] = builder.createBasicBlock();
       statement();
+      else_bb = _else_bb;
+      else_p_bb = _else_p_bb;
+    }
+
+    cur_p_bb->refInstruction().push_back(
+      get<0>(builder.createInstruction(OP_Br, cond, then_bb, else_bb)));
+
+    auto [next_bb, next_p_bb] = builder.createBasicBlock();
+
+    then_p_bb->refInstruction().push_back(
+      get<0>(builder.createInstruction(OP_Jump, next_bb)));
+
+    builder.getFunction()->refBasicBlock().push_back(then_bb);
+
+    if (is_handle_valid(else_bb)) {
+      else_p_bb->refInstruction().push_back(
+        get<0>(builder.createInstruction(OP_Jump, next_bb)));
+      builder.getFunction()->refBasicBlock().push_back(else_bb);
+    }
+
+    builder.getFunction()->refBasicBlock().push_back(next_bb);
   }
 
   void iterationStatement() {
+
+    auto cur_p_bb = builder.getBasicBlock();
+
+    auto [cond_bb, cond_p_bb] = builder.createBasicBlock();
     expect("while");
     expect("(");
     auto cond = expression(false);
     expect(")");
+
+    auto [loop_bb, loop_p_bb] = builder.createBasicBlock();
     statement();
+    loop_p_bb->refInstruction().push_back(
+      get<0>(builder.createInstruction(OP_Jump, cond_bb)));
+
+    auto [next_bb, next_p_bb] = builder.createBasicBlock();
+    cur_p_bb->refInstruction().push_back(
+      get<0>(builder.createInstruction(OP_Jump, cond_bb)));
+    cond_p_bb->refInstruction().push_back(
+      get<0>(builder.createInstruction(OP_Br, cond, cond_bb, next_bb)));
+
+    builder.getFunction()->refBasicBlock().push_back(cond_bb);
+    builder.getFunction()->refBasicBlock().push_back(loop_bb);
+    builder.getFunction()->refBasicBlock().push_back(next_bb);
   }
 
   void jumpStatement() {
@@ -383,13 +442,13 @@ struct Parser {
       statement();
   }
 
-  vector<ValueHandle> compoundStatement() {
+  ValueHandle compoundStatement() {
     scopes.emplace_back();
     expect("{");
     while (!peek("}")) blockItem();
     expect("}");
     scopes.pop_back();
-    return {};
+    return invalid_value_handle;
   }
 
   ValueHandle initializerList(bool is_constant_expr) {
@@ -440,8 +499,10 @@ struct Parser {
       p_f->refArgumentList() = param_list;
       p_f->refReturnType() = declspec;
       p_f->refBasicBlock().emplace_back(bb);
-      p_f->refBasicBlock() = compoundStatement();
 
+      compoundStatement();
+
+      builder.addFunction(f);
       scopes.back()[name] = f;
     } else {
       if (consume("=")) {
@@ -479,26 +540,28 @@ struct Parser {
       auto [inst, p_inst] = builder.createInstruction(
         OP_Allocate, invalid_value_handle, invalid_value_handle);
       p_inst->refType() = ty;
+      builder.getBasicBlock()->refInstruction().push_back(inst);
       scopes.back()[name] = inst;
     }
   }
 
-  ValueHandle parameterDeclaration() {
+  tuple<string_view, Type> parameterDeclaration() {
     Type declspec = declarationSpecifiers();
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
-    ValueHandle var;
-    return var;
+    if (index == 1)
+      declspec.refDimension() = dimensions;
+    return {name, declspec};
   }
 
-  vector<ValueHandle> parameterTypeList() {
-    vector<ValueHandle> param;
+  vector<tuple<string_view, Type>> parameterTypeList() {
+    vector<tuple<string_view, Type>> param;
     expect("(");
     if (!peek(")")) {
-      param.push_back(parameterDeclaration());
-      while (consume(",")) param.push_back(parameterDeclaration());
+      param.emplace_back(parameterDeclaration());
+      while (consume(",")) param.emplace_back(parameterDeclaration());
     }
     consume(",");
     expect(")");
@@ -517,10 +580,12 @@ struct Parser {
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<ValueHandle>, vector<ValueHandle>>
+  tuple<string_view, size_t, vector<tuple<string_view, Type>>,
+        vector<ValueHandle>>
   declarator() {
     Token name = expectIdentifier();
-    vector<ValueHandle> param_list, dimensions;
+    vector<tuple<string_view, Type>> param_list;
+    vector<ValueHandle> dimensions;
     size_t index;
     if (peek("(")) {
       index = 0;
@@ -565,7 +630,8 @@ struct Parser {
     scopes.emplace_back();
     translationUnit();
     scopes.pop_back();
-    builder.dumpAll();
+    builder.dumpText();
+    builder.dumpGraph();
   }
 
   Parser(const string &input)
