@@ -23,9 +23,6 @@ void IRBuilder::dumpText() {
         [&](ConstantArray *p) {
           buffer.append(fmt::format("{}\n", p->toString()));
         },
-        [&](ConstantInteger *p) {
-          buffer.append(fmt::format("{}\n", p->toString()));
-        },
         [&](ConstantExpr *p) {
           buffer.append(fmt::format("{}\n", p->toString()));
         },
@@ -37,8 +34,9 @@ void IRBuilder::dumpText() {
     visit(overloaded{
             [](auto) { throw runtime_error("unsupported global value type"); },
             [&](GlobalVariable *p) {
-              buffer.append(
-                fmt::format("global @{} : %{}", p->name, p->identity));
+              buffer.append(fmt::format("global {} @{} : %{}",
+                                        p->type.toString(), p->name,
+                                        p->identity));
               if (is_handle_valid(p->initializer))
                 buffer.append(fmt::format(" = %{}\n", p->initializer));
               else
@@ -85,7 +83,8 @@ void IRBuilder::dumpGraph() {
     buffer.append(fmt::format("v{} [{}]\n", id, attr_list));
   };
   for (auto &value : module->pool) {
-    visit(overloaded{[&](BasicBlock *p) {
+    visit(overloaded{[](auto) {},
+                     [&](BasicBlock *p) {
                        add_edge(p->parent, p->identity);
                        add_attr(p->identity, {{"label", "bb"}});
                      },
@@ -102,10 +101,6 @@ void IRBuilder::dumpGraph() {
                      [&](ConstantArray *p) {
                        add_edge(p->parent, p->identity);
                        add_attr(p->identity, {{"label", "const arr"}});
-                     },
-                     [&](ConstantInteger *p) {
-                       add_edge(p->parent, p->identity);
-                       add_attr(p->identity, {{"label", "const int"}});
                      },
                      [&](ConstantExpr *p) {
                        add_edge(p->parent, p->identity);

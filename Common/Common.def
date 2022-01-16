@@ -2,16 +2,16 @@
 #define OpcodeDefine(x, s)
 #endif
 
-#ifndef ValueTypeDefine
-#define ValueTypeDefine(x)
-#endif
-
 #ifndef TypeSpecifierDefine
 #define TypeSpecifierDefine(x, y)
 #endif
 
 #ifndef TypeQualifierDefine
 #define TypeQualifierDefine(x, y)
+#endif
+
+#ifndef NodeTypeDefine
+#define NodeTypeDefine(x)
 #endif
 
 OpcodeDefine(OP_None, "")
@@ -34,19 +34,34 @@ OpcodeDefine(OP_Neg, "neg")
 OpcodeDefine(OP_Br,  "br")
 OpcodeDefine(OP_Jump,"j")
 OpcodeDefine(OP_Allocate,   "alloca")
+OpcodeDefine(OP_Call,"call")
 OpcodeDefine(OP_End, "")
-
-ValueTypeDefine(VT_BasicBlock)
-ValueTypeDefine(VT_Constant)
-ValueTypeDefine(VT_Function)
-ValueTypeDefine(VT_Instruction)
 
 TypeSpecifierDefine(TS_Void,  1 << 0)
 TypeSpecifierDefine(TS_Int,   1 << 4)
 
 TypeQualifierDefine(TQ_Const, 1 << 0)
 
+NodeTypeDefine(ND_Module)
+NodeTypeDefine(ND_GlobalDeclaration)
+NodeTypeDefine(ND_VariableDeclaration)
+NodeTypeDefine(ND_FunctionDeclaration)
+NodeTypeDefine(ND_CompoundStmt)
+NodeTypeDefine(ND_IfStmt)
+NodeTypeDefine(ND_WhileStmt)
+NodeTypeDefine(ND_ContinueStmt)
+NodeTypeDefine(ND_BreakStmt)
+NodeTypeDefine(ND_ReturnStmt)
+NodeTypeDefine(ND_InitListExpr)
+NodeTypeDefine(ND_ArraySubscriptExpr)
+NodeTypeDefine(ND_UnaryExpr)
+NodeTypeDefine(ND_BinaryExpr)
+NodeTypeDefine(ND_CallExpr)
+NodeTypeDefine(ND_RefExpr)
+NodeTypeDefine(ND_IntegerLiteral)
+NodeTypeDefine(ND_AssignExpr)
+
 #undef OpcodeDefine
-#undef ValueTypeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine
+#undef NodeTypeDefine

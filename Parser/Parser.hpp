@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
 #include <iterator>
@@ -20,7 +19,7 @@
 #include <variant>
 #include <vector>
 
-#include "IR/IR.hpp"
+#include "Tree/Tree.hpp"
 
 using namespace std;
 
@@ -43,8 +42,6 @@ struct Parser {
   vector<Token> tokens;
   size_t index;
   size_t token_index;
-  IRBuilder builder;
-  vector<unordered_map<string_view, ValueHandle>> scopes;
 
   inline static unordered_set<string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
@@ -140,21 +137,22 @@ struct Parser {
       } else if ((len = delimitIdentifier())) {
         index += len;
         auto id = input_view.substr(start, len);
-        tokens.emplace_back(
-          keywords.count(id) ? TokenType::Keyword : TokenType::Identifier, id);
+        tokens.push_back(
+          {keywords.count(id) ? TokenType::Keyword : TokenType::Identifier,
+           id});
       } else if ((len = delimitOperator())) {
         index += len;
-        tokens.emplace_back(TokenType::Operator, input_view.substr(start, len));
+        tokens.push_back({TokenType::Operator, input_view.substr(start, len)});
       } else if ((len = delimitIntegerConstant())) {
         index += len;
-        tokens.emplace_back(TokenType::IntegerConstant,
-                            input_view.substr(start, len));
+        tokens.push_back(
+          {TokenType::IntegerConstant, input_view.substr(start, len)});
       } else if (index != input.length())
         throw runtime_error(
           fmt::format("unexpected token {} ...", input_view.substr(start, 16)));
     }
 
-    tokens.emplace_back(TokenType::EndOfFile, string_view("@EOF"));
+    tokens.push_back({TokenType::EndOfFile, string_view("@EOF")});
   }
 
   bool peek(string_view s) {
@@ -216,26 +214,23 @@ struct Parser {
     return {false, {}};
   }
 
-  ValueHandle expression(bool is_constant_expr) {
-    return assignmentExpression(is_constant_expr);
+  ExprPtr expression() { return assignmentExpression(); }
+
+  ExprPtr assignmentExpression() {
+    auto lhs = conditionalExpression();
+    ExprPtr rhs = nullptr;
+    if (consume("="))
+      rhs = assignmentExpression();
+    if (rhs)
+      return new AssignExpr{lhs, rhs};
+    return lhs;
   }
 
-  ValueHandle assignmentExpression(bool is_constant_expr) {
-    auto lhs = conditionalExpression(is_constant_expr);
-    ValueHandle rhs = 0;
-    if (consume("=")) {
-      rhs = assignmentExpression(is_constant_expr);
-    }
-    return _dummy(lhs, rhs);
+  ExprPtr conditionalExpression() {
+    return binaryOpExpression(0, castExpression());
   }
 
-  ValueHandle conditionalExpression(bool is_constant_expr) {
-    return binaryOpExpression(0, castExpression(is_constant_expr),
-                              is_constant_expr);
-  }
-
-  ValueHandle binaryOpExpression(int prec, ValueHandle lhs,
-                                 bool is_constant_expr) {
+  ExprPtr binaryOpExpression(int prec, ExprPtr lhs) {
     for (;;) {
       auto tok = peek();
       int tok_prec, next_prec;
@@ -246,78 +241,68 @@ struct Parser {
       if (tok_prec < prec)
         return lhs;
       skip();
-      auto rhs = castExpression(is_constant_expr);
+      auto rhs = castExpression();
       auto next_tok = peek();
       if (!bin_op_precedence.count(next_tok.text))
         next_prec = -1;
       else
         next_prec = bin_op_precedence.find(next_tok.text)->second;
       if (tok_prec < next_prec)
-        rhs = binaryOpExpression(tok_prec + 1, rhs, is_constant_expr);
-      assert(bin_op_code.count(tok.text));
-      if (is_constant_expr)
-        lhs = get<0>(builder.createConstantExpr(
-          bin_op_code.find(tok.text)->second, lhs, rhs));
-      else {
-        auto [inst, p_inst] = builder.createInstruction(
-          bin_op_code.find(tok.text)->second, lhs, rhs);
-        lhs = inst;
-        builder.getBasicBlock()->refInstruction().push_back(inst);
-      }
+        rhs = binaryOpExpression(tok_prec + 1, rhs);
+      if (!bin_op_code.count(tok.text))
+        throw std::runtime_error(
+          fmt::format("unknown binary operator {}", tok.text));
+      lhs = new BinaryExpr{bin_op_code.find(tok.text)->second, lhs, rhs};
     }
     return lhs;
   }
 
-  ValueHandle castExpression(bool is_constant_expr) {
-    return unaryExpression(is_constant_expr);
-  }
+  ExprPtr castExpression() { return unaryExpression(); }
 
-  ValueHandle unaryExpression(bool is_constant_expr) {
+  ExprPtr unaryExpression() {
     auto next_tok = peek();
     if (next_tok.text == "+") {
       skip();
-      return castExpression(is_constant_expr);
+      return castExpression();
     } else if (next_tok.text == "-" || next_tok.text == "!") {
       skip();
       OpType op = next_tok.text == "-"   ? OP_Neg
                   : next_tok.text == "!" ? OP_LNot
                                          : OP_End;
-      if (is_constant_expr)
-        return get<0>(builder.createConstantExpr(
-          op, castExpression(is_constant_expr), invalid_value_handle));
-      auto [inst, p_inst] = builder.createInstruction(
-        op, castExpression(is_constant_expr), invalid_value_handle);
-      builder.getBasicBlock()->refInstruction().push_back(inst);
-      return inst;
+      return new UnaryExpr{op, unaryExpression()};
     }
-    return postfixExpression(is_constant_expr);
+    return postfixExpression();
   }
 
-  ValueHandle postfixExpression(bool is_constant_expr) {
-    auto expr = primaryExpression(is_constant_expr);
+  ExprPtr postfixExpression() {
+    auto expr = primaryExpression();
     while (peek("[") || peek("("))
       if (consume("[")) {
-        auto dim = expression(is_constant_expr);
+        auto dim = expression();
         expect("]");
-      } else if (consume("(")) {
-        if (!peek(")"))
-          auto args = argumentExpressionList(is_constant_expr);
-        expect(")");
+        expr = new ArraySubscriptExpr{expr, dim};
+      } else if (peek("(")) {
+        auto args = argumentExpressionList();
+        expr = new CallExpr{expr, args};
       }
     return expr;
   }
 
-  ValueHandle argumentExpressionList(bool is_constant_expr) {
-    vector<ValueHandle> args;
-    args.push_back(assignmentExpression(false));
-    while (consume(",")) args.push_back(assignmentExpression(is_constant_expr));
-    return _dummy(0, 0);
+  vector<ExprPtr> argumentExpressionList() {
+    vector<ExprPtr> args;
+    expect("(");
+    if (!peek(")")) {
+      args.push_back(assignmentExpression());
+      while (consume(",")) args.push_back(assignmentExpression());
+    }
+    expect(")");
+    return args;
   }
 
-  ValueHandle primaryExpression(bool is_constant_expr) {
-    static string convert_buffer(16, 0);
+  ExprPtr primaryExpression() {
+    static string convert_buffer;
     if (consume("(")) {
-      auto expr = expression(is_constant_expr);
+      auto expr = expression();
       expect(")");
       return expr;
     }
@@ -325,239 +310,177 @@ struct Parser {
     skip();
     if (tok.token_type == TokenType::IntegerConstant) {
       convert_buffer = tok.text;
-      return get<0>(builder.createConstantInteger(
-        strtol(convert_buffer.c_str(), nullptr, 10)));
+      unsigned radix = convert_buffer.starts_with("0x") ? 16 : 10;
+      return new IntegerLiteral{
+        std::strtoull(convert_buffer.c_str(), nullptr, radix)};
     } else if (tok.token_type == TokenType::Identifier) {
-      return invalid_value_handle;
+      return new RefExpr{tok.text};
     }
     throw std::runtime_error(fmt::format("unexpected token {}", tok.text));
   }
 
-  ValueHandle _dummy(ValueHandle lhs, ValueHandle rhs) { return lhs; }
-
-  void selectionStatement() {
+  NodePtr selectionStatement() {
+    NodePtr cond, then_stmt, else_stmt = nullptr;
     expect("if");
     expect("(");
-    auto cond = expression(false);
+    cond = expression();
     expect(")");
-
-    auto cur_p_bb = builder.getBasicBlock();
-    auto [then_bb, then_p_bb] = builder.createBasicBlock();
-    statement();
-
-    ValueHandle else_bb = invalid_value_handle;
-    BasicBlock *else_p_bb = nullptr;
+    then_stmt = statement();
     if (consume("else")) {
-      auto [_else_bb, _else_p_bb] = builder.createBasicBlock();
-      statement();
-      else_bb = _else_bb;
-      else_p_bb = _else_p_bb;
+      else_stmt = statement();
     }
-
-    cur_p_bb->refInstruction().push_back(
-      get<0>(builder.createInstruction(OP_Br, cond, then_bb, else_bb)));
-
-    auto [next_bb, next_p_bb] = builder.createBasicBlock();
-
-    then_p_bb->refInstruction().push_back(
-      get<0>(builder.createInstruction(OP_Jump, next_bb)));
-
-    builder.getFunction()->refBasicBlock().push_back(then_bb);
-
-    if (is_handle_valid(else_bb)) {
-      else_p_bb->refInstruction().push_back(
-        get<0>(builder.createInstruction(OP_Jump, next_bb)));
-      builder.getFunction()->refBasicBlock().push_back(else_bb);
-    }
-
-    builder.getFunction()->refBasicBlock().push_back(next_bb);
+    return new IfStmt{cond, then_stmt, else_stmt};
   }
 
-  void iterationStatement() {
-
-    auto cur_p_bb = builder.getBasicBlock();
-
-    auto [cond_bb, cond_p_bb] = builder.createBasicBlock();
+  NodePtr iterationStatement() {
+    NodePtr cond, body_stmt = nullptr;
     expect("while");
     expect("(");
-    auto cond = expression(false);
+    cond = expression();
     expect(")");
+    body_stmt = statement();
 
-    auto [loop_bb, loop_p_bb] = builder.createBasicBlock();
-    statement();
-    loop_p_bb->refInstruction().push_back(
-      get<0>(builder.createInstruction(OP_Jump, cond_bb)));
-
-    auto [next_bb, next_p_bb] = builder.createBasicBlock();
-    cur_p_bb->refInstruction().push_back(
-      get<0>(builder.createInstruction(OP_Jump, cond_bb)));
-    cond_p_bb->refInstruction().push_back(
-      get<0>(builder.createInstruction(OP_Br, cond, cond_bb, next_bb)));
-
-    builder.getFunction()->refBasicBlock().push_back(cond_bb);
-    builder.getFunction()->refBasicBlock().push_back(loop_bb);
-    builder.getFunction()->refBasicBlock().push_back(next_bb);
+    return new WhileStmt{cond, body_stmt};
   }
 
-  void jumpStatement() {
+  NodePtr jumpStatement() {
+    NodePtr stmt;
     if (consume("continue"))
-      ;
+      stmt = new ContinueStmt{nullptr};
     else if (consume("break"))
-      ;
+      stmt = new BreakStmt{nullptr};
     else if (consume("return")) {
+      ExprPtr expr = nullptr;
       if (!peek(";"))
-        auto expr = expression(false);
+        expr = expression();
+      stmt = new ReturnStmt{expr};
     }
     expect(";");
+    return stmt;
   }
 
-  void expressionStatement() {
-    if (!peek(";"))
-      auto expr = expression(false);
+  NodePtr expressionStatement() {
+    NodePtr expr = nullptr;
+    if (!peek(";")) {
+      auto expr = expression();
+    }
     expect(";");
+    return expr;
   }
 
-  void statement() {
+  NodePtr statement() {
+    NodePtr stmt;
     if (peek("{"))
-      compoundStatement();
+      stmt = compoundStatement();
     else if (peek("if"))
-      selectionStatement();
+      stmt = selectionStatement();
     else if (peek("while"))
-      iterationStatement();
+      stmt = iterationStatement();
     else if (peek("break") || peek("continue") || peek("return"))
-      jumpStatement();
+      stmt = jumpStatement();
     else
-      expressionStatement();
+      stmt = expressionStatement();
+    return stmt;
   }
 
-  void blockItem() {
+  void blockItem(vector<NodePtr> &stmts) {
     if (peek("void") || peek("int") || peek("const")) {
-      Type declspec = declarationSpecifiers();
+      auto declspec = declarationSpecifiers();
+
       if (!peek(";")) {
-        initDeclarator(declspec, false);
-        while (consume(",")) initDeclarator(declspec, false);
+        stmts.emplace_back(initDeclarator(declspec, false));
+        while (consume(","))
+          stmts.emplace_back(initDeclarator(declspec, false));
       }
       expect(";");
-    } else
-      statement();
+    } else if (auto stmt = statement())
+      stmts.emplace_back(stmt);
   }
 
-  ValueHandle compoundStatement() {
-    scopes.emplace_back();
+  NodePtr compoundStatement() {
+    auto stmt = new CompoundStmt{{}};
     expect("{");
-    while (!peek("}")) blockItem();
+    while (!peek("}")) blockItem(stmt->stmts);
     expect("}");
-    scopes.pop_back();
-    return invalid_value_handle;
+    return stmt;
   }
 
-  ValueHandle initializerList(bool is_constant_expr) {
-    auto [arr, p_arr] = builder.createConstantArray();
-    auto &elem = p_arr->refElement();
+  vector<ExprPtr> initializerList() {
+    vector<ExprPtr> elem;
     if (!peek("}")) {
-      elem.emplace_back(initializer(is_constant_expr));
-      while (consume(",") && !peek("}"))
-        elem.emplace_back(initializer(is_constant_expr));
+      elem.emplace_back(initializer());
+      while (consume(",") && !peek("}")) elem.emplace_back(initializer());
     }
-    return arr;
+    return elem;
   }
 
-  ValueHandle initializer(bool is_constant_expr) {
+  ExprPtr initializer() {
     if (consume("{")) {
-      auto initList = initializerList(is_constant_expr);
+      auto initList = initializerList();
       consume(",");
       expect("}");
-      return initList;
+      return new InitListExpr{initList};
     } else {
-      auto expr = assignmentExpression(is_constant_expr);
+      auto expr = assignmentExpression();
       return expr;
     }
   }
 
-  void generateGlobalVariable(Type declspec, string_view name,
-                              ValueHandle init) {
-    auto [gv, p_gv] = builder.createGlobalVariable();
-
-    p_gv->refType() = declspec;
-    p_gv->refName() = name;
-    p_gv->refInitializer() = init;
-
-    builder.addGlobalValue(gv);
-
-    scopes.back()[name] = gv;
-  }
-
-  void externalDeclaration() {
-    Type declspec = declarationSpecifiers();
-    ValueHandle init;
+  vector<NodePtr> externalDeclaration() {
+    auto declspec = declarationSpecifiers();
+    ExprPtr init;
+    vector<NodePtr> all_decls;
     auto [name, index, param_list, dimensions] = declarator();
-
     if (index == 0) {
-      auto [f, p_f] = builder.createFunction();
-      auto [bb, p_bb] = builder.createBasicBlock();
-      p_f->refName() = name;
-      p_f->refArgumentList() = param_list;
-      p_f->refReturnType() = declspec;
-      p_f->refBasicBlock().emplace_back(bb);
-
-      compoundStatement();
-
-      builder.addFunction(f);
-      scopes.back()[name] = f;
+      auto stmt = compoundStatement();
+      all_decls.emplace_back(
+        new FunctionDeclaration{declspec, name, param_list, stmt});
     } else {
-      if (consume("=")) {
-        init = initializer(true);
-      }
+      if (consume("="))
+        init = initializer();
+      auto ty = Type{declspec.spec, declspec.qual,
+                     index == 1 ? dimensions : vector<ExprPtr>{}};
 
-      auto ty = declspec;
-      if (index == 1)
-        ty.refDimension() = dimensions;
-      generateGlobalVariable(ty, name, init);
+      all_decls.emplace_back(new GlobalDeclaration{ty, name, init});
 
       while (consume(",")) {
-        initDeclarator(declspec, true);
+        all_decls.emplace_back(initDeclarator(std::move(declspec), true));
       }
       expect(";");
     }
+    return all_decls;
   }
 
-  void initDeclarator(Type declspec, bool is_global) {
+  NodePtr initDeclarator(Type declspec, bool is_global) {
     auto [name, index, param_list, dimensions] = declarator();
-    ValueHandle init;
-    if (consume("=")) {
-      init = initializer(is_global);
-    }
+    ExprPtr init;
+    if (consume("="))
+      init = initializer();
+
     if (index == 0)
       throw std::runtime_error("can't use function declarator here");
 
-    auto ty = declspec;
-    if (index == 1)
-      ty.refDimension() = dimensions;
-    if (is_global) {
-      generateGlobalVariable(ty, name, init);
-    } else {
-      // generate local variable
-      auto [inst, p_inst] = builder.createInstruction(
-        OP_Allocate, invalid_value_handle, invalid_value_handle);
-      p_inst->refType() = ty;
-      builder.getBasicBlock()->refInstruction().push_back(inst);
-      scopes.back()[name] = inst;
-    }
+    auto ty = Type{declspec.spec, declspec.qual,
+                   index == 1 ? dimensions : vector<ExprPtr>{}};
+    if (is_global)
+      return new GlobalDeclaration{ty, name, init};
+    else
+      return new VariableDeclaration{ty, name, init};
   }
 
-  tuple<string_view, Type> parameterDeclaration() {
+  pair<string_view, Type> parameterDeclaration() {
     Type declspec = declarationSpecifiers();
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
-    if (index == 1)
-      declspec.refDimension() = dimensions;
-    return {name, declspec};
+    auto ty = Type{declspec.spec, declspec.qual,
+                   index == 1 ? dimensions : vector<ExprPtr>{}};
+    return {name, ty};
   }
 
-  vector<tuple<string_view, Type>> parameterTypeList() {
-    vector<tuple<string_view, Type>> param;
+  vector<pair<string_view, Type>> parameterTypeList() {
+    vector<pair<string_view, Type>> param;
     expect("(");
     if (!peek(")")) {
       param.emplace_back(parameterDeclaration());
@@ -568,24 +491,23 @@ struct Parser {
     return param;
   }
 
-  vector<ValueHandle> arrayDimmension() {
-    vector<ValueHandle> dimensions;
+  vector<ExprPtr> arrayDimmension() {
+    vector<ExprPtr> dimensions;
     while (peek("[")) {
       skip();
       if (!peek("]")) {
-        dimensions.push_back(assignmentExpression(true));
+        dimensions.push_back(assignmentExpression());
       }
       expect("]");
     }
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<tuple<string_view, Type>>,
-        vector<ValueHandle>>
+  tuple<string_view, size_t, vector<pair<string_view, Type>>, vector<ExprPtr>>
   declarator() {
     Token name = expectIdentifier();
-    vector<tuple<string_view, Type>> param_list;
-    vector<ValueHandle> dimensions;
+    vector<pair<string_view, Type>> param_list;
+    vector<ExprPtr> dimensions;
     size_t index;
     if (peek("(")) {
       index = 0;
@@ -601,38 +523,35 @@ struct Parser {
   }
 
   Type declarationSpecifiers() {
-    Type ty{};
+    TypeQualifier qual;
+    TypeSpecifier spec;
 
     for (;;) {
       if (consume("const"))
-        ty.refTypeQualifier() = TQ_Const;
+        qual = TQ_Const;
       else if (consume("void"))
-        ty.refTypeSpecifier() = TS_Void;
+        spec = TS_Void;
       else if (consume("int"))
-        ty.refTypeSpecifier() = TS_Int;
+        spec = TS_Int;
       else
         break;
     }
-    return ty;
+    return Type{spec, qual, vector<ExprPtr>{}};
   }
 
-  void translationUnit() {
+  NodePtr translationUnit() {
+    vector<NodePtr> decls;
     for (;;) {
       auto tok = peek();
       if (tok.token_type == TokenType::EndOfFile)
         break;
-      externalDeclaration();
+      auto decl = externalDeclaration();
+      for (auto &&e : decl) decls.emplace_back(std::move(e));
     }
+    return new Module{decls};
   }
 
-  void parse() {
-    builder.createModule();
-    scopes.emplace_back();
-    translationUnit();
-    scopes.pop_back();
-    builder.dumpText();
-    builder.dumpGraph();
-  }
+  NodePtr parse() { return translationUnit(); }
 
   Parser(const string &input)
     : input(input), input_view(input), index(0), token_index(0) {}

@@ -1,4 +1,5 @@
 #include "Parser/Parser.hpp"
+#include "Tree/Tree.hpp"
 #include <fmt/core.h>
 #include <fstream>
 
@@ -15,7 +16,7 @@ int main(int argc, char *argv[]) {
 
   Parser parser(fileContent);
   parser.tokenize();
-  parser.parse();
-
+  auto p = parser.parse();
+  
   return 0;
 }

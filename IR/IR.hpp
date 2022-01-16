@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fmt/core.h"
+#include <fmt/core.h>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -17,45 +17,17 @@
 #include <variant>
 #include <vector>
 
+
 #define OpcodeDefine(x, n) x,
 enum OpType {
-#include "IR.def"
+#include "Common/Common.def"
 };
 
 #define OpcodeDefine(x, n) n,
 inline constexpr std::string_view op_name[]{
-#include "IR.def"
+#include "Common/Common.def"
 };
 
-#define ValueTypeDefine(x) x,
-enum ValueType {
-#include "IR.def"
-};
-
-#define ValueTypeDefine(x) #x,
-inline constexpr std::string_view value_type_name[]{
-#include "IR.def"
-};
-
-#define TypeSpecifierDefine(x, y) x = (y),
-enum TypeSpecifier {
-#include "IR.def"
-};
-
-#define TypeSpecifierDefine(x, y) #x,
-inline constexpr std::string_view type_spec_name[]{
-#include "IR.def"
-};
-
-#define TypeQualifierDefine(x, y) x = (y),
-enum TypeQualifier {
-#include "IR.def"
-};
-
-#define TypeQualifierDefine(x, y) #x
-inline constexpr std::string_view type_qual_name[]{
-#include "IR.def"
-};
 
 using ValueHandle = uint32_t;
 inline constexpr ValueHandle invalid_value_handle =
@@ -78,44 +50,11 @@ class Function;
 class IRBuilder;
 
 class Type {
-  TypeSpecifier spec;
-  TypeQualifier qual;
-  std::vector<ValueHandle> dim;
   friend IRBuilder;
-
-public:
-  Type(TypeSpecifier spec, TypeQualifier qual, std::vector<uint32_t> dim)
-    : spec(spec), qual(qual), dim(dim) {}
-  Type() : spec(), qual(), dim() {}
-  std::string toString() {
-    static std::string base_type;
-    static std::string ret;
-    base_type = spec == TS_Int ? "i32" : spec == TS_Void ? "void" : "";
-    if (dim.empty())
-      return base_type;
-    ret.clear();
-    for (auto n : dim) ret.append(fmt::format("[%{} x ", n));
-    ret.append(base_type);
-    for (auto _ : dim) ret.push_back(']');
-    return ret;
-  }
-  TypeSpecifier &refTypeSpecifier() { return spec; }
-  TypeQualifier &refTypeQualifier() { return qual; }
-  std::vector<uint32_t> &refDimension() { return dim; }
 };
 
-struct Value {
-  std::variant<BasicBlock *, Instruction *, GlobalVariable *, ConstantInteger *,
-               ConstantArray *, ConstantExpr *, Function *, Module *>
-    _;
-  friend IRBuilder;
-  template <typename T> T get() {
-    if (std::holds_alternative<T>(_)) {
-      return std::get<T>(_);
-    }
-    throw std::runtime_error("Value not holds T");
-  }
-};
+class ConstantInteger;
+
 
 class BasicBlock {
   std::vector<ValueHandle> insn;
@@ -139,7 +78,7 @@ class Instruction {
 
 public:
   auto &refType() { return type; }
-  std::string toString() {
+  /*std::string toString() {
     static std::string arg_str;
     arg_str.clear();
     for (auto &a : arg)
@@ -149,7 +88,7 @@ public:
       arg_str.pop_back(), arg_str.pop_back();
     return fmt::format("%{} = {} {} {}", identity, op_name[op], type.toString(),
                        arg_str);
-  }
+  }*/
   Instruction(OpType op, Type type, ValueHandle parent, ValueHandle identity,
               ValueHandle arg0, ValueHandle arg1, ValueHandle arg2)
     : op(op), type(type), parent(parent),
@@ -174,18 +113,12 @@ public:
 };
 
 class ConstantInteger {
-  ValueHandle parent;
-  ValueHandle identity;
   uint64_t value;
   friend IRBuilder;
 
 public:
-  ConstantInteger(ValueHandle parent, ValueHandle identity, uint64_t value)
-    : parent(parent), identity(identity), value(value) {}
+  ConstantInteger(uint64_t value) : value(value) {}
   uint64_t &refValue() { return value; }
-  std::string toString() {
-    return fmt::format("%{} = i32 {}", identity, value);
-  }
 };
 
 class ConstantArray {
@@ -203,7 +136,8 @@ public:
     buffer.clear();
     buffer.append(fmt::format("%{} = ", identity));
     buffer.append("[");
-    for (auto &e : element) buffer.append(fmt::format("%{}, ", e));
+    for (auto &e : element)
+      buffer.append(fmt::format("%{}, ", e));
     if (buffer.ends_with(", "))
       buffer.pop_back(), buffer.pop_back();
     buffer.append("]");
@@ -253,6 +187,21 @@ public:
   auto &refBasicBlock() { return basic_block; }
 };
 
+
+struct Value {
+  std::variant<BasicBlock *, Instruction *, GlobalVariable *, ConstantInteger,
+               ConstantArray *, ConstantExpr *, Function *, Module *>
+    _;
+  friend IRBuilder;
+  template <typename T> T get() {
+    if (std::holds_alternative<T>(_)) {
+      return std::get<T>(_);
+    }
+    throw std::runtime_error("Value not holds T");
+  }
+  template <typename T> T get_if() { return std::get_if<T>(_); }
+};
+
 class Module {
   std::vector<Value> pool;
   std::vector<ValueHandle> global_function_table;
@@ -275,7 +224,6 @@ private:
   GlobalVariable *global_variable = nullptr;
   ConstantArray *constant_array = nullptr;
   ConstantExpr *constant_expr = nullptr;
-  ConstantInteger *constant_integer = nullptr;
   Instruction *instruction = nullptr;
   inline static ValueHandle module_handle = 0;
 
@@ -340,14 +288,12 @@ public:
     return {global_variable->identity, global_variable};
   }
 
-  std::tuple<ValueHandle, ConstantInteger *>
+  ValueHandle
   createConstantInteger(uint64_t value) {
     check_module();
-    constant_integer =
-      new ConstantInteger(module_handle, module->pool.size(), value);
-    module->pool.emplace_back(Value{constant_integer});
-    module->global_constant_table.push_back(constant_integer->identity);
-    return {constant_integer->identity, constant_integer};
+    auto identity = module->pool.size();
+    module->pool.emplace_back(Value{ConstantInteger{value}});
+    return identity;
   }
 
   std::tuple<ValueHandle, ConstantArray *> createConstantArray() {
@@ -385,7 +331,6 @@ public:
   GlobalVariable *getGlobalVariable() { return global_variable; }
   ConstantArray *getConstantArray() { return constant_array; }
   ConstantExpr *getConstantExpr() { return constant_expr; }
-  ConstantInteger *getConstantInteger() { return constant_integer; }
   BasicBlock *getBasicBlock() { return basic_block; }
   Function *getFunction() { return function; }
   Module *getModule() { return module; }
