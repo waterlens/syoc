@@ -21,8 +21,6 @@
 
 #include "Tree/Tree.hpp"
 
-using namespace std;
-
 enum class TokenType {
   IntegerConstant,
   Keyword,
@@ -33,32 +31,32 @@ enum class TokenType {
 
 struct Token {
   TokenType token_type;
-  string_view text;
+  std::string_view text;
 };
 
 struct Parser {
-  string input;
-  string_view input_view;
-  vector<Token> tokens;
+  std::string input;
+  std::string_view input_view;
+  std::vector<Token> tokens;
   size_t index;
   size_t token_index;
   Scope<NodePtr> scope;
 
-  inline static unordered_set<string_view> keywords = {
+  inline static std::unordered_set<std::string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
     "int",   "return", "void",     "while",
   };
-  inline static string_view long_operators[] = {
+  inline static std::string_view long_operators[] = {
     "<=", ">=", "==", "!=", "&&", "||"};
-  inline static string_view operators = "()[]{}<>+-*/%!;,=";
+  inline static std::string_view operators = "()[]{}<>+-*/%!;,=";
 
-  inline static unordered_map<string_view, int> bin_op_precedence = {
+  inline static std::unordered_map<std::string_view, int> bin_op_precedence = {
     {"*", 30},  {"/", 30},   {"%", 30},   {"+", 40},  {"-", 40},
     {"<", 60},  {">", 60},   {"<=", 60},  {">=", 60}, {"==", 70},
     {"!=", 70}, {"&&", 110}, {"||", 120},
   };
 
-  inline static unordered_map<string_view, OpType> bin_op_code = {
+  inline static std::unordered_map<std::string_view, OpType> bin_op_code = {
     {"*", OP_Mul},  {"/", OP_Div}, {"%", OP_Mod}, {"+", OP_Add},
     {"-", OP_Sub},  {"<", OP_Lt},  {">", OP_Gt},  {"<=", OP_Le},
     {">=", OP_Ge},  {"==", OP_Eq}, {"!=", OP_Ne}, {"&&", OP_Land},
@@ -70,7 +68,7 @@ struct Parser {
       ;
   }
 
-  bool startWith(string_view s) {
+  bool startWith(std::string_view s) {
     return input.size() - index >= s.length() &&
            memcmp(s.data(), input.data() + index, s.length()) == 0;
   }
@@ -120,7 +118,7 @@ struct Parser {
     auto begin = input.c_str() + index;
     auto closed = strstr(begin, "*/");
     if (!closed)
-      throw runtime_error("block comment doesn't have a close tag");
+      throw std::runtime_error("block comment doesn't have a close tag");
     index += closed - begin;
     index += 2;
   }
@@ -149,29 +147,29 @@ struct Parser {
         tokens.push_back(
           {TokenType::IntegerConstant, input_view.substr(start, len)});
       } else if (index != input.length())
-        throw runtime_error(
+        throw std::runtime_error(
           fmt::format("unexpected token {} ...", input_view.substr(start, 16)));
     }
 
-    tokens.push_back({TokenType::EndOfFile, string_view("@EOF")});
+    tokens.push_back({TokenType::EndOfFile, std::string_view("@EOF")});
   }
 
-  bool peek(string_view s) {
+  bool peek(std::string_view s) {
     return token_index < tokens.size() && tokens[token_index].text == s;
   }
 
   void skip() { token_index++; }
 
-  void expect(string_view s) {
+  void expect(std::string_view s) {
     if (peek(s)) {
       skip();
       return;
     }
-    throw runtime_error(
+    throw std::runtime_error(
       fmt::format("expect {} but got {}", s, tokens[token_index].text));
   }
 
-  bool consume(string_view s) {
+  bool consume(std::string_view s) {
     if (peek(s)) {
       skip();
       return true;
@@ -186,7 +184,7 @@ struct Parser {
         tokens[token_index].token_type == TokenType::Identifier) {
       return tokens[token_index++];
     }
-    throw runtime_error(
+    throw std::runtime_error(
       fmt::format("expect identifier but got {}", tokens[token_index].text));
   }
 
@@ -195,11 +193,11 @@ struct Parser {
         tokens[token_index].token_type == TokenType::IntegerConstant) {
       return tokens[token_index++];
     }
-    throw runtime_error(fmt::format("expect integer constant but got {}",
-                                    tokens[token_index].text));
+    throw std::runtime_error(fmt::format("expect integer constant but got {}",
+                                         tokens[token_index].text));
   }
 
-  tuple<bool, Token> peekIdentifier() {
+  std::tuple<bool, Token> peekIdentifier() {
     if (token_index < tokens.size() &&
         tokens[token_index].token_type == TokenType::Identifier) {
       return {true, tokens[token_index]};
@@ -207,7 +205,7 @@ struct Parser {
     return {false, {}};
   }
 
-  tuple<bool, Token> peekIntegerConstant() {
+  std::tuple<bool, Token> peekIntegerConstant() {
     if (token_index < tokens.size() &&
         tokens[token_index].token_type == TokenType::IntegerConstant) {
       return {true, tokens[token_index]};
@@ -289,8 +287,8 @@ struct Parser {
     return expr;
   }
 
-  vector<ExprPtr> argumentExpressionList() {
-    vector<ExprPtr> args;
+  std::vector<ExprPtr> argumentExpressionList() {
+    std::vector<ExprPtr> args;
     expect("(");
     if (!peek(")")) {
       args.push_back(assignmentExpression());
@@ -301,7 +299,7 @@ struct Parser {
   }
 
   ExprPtr primaryExpression() {
-    static string convert_buffer;
+    static std::string convert_buffer;
     if (consume("(")) {
       auto expr = expression();
       expect(")");
@@ -387,7 +385,7 @@ struct Parser {
     return stmt;
   }
 
-  void blockItem(vector<NodePtr> &stmts) {
+  void blockItem(std::vector<NodePtr> &stmts) {
     if (peek("void") || peek("int") || peek("const")) {
       auto declspec = declarationSpecifiers();
 
@@ -411,8 +409,8 @@ struct Parser {
     return stmt;
   }
 
-  vector<ExprPtr> initializerList() {
-    vector<ExprPtr> elem;
+  std::vector<ExprPtr> initializerList() {
+    std::vector<ExprPtr> elem;
     if (!peek("}")) {
       elem.emplace_back(initializer());
       while (consume(",") && !peek("}")) elem.emplace_back(initializer());
@@ -432,10 +430,10 @@ struct Parser {
     }
   }
 
-  vector<NodePtr> externalDeclaration() {
+  std::vector<NodePtr> externalDeclaration() {
     auto declspec = declarationSpecifiers();
     ExprPtr init = nullptr;
-    vector<NodePtr> all_decls;
+    std::vector<NodePtr> all_decls;
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0) {
       auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
@@ -450,7 +448,7 @@ struct Parser {
       if (consume("="))
         init = initializer();
       auto ty = Type{declspec.spec, declspec.qual,
-                     index == 1 ? dimensions : vector<ExprPtr>{}};
+                     index == 1 ? dimensions : std::vector<ExprPtr>{}};
 
       all_decls.emplace_back(new GlobalDeclaration{ty, name, init});
       scope.insert(name, all_decls.back());
@@ -473,7 +471,7 @@ struct Parser {
       throw std::runtime_error("can't use function declarator here");
 
     auto ty = Type{declspec.spec, declspec.qual,
-                   index == 1 ? dimensions : vector<ExprPtr>{}};
+                   index == 1 ? dimensions : std::vector<ExprPtr>{}};
     auto *decl = is_global ? (new GlobalDeclaration{ty, name, init})
                                ->cast_unchecked<VariableDeclaration *>()
                            : (new LocalDeclaration{ty, name, init})
@@ -482,19 +480,19 @@ struct Parser {
     return decl;
   }
 
-  pair<string_view, Type> parameterDeclaration() {
+  std::pair<std::string_view, Type> parameterDeclaration() {
     Type declspec = declarationSpecifiers();
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
     auto ty = Type{declspec.spec, declspec.qual,
-                   index == 1 ? dimensions : vector<ExprPtr>{}};
+                   index == 1 ? dimensions : std::vector<ExprPtr>{}};
     return {name, ty};
   }
 
-  vector<pair<string_view, Type>> parameterTypeList() {
-    vector<pair<string_view, Type>> param;
+  std::vector<std::pair<std::string_view, Type>> parameterTypeList() {
+    std::vector<std::pair<std::string_view, Type>> param;
     expect("(");
     if (!peek(")")) {
       param.emplace_back(parameterDeclaration());
@@ -502,11 +500,18 @@ struct Parser {
     }
     consume(",");
     expect(")");
+    static std::unordered_set<std::string_view> param_names;
+    param_names.clear();
+    for (auto &p : param) {
+      if (param_names.find(p.first) != param_names.end())
+        throw std::runtime_error("duplicate parameter name");
+      param_names.insert(p.first);
+    }
     return param;
   }
 
-  vector<ExprPtr> arrayDimmension() {
-    vector<ExprPtr> dimensions;
+  std::vector<ExprPtr> arrayDimmension() {
+    std::vector<ExprPtr> dimensions;
     while (peek("[")) {
       skip();
       if (!peek("]")) {
@@ -517,11 +522,13 @@ struct Parser {
     return dimensions;
   }
 
-  tuple<string_view, size_t, vector<pair<string_view, Type>>, vector<ExprPtr>>
+  std::tuple<std::string_view, size_t,
+             std::vector<std::pair<std::string_view, Type>>,
+             std::vector<ExprPtr>>
   declarator() {
     Token name = expectIdentifier();
-    vector<pair<string_view, Type>> param_list;
-    vector<ExprPtr> dimensions;
+    std::vector<std::pair<std::string_view, Type>> param_list;
+    std::vector<ExprPtr> dimensions;
     size_t index;
     if (peek("(")) {
       index = 0;
@@ -554,11 +561,11 @@ struct Parser {
     if (spec == TS_None)
       throw std::runtime_error("expect type specifier");
 
-    return Type{spec, qual, vector<ExprPtr>{}};
+    return Type{spec, qual, std::vector<ExprPtr>{}};
   }
 
   NodePtr translationUnit() {
-    vector<NodePtr> decls;
+    std::vector<NodePtr> decls;
     scope.entry();
     auto fake_func = new FunctionDeclaration{
       Type{TS_Void, TQ_None, {}}, "_dummy_", {}, nullptr};
@@ -583,6 +590,6 @@ struct Parser {
 
   NodePtr parse() { return translationUnit(); }
 
-  Parser(const string &input)
+  Parser(const std::string &input)
     : input(input), input_view(input), index(0), token_index(0) {}
 };
