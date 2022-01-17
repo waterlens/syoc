@@ -10,4 +10,5 @@ include_directories(.)
 
 add_subdirectory(Parser)
 add_subdirectory(Tree)
+add_subdirectory(Transformer)
 add_subdirectory(ThirdParty)

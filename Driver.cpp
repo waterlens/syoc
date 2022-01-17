@@ -1,4 +1,6 @@
 #include "Parser/Parser.hpp"
+#include "Transformer/Transformer.hpp"
+#include "Transformer/Pass.hpp"
 #include "Tree/Tree.hpp"
 #include <fmt/core.h>
 #include <fstream>
@@ -16,7 +18,10 @@ int main(int argc, char *argv[]) {
 
   Parser parser(fileContent);
   parser.tokenize();
-  auto p = parser.parse();
-  
+  auto tree = parser.parse();
+  Transformer transformer(tree);
+  transformer.registerTreeTransformation({{"Constant Initializer Fold", ConstantInitializerFold{}}});
+  transformer.transform();
+
   return 0;
 }

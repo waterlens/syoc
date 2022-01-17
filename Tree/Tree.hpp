@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -68,24 +69,23 @@ struct Type {
 struct Node {
   NodeType node_type;
   Node(NodeType type) : node_type(type) {}
-  template <typename T> bool is() { return node_type == T::this_type; }
+  template <typename T> bool is() {
+    return node_type == std::remove_pointer_t<T>::this_type;
+  }
+  template <typename T> T cast() {
+    if (is<T>())
+      return static_cast<T>(this);
+    throw std::runtime_error("cast failed");
+  }
+  template <typename T> T cast_unchecked() { return static_cast<T>(this); }
 };
 
-#define THIS(x) inline static NodeType this_type = x
+#define THIS(x) constexpr inline static NodeType this_type = x
 
 struct Module : public Node {
   THIS(ND_Module);
   std::vector<NodePtr> decls;
   Module(std::vector<NodePtr> decls) : Node(this_type), decls(decls) {}
-};
-
-struct GlobalDeclaration : public Node {
-  THIS(ND_GlobalDeclaration);
-  Type type;
-  std::string_view name;
-  ExprPtr initializer;
-  GlobalDeclaration(Type type, std::string_view name, ExprPtr initializer)
-    : Node(this_type), type(type), name(name), initializer(initializer) {}
 };
 
 struct FunctionDeclaration : public Node {
@@ -102,12 +102,24 @@ struct FunctionDeclaration : public Node {
 };
 
 struct VariableDeclaration : public Node {
-  THIS(ND_VariableDeclaration);
   Type type;
   std::string_view name;
-  NodePtr initializer;
-  VariableDeclaration(Type type, std::string_view name, NodePtr initializer)
+  ExprPtr initializer;
+  VariableDeclaration(NodeType this_type, Type type, std::string_view name,
+                      ExprPtr initializer)
     : Node(this_type), type(type), name(name), initializer(initializer) {}
+};
+
+struct GlobalDeclaration : public VariableDeclaration {
+  THIS(ND_GlobalDeclaration);
+  GlobalDeclaration(Type type, std::string_view name, ExprPtr initializer)
+    : VariableDeclaration(this_type, type, name, initializer) {}
+};
+
+struct LocalDeclaration : public VariableDeclaration {
+  THIS(ND_LocalDeclaration);
+  LocalDeclaration(Type type, std::string_view name, ExprPtr initializer)
+    : VariableDeclaration(this_type, type, name, initializer) {}
 };
 
 struct CompoundStmt : public Node {
@@ -191,7 +203,8 @@ struct IntegerLiteral : public Expr {
 struct RefExpr : public Expr {
   THIS(ND_RefExpr);
   std::string_view name;
-  RefExpr(std::string_view name) : Expr(this_type), name(name) {}
+  NodePtr decl;
+  RefExpr(std::string_view name, NodePtr decl) : Expr(this_type), name(name), decl(decl) {}
 };
 
 struct ContinueStmt : public Node {
@@ -209,3 +222,31 @@ struct ReturnStmt : public Node {
   ExprPtr value;
   ReturnStmt(ExprPtr value) : Node(this_type), value(value) {}
 };
+
+template <typename T> class Scope {
+private:
+  std::vector<std::unordered_map<std::string_view, T>> scope;
+
+public:
+  T find(std::string_view name) {
+    for (auto iter = scope.rbegin(); iter != scope.rend(); ++iter) {
+      auto result = iter->find(name);
+      if (result != iter->end())
+        return result->second;
+    }
+    return nullptr;
+  }
+  void entry() { scope.emplace_back(); }
+  void exit() { scope.pop_back(); }
+  void insert(std::string_view name, const T &value) {
+    scope.back().emplace(name, value);
+  }
+};
+
+inline bool isVariableDeclaration(NodePtr node) {
+  return node->is<GlobalDeclaration *>() || node->is<LocalDeclaration *>();
+}
+
+inline bool isFunctionDeclaration(NodePtr node) {
+  return node->is<FunctionDeclaration *>();
+}

@@ -37,14 +37,16 @@ OpcodeDefine(OP_Allocate,   "alloca")
 OpcodeDefine(OP_Call,"call")
 OpcodeDefine(OP_End, "")
 
+TypeSpecifierDefine(TS_None,  0)
 TypeSpecifierDefine(TS_Void,  1 << 0)
 TypeSpecifierDefine(TS_Int,   1 << 4)
 
+TypeQualifierDefine(TQ_None,  0)
 TypeQualifierDefine(TQ_Const, 1 << 0)
 
 NodeTypeDefine(ND_Module)
 NodeTypeDefine(ND_GlobalDeclaration)
-NodeTypeDefine(ND_VariableDeclaration)
+NodeTypeDefine(ND_LocalDeclaration)
 NodeTypeDefine(ND_FunctionDeclaration)
 NodeTypeDefine(ND_CompoundStmt)
 NodeTypeDefine(ND_IfStmt)

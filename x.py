@@ -102,7 +102,8 @@ def check(args):
         for path in args.test:
             check_test_name_valid(path)
             print(f'Checking {path}')
-            if subprocess.run([cc_path, get_test_source(path)], stdout=subprocess.DEVNULL).returncode != 0:
+            path = get_test_source(path)
+            if subprocess.run([cc_path, path], stdout=subprocess.DEVNULL).returncode != 0:
                 print(f'Error: {path}')
                 open('current.txt', 'wb').write(path.encode())
                 return

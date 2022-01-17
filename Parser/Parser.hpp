@@ -42,6 +42,7 @@ struct Parser {
   vector<Token> tokens;
   size_t index;
   size_t token_index;
+  Scope<NodePtr> scope;
 
   inline static unordered_set<string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
@@ -314,7 +315,10 @@ struct Parser {
       return new IntegerLiteral{
         std::strtoull(convert_buffer.c_str(), nullptr, radix)};
     } else if (tok.token_type == TokenType::Identifier) {
-      return new RefExpr{tok.text};
+      auto node = scope.find(tok.text);
+      if (!node)
+        throw std::runtime_error(fmt::format("undefined symbol {}", tok.text));
+      return new RefExpr{tok.text, node};
     }
     throw std::runtime_error(fmt::format("unexpected token {}", tok.text));
   }
@@ -398,10 +402,12 @@ struct Parser {
   }
 
   NodePtr compoundStatement() {
+    scope.entry();
     auto stmt = new CompoundStmt{{}};
     expect("{");
     while (!peek("}")) blockItem(stmt->stmts);
     expect("}");
+    scope.exit();
     return stmt;
   }
 
@@ -428,13 +434,18 @@ struct Parser {
 
   vector<NodePtr> externalDeclaration() {
     auto declspec = declarationSpecifiers();
-    ExprPtr init;
+    ExprPtr init = nullptr;
     vector<NodePtr> all_decls;
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0) {
+      auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      scope.insert(name, func);
+      scope.entry();
+      for (auto &param : param_list) scope.insert(param.first, func);
       auto stmt = compoundStatement();
-      all_decls.emplace_back(
-        new FunctionDeclaration{declspec, name, param_list, stmt});
+      scope.exit();
+      func->body = stmt;
+      all_decls.emplace_back(func);
     } else {
       if (consume("="))
         init = initializer();
@@ -442,9 +453,10 @@ struct Parser {
                      index == 1 ? dimensions : vector<ExprPtr>{}};
 
       all_decls.emplace_back(new GlobalDeclaration{ty, name, init});
+      scope.insert(name, all_decls.back());
 
       while (consume(",")) {
-        all_decls.emplace_back(initDeclarator(std::move(declspec), true));
+        all_decls.emplace_back(initDeclarator(declspec, true));
       }
       expect(";");
     }
@@ -453,7 +465,7 @@ struct Parser {
 
   NodePtr initDeclarator(Type declspec, bool is_global) {
     auto [name, index, param_list, dimensions] = declarator();
-    ExprPtr init;
+    ExprPtr init = nullptr;
     if (consume("="))
       init = initializer();
 
@@ -462,10 +474,12 @@ struct Parser {
 
     auto ty = Type{declspec.spec, declspec.qual,
                    index == 1 ? dimensions : vector<ExprPtr>{}};
-    if (is_global)
-      return new GlobalDeclaration{ty, name, init};
-    else
-      return new VariableDeclaration{ty, name, init};
+    auto *decl = is_global ? (new GlobalDeclaration{ty, name, init})
+                               ->cast_unchecked<VariableDeclaration *>()
+                           : (new LocalDeclaration{ty, name, init})
+                               ->cast_unchecked<VariableDeclaration *>();
+    scope.insert(name, decl);
+    return decl;
   }
 
   pair<string_view, Type> parameterDeclaration() {
@@ -523,8 +537,8 @@ struct Parser {
   }
 
   Type declarationSpecifiers() {
-    TypeQualifier qual;
-    TypeSpecifier spec;
+    TypeQualifier qual = TQ_None;
+    TypeSpecifier spec = TS_None;
 
     for (;;) {
       if (consume("const"))
@@ -536,18 +550,34 @@ struct Parser {
       else
         break;
     }
+
+    if (spec == TS_None)
+      throw std::runtime_error("expect type specifier");
+
     return Type{spec, qual, vector<ExprPtr>{}};
   }
 
   NodePtr translationUnit() {
     vector<NodePtr> decls;
+    scope.entry();
+    auto fake_func = new FunctionDeclaration{
+      Type{TS_Void, TQ_None, {}}, "_dummy_", {}, nullptr};
+    scope.insert("getint", fake_func);
+    scope.insert("getch", fake_func);
+    scope.insert("getarray", fake_func);
+    scope.insert("putint", fake_func);
+    scope.insert("putch", fake_func);
+    scope.insert("putarray", fake_func);
+    scope.insert("starttime", fake_func);
+    scope.insert("stoptime", fake_func);
     for (;;) {
       auto tok = peek();
       if (tok.token_type == TokenType::EndOfFile)
         break;
       auto decl = externalDeclaration();
-      for (auto &&e : decl) decls.emplace_back(std::move(e));
+      for (auto &e : decl) decls.emplace_back(e);
     }
+    scope.exit();
     return new Module{decls};
   }
 
