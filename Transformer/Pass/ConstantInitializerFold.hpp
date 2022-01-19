@@ -20,7 +20,7 @@ private:
 
   void constantInitialization(NodePtr node) {
     assert(isVariableDeclaration(node));
-    auto decl = node->cast_unchecked<VariableDeclaration *>();
+    auto decl = node->as_unchecked<VariableDeclaration *>();
     if (!decl->initializer && decl->type.qual == TQ_Const)
       throw std::runtime_error(
         fmt::format("const variable {} must be initialized", decl->name));
@@ -29,7 +29,7 @@ private:
         decl->initializer = constantEvaluation(decl->initializer);
       else if (decl->initializer->is<InitListExpr *>())
         decl->initializer = constEvaluationInitList(
-          decl->initializer->cast_unchecked<InitListExpr *>());
+          decl->initializer->as_unchecked<InitListExpr *>());
     }
   }
 
@@ -40,7 +40,7 @@ private:
         *iter = constantEvaluation(*iter);
       else if ((*iter)->is<InitListExpr *>())
         *iter =
-          constEvaluationInitList((*iter)->cast_unchecked<InitListExpr *>());
+          constEvaluationInitList((*iter)->as_unchecked<InitListExpr *>());
     }
     return init_list;
   }
@@ -49,10 +49,10 @@ private:
     assert(isConstantExpression(node));
 
     if (node->is<IntegerLiteral *>())
-      return node->cast_unchecked<IntegerLiteral *>();
+      return node->as_unchecked<IntegerLiteral *>();
 
     if (node->is<RefExpr *>()) {
-      auto ref = node->cast_unchecked<RefExpr *>();
+      auto ref = node->as_unchecked<RefExpr *>();
       auto ref_node = ref->decl;
       if (ref_node == nullptr)
         throw std::runtime_error(
@@ -64,15 +64,15 @@ private:
           !ref_node->is<LocalDeclaration *>())
         throw std::runtime_error(
           fmt::format("{} is not a variable", ref->name));
-      auto decl = ref_node->cast_unchecked<VariableDeclaration *>();
+      auto decl = ref_node->as_unchecked<VariableDeclaration *>();
       if (!decl->initializer->is<IntegerLiteral *>())
         throw std::runtime_error(fmt::format(
           "variable {} must be initialized as a literal", decl->name));
-      return decl->initializer->cast_unchecked<IntegerLiteral *>();
+      return decl->initializer->as_unchecked<IntegerLiteral *>();
     }
 
     if (node->is<UnaryExpr *>()) {
-      auto unary = node->cast_unchecked<UnaryExpr *>();
+      auto unary = node->as_unchecked<UnaryExpr *>();
       auto result = new IntegerLiteral{0};
       if (unary->op == OP_Neg)
         result->value = -constantEvaluation(unary->operand)->value;
@@ -84,7 +84,7 @@ private:
     }
 
     if (node->is<BinaryExpr *>()) {
-      auto bin = node->cast_unchecked<BinaryExpr *>();
+      auto bin = node->as_unchecked<BinaryExpr *>();
       auto lhs = constantEvaluation(bin->lhs);
       auto rhs = constantEvaluation(bin->rhs);
       return new IntegerLiteral{[=]() -> uint64_t {
@@ -132,7 +132,7 @@ private:
 
   void arrayDimensionConstantEvaluation(NodePtr node) {
     assert(isVariableDeclaration(node));
-    auto decl = node->cast_unchecked<VariableDeclaration *>();
+    auto decl = node->as_unchecked<VariableDeclaration *>();
     auto &dim = decl->type.dim;
     for (auto iter = dim.begin(); iter != dim.end(); ++iter) {
       if (!isConstantExpression(*iter))
@@ -147,23 +147,24 @@ private:
         constantInitialization(stmt);
         arrayDimensionConstantEvaluation(stmt);
       } else if (stmt->is<CompoundStmt *>())
-        compoundIteration(stmt->cast_unchecked<CompoundStmt *>());
+        compoundIteration(stmt->as_unchecked<CompoundStmt *>());
   }
 
   void functionIteration(FunctionDeclaration *func) {
-    auto body = func->body->cast<CompoundStmt *>();
+    if (func->body == nullptr)
+      return;
+    auto body = func->body->as<CompoundStmt *>();
     compoundIteration(body);
   }
 
   void globalIteration() {
-    auto module = root->cast<Module *>();
+    auto module = root->as<Module *>();
     for (auto decl : module->decls) {
       if (isVariableDeclaration(decl)) {
         constantInitialization(decl);
         arrayDimensionConstantEvaluation(decl);
-        auto p = decl->cast_unchecked<VariableDeclaration *>();
       } else if (isFunctionDeclaration(decl)) {
-        auto f = decl->cast_unchecked<FunctionDeclaration *>();
+        auto f = decl->as_unchecked<FunctionDeclaration *>();
         functionIteration(f);
       } else {
         throw std::runtime_error("unknown node in the top level of module");

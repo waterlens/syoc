@@ -31,14 +31,11 @@ public:
     if (!tree)
       throw std::runtime_error("tree is null");
     for (auto &&[name, func] : transformations) {
-      try {
-        auto new_tree = func(tree);
-        if (!new_tree)
-          throw std::runtime_error(fmt::format("tree pass returned empty tree", name));
-        tree = new_tree;
-      } catch (std::runtime_error e) {
-        throw std::runtime_error(fmt::format("{}: {}", name, e.what()));
-      }
+      auto new_tree = func(tree);
+      if (!new_tree)
+        throw std::runtime_error(
+          fmt::format("tree pass returned empty tree", name));
+      tree = new_tree;
     }
   }
 };

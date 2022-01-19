@@ -64,6 +64,8 @@ struct Type {
   std::vector<ExprPtr> dim;
   std::string toString();
   std::string dump();
+  Type(TypeSpecifier spec, TypeQualifier qual, std::vector<ExprPtr> dim)
+    : spec(spec), qual(qual), dim(dim) {}
 };
 
 struct Node {
@@ -72,12 +74,12 @@ struct Node {
   template <typename T> bool is() {
     return node_type == std::remove_pointer_t<T>::this_type;
   }
-  template <typename T> T cast() {
+  template <typename T> T as() {
     if (is<T>())
       return static_cast<T>(this);
     throw std::runtime_error("cast failed");
   }
-  template <typename T> T cast_unchecked() { return static_cast<T>(this); }
+  template <typename T> T as_unchecked() { return static_cast<T>(this); }
 };
 
 #define THIS(x) constexpr inline static NodeType this_type = x
@@ -166,10 +168,10 @@ struct ArraySubscriptExpr : public Expr {
 
 struct CallExpr : public Expr {
   THIS(ND_CallExpr);
-  ExprPtr name;
+  ExprPtr func;
   std::vector<ExprPtr> args;
   CallExpr(ExprPtr name, std::vector<ExprPtr> args)
-    : Expr(this_type), name(name), args(args) {}
+    : Expr(this_type), func(name), args(args) {}
 };
 
 struct AssignExpr : public Expr {
@@ -204,7 +206,8 @@ struct RefExpr : public Expr {
   THIS(ND_RefExpr);
   std::string_view name;
   NodePtr decl;
-  RefExpr(std::string_view name, NodePtr decl) : Expr(this_type), name(name), decl(decl) {}
+  RefExpr(std::string_view name, NodePtr decl)
+    : Expr(this_type), name(name), decl(decl) {}
 };
 
 struct ContinueStmt : public Node {
@@ -249,4 +252,12 @@ inline bool isVariableDeclaration(NodePtr node) {
 
 inline bool isFunctionDeclaration(NodePtr node) {
   return node->is<FunctionDeclaration *>();
+}
+
+inline bool isExpression(NodePtr node) {
+  return node->is<InitListExpr *>() || node->is<ArraySubscriptExpr *>() ||
+         node->is<CallExpr *>() || node->is<AssignExpr *>() ||
+         node->is<BinaryExpr *>() || node->is<UnaryExpr *>() ||
+         node->is<IntegerLiteral *>() || node->is<RefExpr *>();
+  ;
 }

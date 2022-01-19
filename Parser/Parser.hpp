@@ -2,11 +2,13 @@
 #include <cassert>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fmt/format.h>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -309,9 +311,8 @@ struct Parser {
     skip();
     if (tok.token_type == TokenType::IntegerConstant) {
       convert_buffer = tok.text;
-      unsigned radix = convert_buffer.starts_with("0x") ? 16 : 10;
       return new IntegerLiteral{
-        std::strtoull(convert_buffer.c_str(), nullptr, radix)};
+        std::strtoull(convert_buffer.c_str(), nullptr, 0)};
     } else if (tok.token_type == TokenType::Identifier) {
       auto node = scope.find(tok.text);
       if (!node)
@@ -364,10 +365,10 @@ struct Parser {
   NodePtr expressionStatement() {
     NodePtr expr = nullptr;
     if (!peek(";")) {
-      auto expr = expression();
+      expr = expression();
     }
     expect(";");
-    return expr;
+    return expr ? expr : new CompoundStmt{{}};
   }
 
   NodePtr statement() {
@@ -438,12 +439,19 @@ struct Parser {
     if (index == 0) {
       auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
-      scope.entry();
-      for (auto &param : param_list) scope.insert(param.first, func);
-      auto stmt = compoundStatement();
-      scope.exit();
-      func->body = stmt;
-      all_decls.emplace_back(func);
+      if (peek("{")) { // function definition
+        scope.entry();
+        for (auto &param : param_list) scope.insert(param.first, func);
+        auto stmt = compoundStatement();
+        scope.exit();
+        func->body = stmt;
+        all_decls.emplace_back(func);
+      } else {
+        while (consume(",")) {
+          all_decls.emplace_back(initDeclarator(declspec, true));
+        }
+        expect(";");
+      }
     } else {
       if (consume("="))
         init = initializer();
@@ -467,15 +475,21 @@ struct Parser {
     if (consume("="))
       init = initializer();
 
-    if (index == 0)
-      throw std::runtime_error("can't use function declarator here");
+    if (index == 0) {
+      auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      scope.insert(name, func);
+      scope.entry();
+      for (auto &param : param_list) scope.insert(param.first, func);
+      scope.exit();
+      return func;
+    }
 
     auto ty = Type{declspec.spec, declspec.qual,
                    index == 1 ? dimensions : std::vector<ExprPtr>{}};
     auto *decl = is_global ? (new GlobalDeclaration{ty, name, init})
-                               ->cast_unchecked<VariableDeclaration *>()
+                               ->as_unchecked<VariableDeclaration *>()
                            : (new LocalDeclaration{ty, name, init})
-                               ->cast_unchecked<VariableDeclaration *>();
+                               ->as_unchecked<VariableDeclaration *>();
     scope.insert(name, decl);
     return decl;
   }
@@ -514,9 +528,12 @@ struct Parser {
     std::vector<ExprPtr> dimensions;
     while (peek("[")) {
       skip();
-      if (!peek("]")) {
+      if (peek("]"))
+        dimensions.emplace_back(
+          new IntegerLiteral{std::numeric_limits<uint64_t>::max()});
+      else
         dimensions.push_back(assignmentExpression());
-      }
+
       expect("]");
     }
     return dimensions;
@@ -567,16 +584,6 @@ struct Parser {
   NodePtr translationUnit() {
     std::vector<NodePtr> decls;
     scope.entry();
-    auto fake_func = new FunctionDeclaration{
-      Type{TS_Void, TQ_None, {}}, "_dummy_", {}, nullptr};
-    scope.insert("getint", fake_func);
-    scope.insert("getch", fake_func);
-    scope.insert("getarray", fake_func);
-    scope.insert("putint", fake_func);
-    scope.insert("putch", fake_func);
-    scope.insert("putarray", fake_func);
-    scope.insert("starttime", fake_func);
-    scope.insert("stoptime", fake_func);
     for (;;) {
       auto tok = peek();
       if (tok.token_type == TokenType::EndOfFile)

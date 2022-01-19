@@ -1,6 +1,6 @@
 #include "Parser/Parser.hpp"
-#include "Transformer/Transformer.hpp"
 #include "Transformer/Pass.hpp"
+#include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include <fmt/core.h>
 #include <fstream>
@@ -16,11 +16,20 @@ int main(int argc, char *argv[]) {
     getline(ifstream("current.txt"), fileName, '\0');
   getline(ifstream(fileName), fileContent, '\0');
 
+  fileContent = R"(
+int getint(), getch(), getarray(int a[]);
+void putint(int a), putch(int a), putarray(int n, int a[]);
+void starttime();
+void stoptime();
+)" + fileContent;
+
   Parser parser(fileContent);
   parser.tokenize();
   auto tree = parser.parse();
   Transformer transformer(tree);
-  transformer.registerTreeTransformation({{"Constant Initializer Fold", ConstantInitializerFold{}}});
+  transformer.registerTreeTransformation(
+    {{"Constant Initializer Fold", ConstantInitializerFold{}}});
+  transformer.registerTreeTransformation({{"Type Check", TypeCheck{}}});
   transformer.transform();
 
   return 0;
