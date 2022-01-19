@@ -28,8 +28,8 @@ void stoptime();
   auto tree = parser.parse();
   Transformer transformer(tree);
   transformer.registerTreeTransformation(
-    {{"Constant Initializer Fold", ConstantInitializerFold{}}});
-  transformer.registerTreeTransformation({{"Type Check", TypeCheck{}}});
+    {{"Constant Initializer Fold", ConstantInitializerFold{}},
+     {"Type Check", TypeCheck{}}});
   transformer.transform();
 
   return 0;
