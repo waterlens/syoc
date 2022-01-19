@@ -69,9 +69,9 @@ def get_cc_path(cc, cc_path):
     if cc_path is None:
         if cc == 'syoc':
             cc_path = default_syoc_path
-        elif subprocess.run([cc, '-v'], stderr=subprocess.DEVNULL).returncode == 0:
+        elif subprocess.run([cc, '-v'], stdout=subprocess.DEVNULL).returncode == 0:
             cc_path = cc
-    if not subprocess.run([cc_path, '-v'], stderr=subprocess.DEVNULL).returncode == 0:
+    if not subprocess.run([cc_path, '-v'], stdout=subprocess.DEVNULL).returncode == 0:
         print(f'Error: {cc_path} not found')
         return None
     return (cc, cc_path)
@@ -94,7 +94,10 @@ def check(args):
                 if name.endswith('.sy'):
                     name = os.path.join(root, name)
                     print(f'Checking {name}')
-                    if subprocess.run([cc_path, name], stdout=subprocess.DEVNULL).returncode != 0:
+                    result = subprocess.run([cc_path, name], capture_output=True, text=True)
+                    if args.output is True:
+                        print(result.stdout)
+                    if result.returncode != 0:
                         print(f'Error: {name}')
                         open('current.txt', 'wb').write(name.encode())
                         return
@@ -103,7 +106,10 @@ def check(args):
             check_test_name_valid(path)
             print(f'Checking {path}')
             path = get_test_source(path)
-            if subprocess.run([cc_path, path], stdout=subprocess.DEVNULL).returncode != 0:
+            result = subprocess.run([cc_path, path], capture_output=True, text=True)
+            if args.output is True:
+                print(result.stdout)
+            if result.returncode != 0:
                 print(f'Error: {path}')
                 open('current.txt', 'wb').write(path.encode())
                 return
@@ -206,6 +212,7 @@ def main():
     ck = subparser.add_parser('check', help='check if syoc will crash')
     ck.add_argument('--test', nargs='+',
                     help='the name of the test you want to check')
+    ck.add_argument('--output', action="store_true")
 
     args = parser.parse_args()
 
