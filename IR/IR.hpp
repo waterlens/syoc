@@ -1,9 +1,9 @@
 #pragma once
 
-#include <fmt/core.h>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
 #include <limits>
@@ -17,334 +17,177 @@
 #include <variant>
 #include <vector>
 
+#include "IR/IR.hpp"
+#include "Tree/Tree.hpp"
+#include "Util/TrivialValueVector.hpp"
 
-#define OpcodeDefine(x, n) x,
-enum OpType {
-#include "Common/Common.def"
+struct SSAValueHandle;
+struct SSAType;
+struct SSAValue;
+
+struct Module;
+struct BasicBlock;
+struct Instruction;
+struct ConstantInteger;
+struct ConstantArray;
+struct GlobalVariable;
+struct Function;
+
+class IRHost;
+
+struct SSAValueHandle {
+  unsigned id;
+  inline static unsigned InvalidValueHandle =
+    std::numeric_limits<unsigned>::max();
+  SSAValueHandle(const SSAValueHandle &handle) : id(handle.id) {}
+  SSAValueHandle(SSAValueHandle &&handle) : id(handle.id) {}
+  SSAValueHandle(unsigned id) : id(id) {}
+  SSAValueHandle() : id(InvalidValueHandle) {}
+  ~SSAValueHandle() {}
+  SSAValueHandle &operator=(const SSAValueHandle &handle) {
+    id = handle.id;
+    return *this;
+  }
+  operator unsigned() const { return id; }
+  bool isValid() const { return id != InvalidValueHandle; }
 };
 
-#define OpcodeDefine(x, n) n,
-inline constexpr std::string_view op_name[]{
-#include "Common/Common.def"
+struct SSAType {
+  enum class PrimitiveType : uint16_t {
+    Void,
+    Integer,
+  } primitive_type;
+  uint16_t width;
+  TrivialValueVector<unsigned> dimension;
 };
 
-
-using ValueHandle = uint32_t;
-inline constexpr ValueHandle invalid_value_handle =
-  std::numeric_limits<ValueHandle>::max();
-inline bool is_handle_valid(ValueHandle handle) {
-  return handle != invalid_value_handle;
-}
-
-class Module;
-class Type;
-struct Value;
-
-class BasicBlock;
-class Instruction;
-class ConstantArray;
-class ConstantExpr;
-class ConstantInteger;
-class GlobalVariable;
-class Function;
-class IRBuilder;
-
-class Type {
-  friend IRBuilder;
-};
-
-class ConstantInteger;
-
-
-class BasicBlock {
-  std::vector<ValueHandle> insn;
-  ValueHandle parent;
-  ValueHandle identity;
-  friend IRBuilder;
-
-public:
-  BasicBlock(ValueHandle parent, ValueHandle identity)
-    : parent(parent), identity(identity) {}
-  auto &refInstruction() { return insn; }
-};
-
-class Instruction {
+struct Instruction {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
   OpType op;
-  Type type;
-  ValueHandle parent;
-  ValueHandle identity;
-  std::array<ValueHandle, 3> arg;
-  friend IRBuilder;
-
-public:
-  auto &refType() { return type; }
-  /*std::string toString() {
-    static std::string arg_str;
-    arg_str.clear();
-    for (auto &a : arg)
-      if (is_handle_valid(a))
-        arg_str.append(fmt::format("%{}, ", a));
-    if (arg_str.ends_with(", "))
-      arg_str.pop_back(), arg_str.pop_back();
-    return fmt::format("%{} = {} {} {}", identity, op_name[op], type.toString(),
-                       arg_str);
-  }*/
-  Instruction(OpType op, Type type, ValueHandle parent, ValueHandle identity,
-              ValueHandle arg0, ValueHandle arg1, ValueHandle arg2)
-    : op(op), type(type), parent(parent),
-      identity(identity), arg{arg0, arg1, arg2} {}
+  SSAType type;
+  std::array<SSAValueHandle, 3> arg;
 };
 
-class GlobalVariable {
-  Type type;
-  ValueHandle parent;
-  ValueHandle identity;
-  ValueHandle initializer;
-  std::string_view name;
-  friend IRBuilder;
-
-public:
-  GlobalVariable(ValueHandle parent, ValueHandle identity,
-                 ValueHandle initializer)
-    : parent(parent), identity(identity), initializer(initializer) {}
-  ValueHandle &refInitializer() { return initializer; }
-  Type &refType() { return type; }
-  std::string_view &refName() { return name; }
+struct BasicBlock {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
+  std::vector<SSAValueHandle> insn;
 };
 
-class ConstantInteger {
+struct ConstantInteger {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
   uint64_t value;
-  friend IRBuilder;
-
-public:
-  ConstantInteger(uint64_t value) : value(value) {}
-  uint64_t &refValue() { return value; }
 };
 
-class ConstantArray {
-  ValueHandle parent;
-  ValueHandle identity;
-  std::vector<ValueHandle> element;
-  friend IRBuilder;
-
-public:
-  ConstantArray(ValueHandle parent, ValueHandle identity)
-    : parent(parent), identity(identity) {}
-  auto &refElement() { return element; }
-  std::string toString() {
-    static std::string buffer;
-    buffer.clear();
-    buffer.append(fmt::format("%{} = ", identity));
-    buffer.append("[");
-    for (auto &e : element)
-      buffer.append(fmt::format("%{}, ", e));
-    if (buffer.ends_with(", "))
-      buffer.pop_back(), buffer.pop_back();
-    buffer.append("]");
-    return buffer;
-  }
+struct ConstantArray {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
+  std::vector<uint64_t> array;
 };
 
-class ConstantExpr {
-  ValueHandle parent;
-  ValueHandle identity;
-  OpType op;
-  ValueHandle left;
-  ValueHandle right;
-  friend IRBuilder;
-
-public:
-  ConstantExpr(OpType op, ValueHandle parent, ValueHandle identity,
-               ValueHandle left, ValueHandle right)
-    : parent(parent), identity(identity), op(op), left(left), right(right) {}
-  std::string toString() {
-    static std::string arg_str;
-    arg_str.clear();
-    if (is_handle_valid(left))
-      arg_str.append(fmt::format("%{}", left));
-    if (is_handle_valid(right))
-      arg_str.append(fmt::format(", %{}", right));
-    return fmt::format("%{} = {} {}", identity, op_name[op], arg_str);
-  }
-};
-
-class Function {
-  Type ret;
+struct Function {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
+  SSAType return_type;
   std::vector<std::tuple<std::string_view, Type>> args;
-  ValueHandle parent;
-  ValueHandle identity;
-  std::vector<ValueHandle> basic_block;
+  std::vector<SSAValueHandle> basic_block;
   std::string_view name;
-  friend IRBuilder;
-
-public:
-  Function(ValueHandle parent, ValueHandle identity)
-    : ret(), args(), parent(parent), identity(identity), basic_block(), name() {
-  }
-  auto &refName() { return name; }
-  auto &refReturnType() { return ret; }
-  auto &refArgumentList() { return args; }
-  auto &refBasicBlock() { return basic_block; }
 };
 
+struct GlobalVariable {
+  SSAValueHandle parent;
+  SSAValueHandle identity;
+  SSAType type;
+  SSAValueHandle initializer;
+  std::string_view name;
+};
 
-struct Value {
-  std::variant<BasicBlock *, Instruction *, GlobalVariable *, ConstantInteger,
-               ConstantArray *, ConstantExpr *, Function *, Module *>
+struct SSAValue {
+  std::variant<std::nullptr_t, BasicBlock *, Instruction *, ConstantInteger *,
+               ConstantArray *, GlobalVariable *, Function *>
     _;
-  friend IRBuilder;
   template <typename T> T get() {
     if (std::holds_alternative<T>(_)) {
       return std::get<T>(_);
     }
-    throw std::runtime_error("Value not holds T");
+    throw std::runtime_error("SSAValue doesn't hold T");
   }
   template <typename T> T get_if() { return std::get_if<T>(_); }
 };
 
-class Module {
-  std::vector<Value> pool;
-  std::vector<ValueHandle> global_function_table;
-  std::vector<ValueHandle> global_value_table;
-  std::vector<ValueHandle> global_constant_table;
-  friend IRBuilder;
-
-public:
-  Module() { pool.emplace_back(Value{this}); }
-  template <typename T> T handle_cast(ValueHandle handle) {
-    return pool.at(handle).get<T>();
+struct SSAValuePool {
+  std::vector<SSAValue> values;
+  SSAValuePool() { values.emplace_back(SSAValue{nullptr}); }
+  SSAValue &operator[](SSAValueHandle n) {
+    return values[static_cast<unsigned>(n)];
   }
+  inline static SSAValueHandle top = 0;
 };
 
-class IRBuilder {
+class IRHost {
 private:
-  Module *module = nullptr;
-  Function *function = nullptr;
-  BasicBlock *basic_block = nullptr;
-  GlobalVariable *global_variable = nullptr;
-  ConstantArray *constant_array = nullptr;
-  ConstantExpr *constant_expr = nullptr;
-  Instruction *instruction = nullptr;
-  inline static ValueHandle module_handle = 0;
+  SSAValuePool pool;
+  std::vector<SSAValueHandle> function_table;
+  std::vector<SSAValueHandle> value_table;
+  std::vector<SSAValueHandle> constant_table;
+  std::pair<Function *, SSAValueHandle> function{};
+  std::pair<BasicBlock *, SSAValueHandle> basic_block{};
+  std::pair<GlobalVariable *, SSAValueHandle> global_variable{};
+  std::pair<Instruction *, SSAValueHandle> instruction{};
 
 private:
-  void check_module() {
-    if (module == nullptr) {
-      throw std::runtime_error("Module is not initialized");
-    }
-  }
-
   void check_function() {
-    if (function == nullptr) {
+    if (function.first == nullptr)
       throw std::runtime_error("Function is not initialized");
-    }
   }
 
   void check_basic_block() {
-    if (basic_block == nullptr) {
+    if (basic_block.first == nullptr)
       throw std::runtime_error("BasicBlock is not initialized");
-    }
-  }
-
-  std::tuple<ValueHandle, Instruction *>
-  create_raw_instruction(OpType op, Type type, ValueHandle arg0,
-                         ValueHandle arg1, ValueHandle arg2) {
-    check_module();
-    check_basic_block();
-    Instruction *insn = new Instruction(op, type, basic_block->identity,
-                                        module->pool.size(), arg0, arg1, arg2);
-    module->pool.push_back(Value{insn});
-    return {insn->identity, insn};
   }
 
 public:
-  IRBuilder() {}
-  void createModule() {
-    if (module)
-      throw std::runtime_error("Module already exists");
-    module = new Module();
+  std::pair<Function *, SSAValueHandle> createFunction() {
+    auto function = new Function();
+    function->parent = pool.top;
+    function->identity = pool.values.size();
+    pool.values.emplace_back(SSAValue{function});
+    return {function, function->identity};
   }
 
-  std::tuple<ValueHandle, Function *> createFunction() {
-    check_module();
-    function = new Function(module_handle, module->pool.size());
-    module->pool.emplace_back(Value{function});
-    return {function->identity, function};
-  }
-
-  std::tuple<ValueHandle, BasicBlock *> createBasicBlock() {
-    check_module();
+  std::pair<BasicBlock *, SSAValueHandle> createBasicBlock() {
     check_function();
-    basic_block = new BasicBlock(function->identity, module->pool.size());
-    module->pool.emplace_back(Value{basic_block});
-    return {basic_block->identity, basic_block};
+    auto basic_block = new BasicBlock();
+    basic_block->parent = pool.top;
+    basic_block->identity = pool.values.size();
+    pool.values.emplace_back(SSAValue{basic_block});
+    return {basic_block, basic_block->identity};
   }
 
-  std::tuple<ValueHandle, GlobalVariable *> createGlobalVariable() {
-    check_module();
-    global_variable = new GlobalVariable(module_handle, module->pool.size(),
-                                         invalid_value_handle);
-    module->pool.emplace_back(Value{global_variable});
-    return {global_variable->identity, global_variable};
+  std::pair<GlobalVariable *, SSAValueHandle> createGlobalVariable() {
+    auto global_variable = new GlobalVariable();
+    global_variable->parent = pool.top;
+    global_variable->identity = pool.values.size();
+    pool.values.emplace_back(SSAValue{global_variable});
+    return {global_variable, global_variable->identity};
   }
 
-  ValueHandle
+  std::pair<ConstantInteger *, SSAValueHandle>
   createConstantInteger(uint64_t value) {
-    check_module();
-    auto identity = module->pool.size();
-    module->pool.emplace_back(Value{ConstantInteger{value}});
-    return identity;
+    auto const_int = new ConstantInteger();
+    const_int->parent = pool.top;
+    const_int->identity = pool.values.size();
+    pool.values.emplace_back(SSAValue{const_int});
+    return {const_int, const_int->identity};
   }
 
-  std::tuple<ValueHandle, ConstantArray *> createConstantArray() {
-    check_module();
-    constant_array = new ConstantArray(module_handle, module->pool.size());
-    module->pool.emplace_back(Value{constant_array});
-    module->global_constant_table.push_back(constant_array->identity);
-    return {constant_array->identity, constant_array};
+  std::pair<ConstantArray *, SSAValueHandle> createConstantArray() {
+    auto const_arr = new ConstantArray();
+    const_arr->parent = pool.top;
+    const_arr->identity = pool.values.size();
+    pool.values.emplace_back(SSAValue{const_arr});
+    return {const_arr, const_arr->identity};
   }
-
-  std::tuple<ValueHandle, ConstantExpr *>
-  createConstantExpr(OpType op, ValueHandle left, ValueHandle right) {
-    check_module();
-    constant_expr =
-      new ConstantExpr(op, module_handle, module->pool.size(), left, right);
-    module->pool.emplace_back(Value{constant_expr});
-    module->global_constant_table.push_back(constant_expr->identity);
-    return {constant_expr->identity, constant_expr};
-  }
-
-  std::tuple<ValueHandle, Instruction *>
-  createInstruction(OpType op, ValueHandle v1,
-                    ValueHandle v2 = invalid_value_handle,
-                    ValueHandle v3 = invalid_value_handle) {
-    return create_raw_instruction(op, {}, v1, v2, v3);
-  }
-
-  std::tuple<ValueHandle, Instruction *>
-  createInstruction(OpType op, Type type, ValueHandle v1,
-                    ValueHandle v2 = invalid_value_handle,
-                    ValueHandle v3 = invalid_value_handle) {
-    return create_raw_instruction(op, type, v1, v2, v3);
-  }
-
-  GlobalVariable *getGlobalVariable() { return global_variable; }
-  ConstantArray *getConstantArray() { return constant_array; }
-  ConstantExpr *getConstantExpr() { return constant_expr; }
-  BasicBlock *getBasicBlock() { return basic_block; }
-  Function *getFunction() { return function; }
-  Module *getModule() { return module; }
-
-  void addGlobalValue(ValueHandle handle) {
-    check_module();
-    module->global_value_table.push_back(handle);
-  }
-
-  void addFunction(ValueHandle handle) {
-    check_module();
-    module->global_function_table.push_back(handle);
-  }
-
-  void dumpGraph();
-  void dumpText();
 };

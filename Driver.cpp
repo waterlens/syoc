@@ -2,6 +2,7 @@
 #include "Transformer/Pass.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
+#include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>
 
@@ -30,7 +31,6 @@ void stoptime();
   transformer.registerTreeTransformation(
     {{"Constant Initializer Fold", ConstantInitializerFold{}},
      {"Type Check", TypeCheck{}}});
-  transformer.transform();
-
+  transformer.registerTree2SSATransformation(Tree2SSA{});
   return 0;
 }
