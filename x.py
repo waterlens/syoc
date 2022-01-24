@@ -69,11 +69,18 @@ def get_cc_path(cc, cc_path):
     if cc_path is None:
         if cc == 'syoc':
             cc_path = default_syoc_path
-        elif subprocess.run([cc, '-v'], stdout=subprocess.DEVNULL).returncode == 0:
-            cc_path = cc
-    if not subprocess.run([cc_path, '-v'], stdout=subprocess.DEVNULL).returncode == 0:
+        else:
+            try:
+                subprocess.run([cc, '-v'], stdout=subprocess.DEVNULL)
+            except FileNotFoundError:
+                print(f'Error: {cc} not found')
+                exit(1)
+            return (cc, cc)
+    try:
+        subprocess.run([cc_path, '-v'], stdout=subprocess.DEVNULL)
+    except FileNotFoundError:
         print(f'Error: {cc_path} not found')
-        return None
+        exit(1)
     return (cc, cc_path)
 
 
