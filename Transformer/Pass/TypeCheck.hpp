@@ -33,32 +33,36 @@ private:
   Type combine(OpType op, const Type &lhs, const Type &rhs) {
     if (!isArrayType(lhs) && !isArrayType(rhs))
       return Type{TS_Int, TQ_None, {}};
-    if (isArrayType(lhs) && !isArrayType(rhs)) {
-      if (isPointerArithmeticOp(op))
-        return Type{TS_Int, TQ_None, lhs.dim};
-      else if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+    throw std::runtime_error("pointer arithmetic not allowed");
+    // support pointer arithmetic if required
+    {
+      if (isArrayType(lhs) && !isArrayType(rhs)) {
+        if (isPointerArithmeticOp(op))
+          return Type{TS_Int, TQ_None, lhs.dim};
+        else if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+          return Type{TS_Int, TQ_None, {}};
+        else
+          throw std::runtime_error("incompatible types when lhs is an array");
+      }
+      if (!isArrayType(lhs) && isArrayType(rhs)) {
+        if (op == OP_Add)
+          return Type{TS_Int, TQ_None, rhs.dim};
+        else if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+          return Type{TS_Int, TQ_None, {}};
+        else
+          throw std::runtime_error("incompatible types when rhs is an array");
+      }
+      // isArrayType(lhs) && isArrayType(rhs)
+      if (isPointerComparasionOp(op) || isPointerLogicOp(op))
         return Type{TS_Int, TQ_None, {}};
-      else
-        throw std::runtime_error("incompatible types when lhs is an array");
-    }
-    if (!isArrayType(lhs) && isArrayType(rhs)) {
-      if (op == OP_Add)
+      if (op == OP_Sub) {
+        if (lhs.dim.size() != rhs.dim.size())
+          throw std::runtime_error("incompatible array dimensions");
         return Type{TS_Int, TQ_None, lhs.dim};
-      else if (isPointerComparasionOp(op) || isPointerLogicOp(op))
-        return Type{TS_Int, TQ_None, {}};
-      else
-        throw std::runtime_error("incompatible types when rhs is an array");
+      } else
+        throw std::runtime_error(
+          "unable to apply such an operator on both array types");
     }
-    // isArrayType(lhs) && isArrayType(rhs)
-    if (isPointerComparasionOp(op) || isPointerLogicOp(op))
-      return Type{TS_Int, TQ_None, {}};
-    if (op == OP_Sub) {
-      if (lhs.dim.size() != rhs.dim.size())
-        throw std::runtime_error("incompatible array dimensions");
-      return Type{TS_Int, TQ_None, lhs.dim};
-    } else
-      throw std::runtime_error(
-        "unable to apply such an operator on both array types");
   }
 
   void checkArrayDimensionViolation(VariableDeclaration *decl) {
@@ -86,7 +90,7 @@ private:
 
   void checkCompoundStmt(NodePtr stmt) {
     assert(stmt->is<CompoundStmt *>());
-    for (auto child : stmt->as_unchecked<CompoundStmt *>()->stmts) 
+    for (auto child : stmt->as_unchecked<CompoundStmt *>()->stmts)
       checkStatement(child);
   }
 
@@ -233,6 +237,8 @@ private:
       throw std::runtime_error("cannot assign to void or use void as value");
     if (lhs_type.qual == TQ_Const)
       throw std::runtime_error("cannot assign to const");
+    if (isArrayType(rhs_type))
+      throw std::runtime_error("cannot assign array address to variable");
     return lhs_type;
   }
 
