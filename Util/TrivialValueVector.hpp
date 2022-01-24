@@ -17,6 +17,7 @@ public:
   using const_iterator = const T *;
   using size_type = unsigned;
   using difference_type = std::ptrdiff_t;
+
 private:
   unsigned m_capacity;
   unsigned m_size;
@@ -87,6 +88,17 @@ public:
     if (m_size)
       m_size--;
   }
+  constexpr void pop_front() {
+    for (int i = 0; i < m_size - 1; ++i) m_access_ptr[i] = m_access_ptr[i + 1];
+    if (m_size)
+      m_size--;
+  }
   constexpr bool empty() const noexcept { return size() == 0; }
   constexpr unsigned size() const noexcept { return m_size; }
+  constexpr iterator begin() noexcept { return m_access_ptr; }
+  constexpr iterator end() noexcept { return m_access_ptr + m_size; }
+  constexpr const_iterator cbegin() const noexcept { return m_access_ptr; }
+  constexpr const_iterator cend() const noexcept {
+    return m_access_ptr + m_size;
+  }
 };

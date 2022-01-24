@@ -32,5 +32,6 @@ void stoptime();
     {{"Constant Initializer Fold", ConstantInitializerFold{}},
      {"Type Check", TypeCheck{}}});
   transformer.registerTree2SSATransformation(Tree2SSA{});
+  transformer.transform();
   return 0;
 }

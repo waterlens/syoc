@@ -248,8 +248,8 @@ private:
   void globalIteration() {
     auto module = root->as<Module *>();
     for (auto decl : module->decls) {
-      if (isVariableDeclaration(decl)) {
-        auto p = decl->as_unchecked<VariableDeclaration *>();
+      if (decl->is<GlobalDeclaration *>()) {
+        auto p = decl->as_unchecked<GlobalDeclaration *>();
         checkArrayDimensionViolation(p);
       } else if (isFunctionDeclaration(decl)) {
         auto f = decl->as_unchecked<FunctionDeclaration *>();
