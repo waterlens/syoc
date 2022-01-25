@@ -235,7 +235,7 @@ public:
   SSAValue &operator[](SSAValueHandle n) {
     if (n.isValid() && n.id < pool.values.size()) {
       return pool[n];
-      throw std::runtime_error("SSAValueHandle is invalid");
     }
+    throw std::runtime_error("SSAValueHandle is invalid");
   }
 };
