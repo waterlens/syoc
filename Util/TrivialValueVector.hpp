@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <initializer_list>
 #include <stdexcept>
 #include <type_traits>
 
@@ -66,6 +67,22 @@ public:
     if (m_heap_allocated)
       delete[] m_access_ptr;
     copy_another(v);
+    return *this;
+  }
+  TrivialValueVector(std::initializer_list<T> l) {
+    if (l.size() <= DefaultSize) {
+      m_capacity = DefaultSize;
+      m_size = l.size();
+      m_access_ptr = m_small_data;
+      m_heap_allocated = false;
+    } else {
+      m_capacity = l.size();
+      m_size = l.size();
+      m_access_ptr = new T[l.size()];
+      m_heap_allocated = true;
+    }
+    auto p = m_access_ptr;
+    for (auto &&elem : l) *p++ = elem;
   }
   const T &operator[](unsigned i) const { return m_access_ptr[i]; }
   const T &at(unsigned i) const {
@@ -89,9 +106,11 @@ public:
       m_size--;
   }
   constexpr void pop_front() {
-    for (int i = 0; i < m_size - 1; ++i) m_access_ptr[i] = m_access_ptr[i + 1];
-    if (m_size)
+    if (m_size) {
+      for (unsigned i = 0; i < m_size - 1; ++i)
+        m_access_ptr[i] = m_access_ptr[i + 1];
       m_size--;
+    }
   }
   constexpr bool empty() const noexcept { return size() == 0; }
   constexpr unsigned size() const noexcept { return m_size; }

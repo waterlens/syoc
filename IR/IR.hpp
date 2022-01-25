@@ -34,24 +34,17 @@ struct ConstantInteger;
 struct ConstantArray;
 struct GlobalVariable;
 struct Function;
+struct Argument;
 
 class IRHost;
 
 struct SSAValueHandle {
   unsigned id;
-  inline static unsigned InvalidValueHandle =
-    std::numeric_limits<unsigned>::max();
-  SSAValueHandle(const SSAValueHandle &handle) : id(handle.id) {}
-  SSAValueHandle(SSAValueHandle &&handle) : id(handle.id) {}
-  SSAValueHandle(unsigned id) : id(id) {}
-  SSAValueHandle() : id(InvalidValueHandle) {}
-  ~SSAValueHandle() {}
-  SSAValueHandle &operator=(const SSAValueHandle &handle) {
-    id = handle.id;
-    return *this;
-  }
   operator unsigned() const { return id; }
-  bool isValid() const { return id != InvalidValueHandle; }
+  bool isValid() const { return id != std::numeric_limits<unsigned>::max(); }
+  static SSAValueHandle InvalidValueHandle() {
+    return SSAValueHandle{std::numeric_limits<unsigned>::max()};
+  }
 };
 
 struct SSAType {
@@ -75,13 +68,13 @@ struct SSAValueBase {
 struct Intrinsic : public SSAValueBase {
   std::string_view name;
   SSAType type;
-  std::vector<SSAValueHandle> args;
+  TrivialValueVector<SSAValueHandle, 3> args;
 };
 
 struct Instruction : public SSAValueBase {
   OpType op;
   SSAType type;
-  std::array<SSAValueHandle, 3> arg;
+  TrivialValueVector<SSAValueHandle, 3> args;
 };
 
 struct BasicBlock : public SSAValueBase {
@@ -96,11 +89,17 @@ struct ConstantArray : public SSAValueBase {
   std::vector<uint64_t> array;
 };
 
+struct Argument : public SSAValueBase {
+  SSAType type;
+  std::string_view name;
+};
+
 struct Function : public SSAValueBase {
   SSAType return_type;
-  std::vector<std::tuple<std::string_view, Type>> args;
+  std::vector<SSAValueHandle> args;
   std::vector<SSAValueHandle> basic_block;
   std::string_view name;
+  bool external;
 };
 
 struct GlobalVariable : public SSAValueBase {
@@ -110,7 +109,8 @@ struct GlobalVariable : public SSAValueBase {
 
 struct SSAValue {
   std::variant<std::nullptr_t, BasicBlock *, Intrinsic *, Instruction *,
-               ConstantInteger *, ConstantArray *, GlobalVariable *, Function *>
+               ConstantInteger *, ConstantArray *, GlobalVariable *, Function *,
+               Argument *>
     _;
   template <typename T> T get() {
     if (std::holds_alternative<T>(_)) {
@@ -127,7 +127,7 @@ struct SSAValuePool {
   SSAValue &operator[](SSAValueHandle n) {
     return values[static_cast<unsigned>(n)];
   }
-  inline static SSAValueHandle top_level = 0;
+  inline static SSAValueHandle top_level{0};
 };
 
 class IRHost {
@@ -145,10 +145,10 @@ private:
   template <typename T>
   void init_parent_and_identity(
     SSAValueBase *value,
-    SSAValueHandle parent = SSAValueHandle::InvalidValueHandle) {
+    SSAValueHandle parent = SSAValueHandle::InvalidValueHandle()) {
     value->parent =
-      parent == SSAValueHandle::InvalidValueHandle ? pool.top_level : parent;
-    value->identity = pool.values.size();
+      parent == SSAValueHandle::InvalidValueHandle() ? pool.top_level : parent;
+    value->identity = SSAValueHandle{(unsigned)pool.values.size()};
     pool.values.emplace_back(SSAValue{static_cast<T>(value)});
   }
 
@@ -174,17 +174,18 @@ public:
     return {insn, insn->identity};
   }
 
-  std::pair<Instruction *, SSAValueHandle>
-  createInstruction(OpType op, SSAType type,
-                    SSAValueHandle arg0 = SSAValueHandle::InvalidValueHandle,
-                    SSAValueHandle arg1 = SSAValueHandle::InvalidValueHandle,
-                    SSAValueHandle arg2 = SSAValueHandle::InvalidValueHandle) {
+  std::pair<Instruction *, SSAValueHandle> createInstruction(
+    OpType op, SSAType type,
+    SSAValueHandle arg0 = SSAValueHandle::InvalidValueHandle(),
+    SSAValueHandle arg1 = SSAValueHandle::InvalidValueHandle(),
+    SSAValueHandle arg2 = SSAValueHandle::InvalidValueHandle()) {
     checkBasicBlock();
     auto insn = new Instruction();
     init_parent_and_identity<Instruction *>(insn, basic_block.second);
     insn->op = op;
     insn->type = type;
-    insn->arg = {arg0, arg1, arg2};
+    insn->args = {SSAValueHandle{arg0}, SSAValueHandle{arg1},
+                  SSAValueHandle{arg2}};
     basic_block.first->insn.push_back(insn->identity);
     return {insn, insn->identity};
   }
@@ -223,5 +224,11 @@ public:
     init_parent_and_identity<GlobalVariable *>(const_arr);
     constant_table.emplace_back(const_arr->identity);
     return {const_arr, const_arr->identity};
+  }
+
+  std::pair<Argument *, SSAValueHandle> createArgument(SSAValueHandle parent) {
+    auto arg = new Argument();
+    init_parent_and_identity<Argument *>(arg, parent);
+    return {arg, arg->identity};
   }
 };

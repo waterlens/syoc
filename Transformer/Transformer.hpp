@@ -58,7 +58,12 @@ public:
       auto t2 = std::chrono::steady_clock::now();
       fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
     }
+
+    auto t1 = std::chrono::steady_clock::now();
     host = tree2ssa_transformation(tree);
+    auto t2 = std::chrono::steady_clock::now();
+    fmt::print("{}: {:%Q%q}\n", "Tree to SSA",
+               std::chrono::duration<double>(t2 - t1));
     for (auto &&[name, func] : ssa_transformation) {
       auto t1 = std::chrono::steady_clock::now();
       func(*host);
