@@ -82,6 +82,7 @@ struct Node {
   template <typename T> T as_unchecked() { return static_cast<T>(this); }
 };
 
+#undef THIS
 #define THIS(x) constexpr inline static NodeType this_type = x
 
 struct Module : public Node {
@@ -239,7 +240,7 @@ public:
     }
     return T{};
   }
-  void entry() { scope.emplace_back(); }
+  void enter() { scope.emplace_back(); }
   void exit() { scope.pop_back(); }
   void insert(std::string_view name, const T &value) {
     scope.back().emplace(name, value);

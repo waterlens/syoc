@@ -13,6 +13,7 @@ class Tree2SSA {
   NodePtr root;
   IRHost *host;
   std::pair<BasicBlock *, SSAValueHandle> global_initializer_block;
+  std::pair<Function *, SSAValueHandle> current_function;
   Scope<SSAValueHandle> scopes;
 
   void setupGlobalInitializerFunction() {
@@ -75,9 +76,12 @@ class Tree2SSA {
       auto arr_sub = expr->as_unchecked<ArraySubscriptExpr *>();
       auto [arr_ty, arr_handle] = generateLValue(arr_sub->array);
       auto [idx_ty, idx_handle] = generateRValue(arr_sub->subscript);
-      assert(arr_ty.indirect_level && arr_ty.dimension.size());
+      assert(arr_ty.indirect_level + arr_ty.dimension.size());
       auto new_ty = arr_ty;
-      new_ty.dimension.pop_back();
+      if (new_ty.dimension.size())
+        new_ty.dimension.pop_back();
+      else
+        new_ty.indirect_level--;
       auto [elem, elem_handle] =
         host_ref.createInstruction(OP_Offset, new_ty, arr_handle, idx_handle);
       return {new_ty, elem_handle};
@@ -89,8 +93,15 @@ class Tree2SSA {
         throw std::runtime_error(
           fmt::format("undefined variable: {}", ref->name));
       auto &value = host_ref[handle];
-
-      return {};
+      SSAType ty;
+      if (value.is<Instruction *>() &&
+          value.as_unchecked<Instruction *>()->op == OP_Allocate) {
+        ty = value.as_unchecked<Instruction *>()->type;
+      } else if (value.is<GlobalVariable *>()) {
+        ty = value.as_unchecked<GlobalVariable *>()->type;
+      } else
+        throw std::runtime_error("name is not variable");
+      return TypeHandle{ty, value.identity};
     }
     case ND_AssignExpr: {
       auto assign = expr->as_unchecked<AssignExpr *>();
@@ -100,7 +111,7 @@ class Tree2SSA {
       auto [assign_insn, insn_handle] =
         host_ref.createInstruction(OP_Store, lhs_ty, lhs_handle, rhs_handle);
 
-      return {lhs_ty, insn_handle};
+      return {lhs_ty, lhs_handle};
     }
     default:
       throw std::runtime_error("not a supported expression");
@@ -141,28 +152,26 @@ class Tree2SSA {
     }
     case ND_CallExpr: {
       auto call = expr->as_unchecked<CallExpr *>();
-      auto func_ast_expr = call->func->as_unchecked<FunctionDeclaration *>();
-      auto func_name = func_ast_expr->name;
-
-      auto return_ty = convertType(func_ast_expr->return_type);
-      // TODO: need get the handle function
-      // need some cast for arguments here ?
+      auto name = call->func->as_unchecked<RefExpr *>()->name;
+      auto handle = scopes.find(name);
+      if (!handle.isValid() || handle.id == 0)
+        throw std::runtime_error("can't found function");
+      auto f = host_ref[handle].as<Function *>();
       TrivialValueVector<SSAValueHandle, 3> args;
       for (auto &&arg : call->args) {
         auto [arg_ty, arg_handle] = generateRValue(arg);
         args.push_back(arg_handle);
       }
       auto [call_insn, call_handle] =
-        host_ref.createInstruction(OP_Call, return_ty);
-      call_insn->args = args;
-      return {return_ty, call_handle};
+        host_ref.createInstruction(OP_Call, f->return_type, handle);
+      for (auto &&arg : args) call_insn->args.push_back(arg);
+      return {f->return_type, call_handle};
     }
     case ND_ArraySubscriptExpr:
     case ND_RefExpr:
     case ND_AssignExpr: {
       auto [lv_ty, lv_handle] = generateLValue(expr);
-      assert(lv_ty.indirect_level);
-      assert(lv_ty.dimension.empty());
+      assert(lv_ty.indirect_level + lv_ty.dimension.size());
       auto new_ty = lv_ty;
       new_ty.indirect_level--;
       auto [_, insn_handle] =
@@ -176,7 +185,6 @@ class Tree2SSA {
 
   void generateInitializer(ExprPtr init, SSAType ty, SSAValueHandle target) {
     auto &host_ref = *host;
-    host_ref.setInsertPoint(global_initializer_block);
 
     assert(ty.indirect_level);
 
@@ -219,6 +227,8 @@ class Tree2SSA {
     auto [g, handle] = host->createGlobalVariable();
     g->type = ty;
     g->name = decl->name;
+    auto &host_ref = *host;
+    host_ref.setInsertPoint(global_initializer_block);
     generateInitializer(decl->initializer, ty, handle);
     scopes.insert(decl->name, handle);
   }
@@ -226,7 +236,7 @@ class Tree2SSA {
   void globalGeneration() {
     setupGlobalInitializerFunction();
     auto module = root->as<Module *>();
-    scopes.entry();
+    scopes.enter();
     for (auto decl : module->decls) {
       if (decl->is<GlobalDeclaration *>()) {
         auto p = decl->as_unchecked<GlobalDeclaration *>();
@@ -234,18 +244,119 @@ class Tree2SSA {
       } else if (isFunctionDeclaration(decl)) {
         auto f = decl->as_unchecked<FunctionDeclaration *>();
         functionGeneration(f);
-      }
+      } else
+        throw std::runtime_error("not a supported declaration");
     }
     scopes.exit();
   }
 
-  void generateStatement(CompoundStmt *stmt) {}
+  void generateStatement(NodePtr stmt) {
+    auto &host_ref = *host;
+    switch (stmt->node_type) {
+    case ND_LocalDeclaration: {
+      auto decl = stmt->as_unchecked<LocalDeclaration *>();
+      auto addr_ty = convertType(decl->type);
+      addr_ty.indirect_level++;
+      auto [var_addr, var_handle] =
+        host_ref.createInstruction(OP_Allocate, addr_ty);
+      scopes.insert(decl->name, var_handle);
+      return;
+    }
+    case ND_CompoundStmt: {
+      scopes.enter();
+      for (auto &&stmt : stmt->as_unchecked<CompoundStmt *>()->stmts)
+        generateStatement(stmt);
+      scopes.exit();
+      return;
+    }
+    case ND_IfStmt: {
+      auto if_stmt = stmt->as_unchecked<IfStmt *>();
+      auto [cond_ty, cond] =
+        generateRValue(if_stmt->condition->as_unchecked<Expr *>());
+      auto cur_bb = host_ref.getInsertPoint();
+
+      auto then_bb = host_ref.createBasicBlock(current_function.second);
+      host_ref.setInsertPoint(then_bb);
+      generateStatement(if_stmt->then_stmt);
+
+      decltype(cur_bb) else_bb;
+      if (if_stmt->else_stmt) {
+        else_bb = host_ref.createBasicBlock(current_function.second);
+        host_ref.setInsertPoint(else_bb);
+        generateStatement(if_stmt->else_stmt);
+      }
+
+      auto cont_bb = host_ref.createBasicBlock(current_function.second);
+
+      host_ref.setInsertPoint(cur_bb);
+      auto [br, br_handle] = host_ref.createInstruction(
+        OP_Br, cond_ty, cond, then_bb.second,
+        if_stmt->else_stmt ? else_bb.second : cont_bb.second);
+
+      host_ref.setInsertPoint(then_bb);
+      auto [_1, _2] =
+        host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+
+      if (if_stmt->else_stmt) {
+        host_ref.setInsertPoint(else_bb);
+        auto [_3, _4] =
+          host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+      }
+
+      host_ref.setInsertPoint(cont_bb);
+      current_function.first->basic_block.push_back(then_bb.second);
+      if (if_stmt->else_stmt)
+        current_function.first->basic_block.push_back(else_bb.second);
+      current_function.first->basic_block.push_back(cont_bb.second);
+      return;
+    }
+    case ND_WhileStmt: {
+      auto while_stmt = stmt->as_unchecked<WhileStmt *>();
+      auto cur_bb = host_ref.getInsertPoint();
+
+      auto cond_bb = host_ref.createBasicBlock(current_function.second);
+      host_ref.setInsertPoint(cond_bb);
+      auto [cond_ty, cond] =
+        generateRValue(while_stmt->condition->as_unchecked<Expr *>());
+
+      auto body_bb = host_ref.createBasicBlock(current_function.second);
+      host_ref.setInsertPoint(body_bb);
+      generateStatement(while_stmt->body);
+
+      auto end_bb = host_ref.createBasicBlock(current_function.second);
+
+      host_ref.setInsertPoint(cur_bb);
+      auto [_1, _2] =
+        host_ref.createInstruction(OP_Jump, VoidType, cond_bb.second);
+
+      host_ref.setInsertPoint(cond_bb);
+      auto [br, br_handle] = host_ref.createInstruction(
+        OP_Br, cond_ty, cond, body_bb.second, end_bb.second);
+
+      host_ref.setInsertPoint(end_bb);
+
+      for (auto &&bb : {cond_bb, body_bb, end_bb})
+        current_function.first->basic_block.push_back(bb.second);
+      return;
+    }
+    case ND_ContinueStmt: {
+    }
+    case ND_BreakStmt: {
+    }
+    case ND_ReturnStmt: {
+    }
+      return;
+    default:
+      generateRValue(stmt->as_unchecked<Expr *>());
+    }
+  }
 
   void functionGeneration(FunctionDeclaration *decl) {
     auto &host_ref = *host;
     auto [f, f_handle] = host_ref.createFunction();
     f->return_type = convertType(decl->return_type);
     f->name = decl->name;
+    current_function = {f, f_handle};
 
     scopes.insert(decl->name, f_handle);
 
@@ -258,7 +369,7 @@ class Tree2SSA {
       f->basic_block.push_back(entry_bb.second);
     }
 
-    scopes.entry();
+    scopes.enter();
     for (auto &&param : decl->parameters) {
       auto [arg, arg_handle] = host_ref.createArgument(f_handle);
       arg->name = param.first;
@@ -277,8 +388,8 @@ class Tree2SSA {
       }
     }
     if (!is_external) {
-      scopes.entry();
-      generateStatement(decl->body->as<CompoundStmt *>());
+      scopes.enter();
+      generateStatement(decl->body);
       scopes.exit();
     }
     scopes.exit();

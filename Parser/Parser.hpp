@@ -401,7 +401,7 @@ struct Parser {
   }
 
   NodePtr compoundStatement() {
-    scope.entry();
+    scope.enter();
     auto stmt = new CompoundStmt{{}};
     expect("{");
     while (!peek("}")) blockItem(stmt->stmts);
@@ -439,13 +439,13 @@ struct Parser {
     if (index == 0) {
       auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
+      all_decls.emplace_back(func);
       if (peek("{")) { // function definition
-        scope.entry();
+        scope.enter();
         for (auto &param : param_list) scope.insert(param.first, func);
         auto stmt = compoundStatement();
         scope.exit();
         func->body = stmt;
-        all_decls.emplace_back(func);
       } else {
         while (consume(",")) {
           all_decls.emplace_back(initDeclarator(declspec, true));
@@ -478,7 +478,7 @@ struct Parser {
     if (index == 0) {
       auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
-      scope.entry();
+      scope.enter();
       for (auto &param : param_list) scope.insert(param.first, func);
       scope.exit();
       return func;
@@ -583,7 +583,7 @@ struct Parser {
 
   NodePtr translationUnit() {
     std::vector<NodePtr> decls;
-    scope.entry();
+    scope.enter();
     for (;;) {
       auto tok = peek();
       if (tok.token_type == TokenType::EndOfFile)

@@ -14,6 +14,10 @@
 #define NodeTypeDefine(x)
 #endif
 
+#ifndef SSAValueTypeDefine
+#define SSAValueTypeDefine(x)
+#endif
+
 OpcodeDefine(OP_None, "")
 OpcodeDefine(OP_Phi, "phi")
 OpcodeDefine(OP_Mul, "mul")
@@ -66,7 +70,18 @@ NodeTypeDefine(ND_RefExpr)
 NodeTypeDefine(ND_IntegerLiteral)
 NodeTypeDefine(ND_AssignExpr)
 
+SSAValueTypeDefine(SV_Module)
+SSAValueTypeDefine(SV_BasicBlock)
+SSAValueTypeDefine(SV_Intrinsic)
+SSAValueTypeDefine(SV_Instruction)
+SSAValueTypeDefine(SV_ConstantInteger)
+SSAValueTypeDefine(SV_ConstantArray)
+SSAValueTypeDefine(SV_GlobalVariable)
+SSAValueTypeDefine(SV_Function)
+SSAValueTypeDefine(SV_Argument)
+
 #undef OpcodeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine
 #undef NodeTypeDefine
+#undef SSAValueTypeDefine

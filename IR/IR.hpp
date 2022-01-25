@@ -21,10 +21,15 @@
 #include "Tree/Tree.hpp"
 #include "Util/TrivialValueVector.hpp"
 
+#define SSAValueTypeDefine(x) x,
+enum SSAValueType {
+#include "Common/Common.def"
+};
+
 struct SSAValueHandle;
 struct SSAType;
 struct SSAValue;
-struct SSAValueBase;
+struct SSAValue;
 
 struct Module;
 struct BasicBlock;
@@ -60,72 +65,87 @@ struct SSAType {
 static inline SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
 static inline SSAType IntType = {SSAType::PrimitiveType::Integer, 32, 0, {}};
 
-struct SSAValueBase {
+struct SSAValue {
+  SSAValueType value_type;
   SSAValueHandle parent;
   SSAValueHandle identity;
+  template <typename T> bool is() {
+    return value_type == std::remove_pointer_t<T>::this_type;
+  }
+  template <typename T> T as() {
+    if (is<T>())
+      return static_cast<T>(this);
+    throw std::runtime_error("cast failed");
+  }
+  template <typename T> T as_unchecked() { return static_cast<T>(this); }
 };
 
-struct Intrinsic : public SSAValueBase {
+#undef THIS
+#define THIS(x) constexpr inline static SSAValueType this_type = x
+
+struct Intrinsic : public SSAValue {
+  THIS(SV_Intrinsic);
   std::string_view name;
   SSAType type;
   TrivialValueVector<SSAValueHandle, 3> args;
+  Intrinsic() : SSAValue{this_type} {}
 };
 
-struct Instruction : public SSAValueBase {
+struct Instruction : public SSAValue {
+  THIS(SV_Instruction);
   OpType op;
   SSAType type;
   TrivialValueVector<SSAValueHandle, 3> args;
+  Instruction() : SSAValue{this_type} {}
 };
 
-struct BasicBlock : public SSAValueBase {
+struct BasicBlock : public SSAValue {
+  THIS(SV_BasicBlock);
   std::vector<SSAValueHandle> insn;
+  BasicBlock() : SSAValue{this_type} {}
 };
 
-struct ConstantInteger : public SSAValueBase {
+struct ConstantInteger : public SSAValue {
+  THIS(SV_ConstantInteger);
   uint64_t value;
+  ConstantInteger() : SSAValue{this_type} {}
 };
 
-struct ConstantArray : public SSAValueBase {
+struct ConstantArray : public SSAValue {
+  THIS(SV_ConstantArray);
   std::vector<uint64_t> array;
+  ConstantArray() : SSAValue{this_type} {}
 };
 
-struct Argument : public SSAValueBase {
+struct Argument : public SSAValue {
+  THIS(SV_Argument);
   SSAType type;
   std::string_view name;
+  Argument() : SSAValue{this_type} {}
 };
 
-struct Function : public SSAValueBase {
+struct Function : public SSAValue {
+  THIS(SV_Function);
   SSAType return_type;
   std::vector<SSAValueHandle> args;
   std::vector<SSAValueHandle> basic_block;
   std::string_view name;
   bool external;
+  Function() : SSAValue{this_type} {}
 };
 
-struct GlobalVariable : public SSAValueBase {
+struct GlobalVariable : public SSAValue {
+  THIS(SV_GlobalVariable);
   SSAType type;
   std::string_view name;
-};
-
-struct SSAValue {
-  std::variant<std::nullptr_t, BasicBlock *, Intrinsic *, Instruction *,
-               ConstantInteger *, ConstantArray *, GlobalVariable *, Function *,
-               Argument *>
-    _;
-  template <typename T> T get() {
-    if (std::holds_alternative<T>(_)) {
-      return std::get<T>(_);
-    }
-    throw std::runtime_error("SSAValue doesn't hold T");
-  }
-  template <typename T> T get_if() { return std::get_if<T>(_); }
+  GlobalVariable() : SSAValue{this_type} {}
 };
 
 struct SSAValuePool {
-  std::vector<SSAValue> values;
-  SSAValuePool() { values.emplace_back(SSAValue{nullptr}); }
+  std::vector<SSAValue *> values;
+  SSAValuePool() { values.emplace_back(nullptr); }
   SSAValue &operator[](SSAValueHandle n) {
-    return values[static_cast<unsigned>(n)];
+    return *values[static_cast<unsigned>(n)];
   }
   inline static SSAValueHandle top_level{0};
 };
@@ -144,12 +164,12 @@ private:
 private:
   template <typename T>
   void init_parent_and_identity(
-    SSAValueBase *value,
+    SSAValue *value,
     SSAValueHandle parent = SSAValueHandle::InvalidValueHandle()) {
     value->parent =
       parent == SSAValueHandle::InvalidValueHandle() ? pool.top_level : parent;
     value->identity = SSAValueHandle{(unsigned)pool.values.size()};
-    pool.values.emplace_back(SSAValue{static_cast<T>(value)});
+    pool.values.emplace_back(value);
   }
 
   void checkBasicBlock() {
@@ -161,6 +181,10 @@ private:
 public:
   void setInsertPoint(std::pair<BasicBlock *, SSAValueHandle> pos) {
     basic_block = pos;
+  }
+
+  auto getInsertPoint() {
+    return basic_block;
   }
 
   std::pair<Intrinsic *, SSAValueHandle> createIntrinsic(std::string_view name,
