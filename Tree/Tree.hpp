@@ -237,7 +237,7 @@ public:
       if (result != iter->end())
         return result->second;
     }
-    return nullptr;
+    return T{};
   }
   void entry() { scope.emplace_back(); }
   void exit() { scope.pop_back(); }
