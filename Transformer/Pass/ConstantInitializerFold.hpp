@@ -130,10 +130,7 @@ private:
     return nullptr;
   }
 
-  void arrayDimensionConstantEvaluation(NodePtr node) {
-    assert(isVariableDeclaration(node));
-    auto decl = node->as_unchecked<VariableDeclaration *>();
-    auto &dim = decl->type.dim;
+  void arrayDimensionConstantEvaluation(std::vector<ExprPtr>& dim) {
     for (auto iter = dim.begin(); iter != dim.end(); ++iter) {
       if (!isConstantExpression(*iter))
         throw std::runtime_error("not a valid array dimmension");
@@ -145,7 +142,7 @@ private:
     for (auto &stmt : node->stmts)
       if (isVariableDeclaration(stmt)) {
         constantInitialization(stmt);
-        arrayDimensionConstantEvaluation(stmt);
+        arrayDimensionConstantEvaluation(stmt->as_unchecked<VariableDeclaration *>()->type.dim);
       } else if (stmt->is<CompoundStmt *>())
         compoundIteration(stmt->as_unchecked<CompoundStmt *>());
   }
@@ -153,6 +150,8 @@ private:
   void functionIteration(FunctionDeclaration *func) {
     if (func->body == nullptr)
       return;
+    for (auto &&[name, type] : func->parameters)
+      arrayDimensionConstantEvaluation(type.dim);
     auto body = func->body->as<CompoundStmt *>();
     compoundIteration(body);
   }
@@ -162,7 +161,7 @@ private:
     for (auto decl : module->decls) {
       if (isVariableDeclaration(decl)) {
         constantInitialization(decl);
-        arrayDimensionConstantEvaluation(decl);
+        arrayDimensionConstantEvaluation(decl->as_unchecked<VariableDeclaration *>()->type.dim);
       } else if (isFunctionDeclaration(decl)) {
         auto f = decl->as_unchecked<FunctionDeclaration *>();
         functionIteration(f);
