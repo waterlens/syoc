@@ -116,6 +116,16 @@ private:
     assert(stmt->is<ReturnStmt *>());
     assert(current_function);
     auto ret = stmt->as_unchecked<ReturnStmt *>();
+    if (current_function->return_type.spec == TS_Void && ret->value)
+      throw std::runtime_error("void function cannot return a value");
+    if (current_function->return_type.spec == TS_Void && !ret->value)
+      return;
+    auto ret_type = checkExpr(ret->value);
+    if (ret_type.spec == TS_Void)
+      throw std::runtime_error("cannot return a void value");
+    if (ret_type.spec != current_function->return_type.spec ||
+        ret_type.dim.size() != current_function->return_type.dim.size())
+      throw std::runtime_error("return type mismatch");
   }
 
   Type checkExpr(ExprPtr expr) {
