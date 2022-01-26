@@ -7,14 +7,19 @@
 #include <cassert>
 #include <numeric>
 #include <stdexcept>
+#include <tuple>
+#include <vector>
 
 class Tree2SSA {
   using TypeHandle = std::pair<SSAType, SSAValueHandle>;
   NodePtr root;
   IRHost *host;
-  std::pair<BasicBlock *, SSAValueHandle> global_initializer_block;
+  std::pair<BasicBlock *, SSAValueHandle> global_initializer_block,
+    current_return_bb;
   std::pair<Function *, SSAValueHandle> current_function;
+  std::pair<Instruction *, SSAValueHandle> current_retval;
   Scope<SSAValueHandle> scopes;
+  std::vector<std::pair<BasicBlock *, SSAValueHandle>> bb_break, bb_continue;
 
   void setupGlobalInitializerFunction() {
     auto &host_ref = *host;
@@ -294,13 +299,11 @@ class Tree2SSA {
         if_stmt->else_stmt ? else_bb.second : cont_bb.second);
 
       host_ref.setInsertPoint(then_bb);
-      auto [_1, _2] =
-        host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+      host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
 
       if (if_stmt->else_stmt) {
         host_ref.setInsertPoint(else_bb);
-        auto [_3, _4] =
-          host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+        host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
       }
 
       host_ref.setInsertPoint(cont_bb);
@@ -314,20 +317,25 @@ class Tree2SSA {
       auto while_stmt = stmt->as_unchecked<WhileStmt *>();
       auto cur_bb = host_ref.getInsertPoint();
 
+      auto end_bb = host_ref.createBasicBlock(current_function.second);
+
       auto cond_bb = host_ref.createBasicBlock(current_function.second);
       host_ref.setInsertPoint(cond_bb);
       auto [cond_ty, cond] =
         generateRValue(while_stmt->condition->as_unchecked<Expr *>());
 
+      bb_break.push_back(end_bb);
+      bb_continue.push_back(cond_bb);
+
       auto body_bb = host_ref.createBasicBlock(current_function.second);
       host_ref.setInsertPoint(body_bb);
       generateStatement(while_stmt->body);
 
-      auto end_bb = host_ref.createBasicBlock(current_function.second);
+      bb_break.pop_back();
+      bb_continue.pop_back();
 
       host_ref.setInsertPoint(cur_bb);
-      auto [_1, _2] =
-        host_ref.createInstruction(OP_Jump, VoidType, cond_bb.second);
+      host_ref.createInstruction(OP_Jump, VoidType, cond_bb.second);
 
       host_ref.setInsertPoint(cond_bb);
       auto [br, br_handle] = host_ref.createInstruction(
@@ -340,12 +348,28 @@ class Tree2SSA {
       return;
     }
     case ND_ContinueStmt: {
+      if (bb_continue.empty())
+        throw std::runtime_error("continue statement outside of loop");
+      host_ref.createInstruction(OP_Jump, VoidType, bb_continue.back().second);
+      return;
     }
     case ND_BreakStmt: {
+      if (bb_break.empty())
+        throw std::runtime_error("break statement outside of loop");
+      host_ref.createInstruction(OP_Jump, VoidType, bb_break.back().second);
+      return;
     }
     case ND_ReturnStmt: {
-    }
+      auto ret_stmt = stmt->as_unchecked<ReturnStmt *>();
+      if (ret_stmt->value) {
+        auto [ret_ty, ret_handle] = generateRValue(ret_stmt->value);
+        auto [store, store_handle] =
+          host_ref.createInstruction(OP_Store, current_retval.first->type,
+                                     current_retval.second, ret_handle);
+      }
+      host_ref.createInstruction(OP_Jump, VoidType, current_return_bb.second);
       return;
+    }
     default:
       generateRValue(stmt->as_unchecked<Expr *>());
     }
@@ -362,11 +386,36 @@ class Tree2SSA {
 
     bool is_external = decl->body == nullptr;
     f->external = is_external;
+    bool is_void =
+      f->return_type.primitive_type == SSAType::PrimitiveType::Void;
 
     if (!is_external) {
       auto entry_bb = host_ref.createBasicBlock(f_handle);
-      host_ref.setInsertPoint(entry_bb);
       f->basic_block.push_back(entry_bb.second);
+      host_ref.setInsertPoint(entry_bb);
+      
+      if (!is_void) {
+        auto ty = f->return_type;
+        ty.indirect_level++;
+        current_retval = host_ref.createInstruction(OP_Allocate, ty);
+      } else {
+        current_retval = {nullptr, SSAValueHandle::InvalidValueHandle()};
+      }
+
+      auto return_bb = host_ref.createBasicBlock(f_handle);
+      f->basic_block.push_back(return_bb.second);
+      host_ref.setInsertPoint(return_bb);
+      current_return_bb = return_bb;
+
+      if (!is_void) {
+        auto [retval, retval_handle] = host_ref.createInstruction(
+          OP_Load, f->return_type, current_retval.second);
+        host_ref.createInstruction(OP_Return, f->return_type, retval_handle);
+      } else {
+        host_ref.createInstruction(OP_Return, VoidType);
+      }
+
+      host_ref.setInsertPoint(entry_bb);
     }
 
     scopes.enter();
