@@ -5,33 +5,33 @@
 #include "Util/TrivialValueVector.hpp"
 
 #include <cassert>
+#include <cstddef>
 #include <numeric>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
 
 class Tree2SSA {
-  using TypeHandle = std::pair<SSAType, SSAValueHandle>;
+  using TypeHandle = std::pair<SSAType, SSAValue &>;
   NodePtr root;
   IRHost *host;
-  std::pair<BasicBlock *, SSAValueHandle> global_initializer_block,
-    current_return_bb;
-  std::pair<Function *, SSAValueHandle> current_function;
-  std::pair<Instruction *, SSAValueHandle> current_retval;
+  BasicBlock *global_initializer_block, *current_return_bb;
+  Function *current_function;
+  Instruction *current_retval;
   Scope<SSAValueHandle> scopes;
-  std::vector<std::pair<BasicBlock *, SSAValueHandle>> bb_break, bb_continue;
+  std::vector<BasicBlock *> bb_break, bb_continue;
 
   void setupGlobalInitializerFunction() {
     auto &host_ref = *host;
-    auto [init, handle1] = host_ref.createFunction();
-    auto [bb, handle2] = host_ref.createBasicBlock(handle1);
+    auto init = host_ref.createFunction();
+    auto bb = host_ref.createBasicBlock(*init);
 
     init->name = "__syoc@init";
     init->args = {};
     init->return_type = SSAType{SSAType::PrimitiveType::Void, 0, {}};
-    init->basic_block.push_back(handle2);
+    init->basic_block.push_back(*bb);
 
-    global_initializer_block = {bb, handle2};
+    global_initializer_block = bb;
   }
 
   SSAType convertType(const Type &ty) {
@@ -87,9 +87,9 @@ class Tree2SSA {
         new_ty.dimension.pop_back();
       else
         new_ty.indirect_level--;
-      auto [elem, elem_handle] =
+      auto elem =
         host_ref.createInstruction(OP_Offset, new_ty, arr_handle, idx_handle);
-      return {new_ty, elem_handle};
+      return {new_ty, *elem};
     }
     case ND_RefExpr: {
       auto ref = expr->as_unchecked<RefExpr *>();
@@ -106,14 +106,14 @@ class Tree2SSA {
         ty = value.as_unchecked<GlobalVariable *>()->type;
       } else
         throw std::runtime_error("name is not variable");
-      return TypeHandle{ty, value.identity};
+      return TypeHandle{ty, value};
     }
     case ND_AssignExpr: {
       auto assign = expr->as_unchecked<AssignExpr *>();
       auto [lhs_ty, lhs_handle] = generateLValue(assign->lhs);
       auto [rhs_ty, rhs_handle] = generateRValue(assign->rhs);
 
-      auto [assign_insn, insn_handle] =
+      auto &&assign_insn =
         host_ref.createInstruction(OP_Store, lhs_ty, lhs_handle, rhs_handle);
 
       return {lhs_ty, lhs_handle};
@@ -127,33 +127,30 @@ class Tree2SSA {
     auto &host_ref = *host;
     switch (expr->node_type) {
     case ND_IntegerLiteral: {
-      auto [lit, lit_handle] = host_ref.createConstantInteger(
+      auto lit = host_ref.createConstantInteger(
         expr->as_unchecked<IntegerLiteral *>()->value);
-      return {IntType, lit_handle};
+      return {IntType, *lit};
     }
     case ND_UnaryExpr: {
       auto unary = expr->as_unchecked<UnaryExpr *>();
       auto [operand_ty, operand_handle] = generateRValue(unary->operand);
       if (unary->op == OP_Neg) {
-        auto [_, insn_handle] =
-          host_ref.createInstruction(OP_Neg, operand_ty, operand_handle);
-        return {operand_ty, insn_handle};
+        return {operand_ty, *host_ref.createInstruction(OP_Neg, operand_ty,
+                                                        operand_handle)};
       }
       if (unary->op == OP_LNot) {
-        auto [_, insn_handle] =
-          host_ref.createInstruction(OP_LNot, IntType, operand_handle);
-        return {IntType, insn_handle};
+        return {IntType,
+                *host_ref.createInstruction(OP_LNot, IntType, operand_handle)};
       }
       throw std::runtime_error("not a supported unary operator");
     }
     case ND_BinaryExpr: {
       auto binary = expr->as_unchecked<BinaryExpr *>();
-      auto [lhs_ty, lhs_handle] = generateRValue(binary->lhs);
-      auto [rhs_ty, rhs_handle] = generateRValue(binary->rhs);
+      auto [lhs_ty, lhs] = generateRValue(binary->lhs);
+      auto [rhs_ty, rhs] = generateRValue(binary->rhs);
       assert(lhs_ty.dimension.empty() && rhs_ty.dimension.empty());
-      auto [_, insn_handle] =
-        host_ref.createInstruction(binary->op, IntType, lhs_handle, rhs_handle);
-      return {IntType, insn_handle};
+      return {IntType,
+              *host_ref.createInstruction(binary->op, IntType, lhs, rhs)};
     }
     case ND_CallExpr: {
       auto call = expr->as_unchecked<CallExpr *>();
@@ -167,10 +164,10 @@ class Tree2SSA {
         auto [arg_ty, arg_handle] = generateRValue(arg);
         args.push_back(arg_handle);
       }
-      auto [call_insn, call_handle] =
+      auto call_insn =
         host_ref.createInstruction(OP_Call, f->return_type, handle);
       for (auto &&arg : args) call_insn->args.push_back(arg);
-      return {f->return_type, call_handle};
+      return {f->return_type, *call_insn};
     }
     case ND_ArraySubscriptExpr:
     case ND_RefExpr:
@@ -179,9 +176,8 @@ class Tree2SSA {
       assert(lv_ty.indirect_level + lv_ty.dimension.size());
       auto new_ty = lv_ty;
       new_ty.indirect_level--;
-      auto [_, insn_handle] =
-        host_ref.createInstruction(OP_Load, new_ty, lv_handle);
-      return TypeHandle{new_ty, insn_handle};
+      return TypeHandle{
+        new_ty, *host_ref.createInstruction(OP_Load, new_ty, lv_handle)};
     }
     default:
       throw std::runtime_error("not a supported expression");
@@ -194,12 +190,11 @@ class Tree2SSA {
     assert(ty.indirect_level);
 
     auto len = calculateArrayTotalLength(ty);
-    auto [arr_len, len_handle] = host_ref.createConstantInteger(len);
+    auto len_constant = host_ref.createConstantInteger(len);
 
     if (ty.dimension.size()) {
-      auto [set_inst, set_handle] =
-        host_ref.createIntrinsic("__syoc@memset0", VoidType);
-      set_inst->args = {target, len_handle};
+      auto set_insn = host_ref.createIntrinsic("__syoc@memset0", VoidType);
+      set_insn->args = {target, *len_constant};
     }
 
     if (init) {
@@ -212,15 +207,15 @@ class Tree2SSA {
         for (auto &&e : l->values) {
           if (i >= bound)
             break;
-          auto [offset_n, offset_handle] = host_ref.createConstantInteger(i);
-          auto [elem, elem_handle] = host_ref.createInstruction(
-            OP_Offset, elem_ty, target, offset_handle);
-          generateInitializer(e, elem_ty, elem_handle);
+          auto offset_n = host_ref.createConstantInteger(i);
+          auto elem =
+            host_ref.createInstruction(OP_Offset, elem_ty, target, *offset_n);
+          generateInitializer(e, elem_ty, *elem);
           i++;
         }
       } else {
         auto [rv_ty, rv_handle] = generateRValue(init);
-        auto [init_insn, insn_handle] =
+        auto &&init_insn =
           host_ref.createInstruction(OP_Store, ty, target, rv_handle);
       }
     }
@@ -229,13 +224,13 @@ class Tree2SSA {
   void generateGlobalVariable(GlobalDeclaration *decl) {
     auto ty = convertType(decl->type);
     ty.indirect_level++;
-    auto [g, handle] = host->createGlobalVariable();
+    auto &&g = host->createGlobalVariable();
     g->type = ty;
     g->name = decl->name;
     auto &host_ref = *host;
     host_ref.setInsertPoint(global_initializer_block);
-    generateInitializer(decl->initializer, ty, handle);
-    scopes.insert(decl->name, handle);
+    generateInitializer(decl->initializer, ty, *g);
+    scopes.insert(decl->name, *g);
   }
 
   void globalGeneration() {
@@ -262,9 +257,8 @@ class Tree2SSA {
       auto decl = stmt->as_unchecked<LocalDeclaration *>();
       auto addr_ty = convertType(decl->type);
       addr_ty.indirect_level++;
-      auto [var_addr, var_handle] =
-        host_ref.createInstruction(OP_Allocate, addr_ty);
-      scopes.insert(decl->name, var_handle);
+      scopes.insert(decl->name,
+                    *host_ref.createInstruction(OP_Allocate, addr_ty));
       return;
     }
     case ND_CompoundStmt: {
@@ -280,46 +274,45 @@ class Tree2SSA {
         generateRValue(if_stmt->condition->as_unchecked<Expr *>());
       auto cur_bb = host_ref.getInsertPoint();
 
-      auto then_bb = host_ref.createBasicBlock(current_function.second);
+      auto then_bb = host_ref.createBasicBlock(*current_function);
       host_ref.setInsertPoint(then_bb);
       generateStatement(if_stmt->then_stmt);
 
       decltype(cur_bb) else_bb;
       if (if_stmt->else_stmt) {
-        else_bb = host_ref.createBasicBlock(current_function.second);
+        else_bb = host_ref.createBasicBlock(*current_function);
         host_ref.setInsertPoint(else_bb);
         generateStatement(if_stmt->else_stmt);
       }
 
-      auto cont_bb = host_ref.createBasicBlock(current_function.second);
+      auto cont_bb = host_ref.createBasicBlock(*current_function);
 
       host_ref.setInsertPoint(cur_bb);
-      auto [br, br_handle] = host_ref.createInstruction(
-        OP_Br, cond_ty, cond, then_bb.second,
-        if_stmt->else_stmt ? else_bb.second : cont_bb.second);
+      host_ref.createInstruction(OP_Br, cond_ty, cond, *then_bb,
+                                 if_stmt->else_stmt ? *else_bb : *cont_bb);
 
       host_ref.setInsertPoint(then_bb);
-      host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+      host_ref.createInstruction(OP_Jump, VoidType, *cont_bb);
 
       if (if_stmt->else_stmt) {
         host_ref.setInsertPoint(else_bb);
-        host_ref.createInstruction(OP_Jump, VoidType, cont_bb.second);
+        host_ref.createInstruction(OP_Jump, VoidType, *cont_bb);
       }
 
       host_ref.setInsertPoint(cont_bb);
-      current_function.first->basic_block.push_back(then_bb.second);
+      current_function->basic_block.push_back(*then_bb);
       if (if_stmt->else_stmt)
-        current_function.first->basic_block.push_back(else_bb.second);
-      current_function.first->basic_block.push_back(cont_bb.second);
+        current_function->basic_block.push_back(*else_bb);
+      current_function->basic_block.push_back(*cont_bb);
       return;
     }
     case ND_WhileStmt: {
       auto while_stmt = stmt->as_unchecked<WhileStmt *>();
       auto cur_bb = host_ref.getInsertPoint();
 
-      auto end_bb = host_ref.createBasicBlock(current_function.second);
+      auto end_bb = host_ref.createBasicBlock(*current_function);
 
-      auto cond_bb = host_ref.createBasicBlock(current_function.second);
+      auto cond_bb = host_ref.createBasicBlock(*current_function);
       host_ref.setInsertPoint(cond_bb);
       auto [cond_ty, cond] =
         generateRValue(while_stmt->condition->as_unchecked<Expr *>());
@@ -327,7 +320,7 @@ class Tree2SSA {
       bb_break.push_back(end_bb);
       bb_continue.push_back(cond_bb);
 
-      auto body_bb = host_ref.createBasicBlock(current_function.second);
+      auto body_bb = host_ref.createBasicBlock(*current_function);
       host_ref.setInsertPoint(body_bb);
       generateStatement(while_stmt->body);
 
@@ -335,39 +328,37 @@ class Tree2SSA {
       bb_continue.pop_back();
 
       host_ref.setInsertPoint(cur_bb);
-      host_ref.createInstruction(OP_Jump, VoidType, cond_bb.second);
+      host_ref.createInstruction(OP_Jump, VoidType, *cond_bb);
 
       host_ref.setInsertPoint(cond_bb);
-      auto [br, br_handle] = host_ref.createInstruction(
-        OP_Br, cond_ty, cond, body_bb.second, end_bb.second);
+      host_ref.createInstruction(OP_Br, cond_ty, cond, *body_bb, *end_bb);
 
       host_ref.setInsertPoint(end_bb);
 
       for (auto &&bb : {cond_bb, body_bb, end_bb})
-        current_function.first->basic_block.push_back(bb.second);
+        current_function->basic_block.push_back(*bb);
       return;
     }
     case ND_ContinueStmt: {
       if (bb_continue.empty())
         throw std::runtime_error("continue statement outside of loop");
-      host_ref.createInstruction(OP_Jump, VoidType, bb_continue.back().second);
+      host_ref.createInstruction(OP_Jump, VoidType, *bb_continue.back());
       return;
     }
     case ND_BreakStmt: {
       if (bb_break.empty())
         throw std::runtime_error("break statement outside of loop");
-      host_ref.createInstruction(OP_Jump, VoidType, bb_break.back().second);
+      host_ref.createInstruction(OP_Jump, VoidType, *bb_break.back());
       return;
     }
     case ND_ReturnStmt: {
       auto ret_stmt = stmt->as_unchecked<ReturnStmt *>();
       if (ret_stmt->value) {
         auto [ret_ty, ret_handle] = generateRValue(ret_stmt->value);
-        auto [store, store_handle] =
-          host_ref.createInstruction(OP_Store, current_retval.first->type,
-                                     current_retval.second, ret_handle);
+        host_ref.createInstruction(OP_Store, current_retval->type,
+                                   *current_retval, ret_handle);
       }
-      host_ref.createInstruction(OP_Jump, VoidType, current_return_bb.second);
+      host_ref.createInstruction(OP_Jump, VoidType, *current_return_bb);
       return;
     }
     default:
@@ -377,12 +368,12 @@ class Tree2SSA {
 
   void functionGeneration(FunctionDeclaration *decl) {
     auto &host_ref = *host;
-    auto [f, f_handle] = host_ref.createFunction();
+    auto f = host_ref.createFunction();
     f->return_type = convertType(decl->return_type);
     f->name = decl->name;
-    current_function = {f, f_handle};
+    current_function = f;
 
-    scopes.insert(decl->name, f_handle);
+    scopes.insert(decl->name, *f);
 
     bool is_external = decl->body == nullptr;
     f->external = is_external;
@@ -390,27 +381,27 @@ class Tree2SSA {
       f->return_type.primitive_type == SSAType::PrimitiveType::Void;
 
     if (!is_external) {
-      auto entry_bb = host_ref.createBasicBlock(f_handle);
-      f->basic_block.push_back(entry_bb.second);
+      auto entry_bb = host_ref.createBasicBlock(*f);
+      f->basic_block.push_back(*entry_bb);
       host_ref.setInsertPoint(entry_bb);
-      
+
       if (!is_void) {
         auto ty = f->return_type;
         ty.indirect_level++;
         current_retval = host_ref.createInstruction(OP_Allocate, ty);
       } else {
-        current_retval = {nullptr, SSAValueHandle::InvalidValueHandle()};
+        current_retval = nullptr;
       }
 
-      auto return_bb = host_ref.createBasicBlock(f_handle);
-      f->basic_block.push_back(return_bb.second);
+      auto return_bb = host_ref.createBasicBlock(*f);
+      f->basic_block.push_back(*return_bb);
       host_ref.setInsertPoint(return_bb);
       current_return_bb = return_bb;
 
       if (!is_void) {
-        auto [retval, retval_handle] = host_ref.createInstruction(
-          OP_Load, f->return_type, current_retval.second);
-        host_ref.createInstruction(OP_Return, f->return_type, retval_handle);
+        auto retval =
+          host_ref.createInstruction(OP_Load, f->return_type, *current_retval);
+        host_ref.createInstruction(OP_Return, f->return_type, *retval);
       } else {
         host_ref.createInstruction(OP_Return, VoidType);
       }
@@ -420,20 +411,19 @@ class Tree2SSA {
 
     scopes.enter();
     for (auto &&param : decl->parameters) {
-      auto [arg, arg_handle] = host_ref.createArgument(f_handle);
+      auto arg = host_ref.createArgument(*f);
       arg->name = param.first;
       arg->type = convertParameterType(param.second);
-      f->args.push_back(arg_handle);
+      f->args.push_back(*arg);
 
       if (!is_external) {
         auto addr_ty = arg->type;
         addr_ty.indirect_level += 1;
-        auto [arg_addr, addr_handle] =
+        auto arg_addr =
           host_ref.createInstruction(OP_Allocate, addr_ty);
 
-        auto [store, store_handle] = host_ref.createInstruction(
-          OP_Store, addr_ty, addr_handle, arg_handle);
-        scopes.insert(arg->name, addr_handle);
+        host_ref.createInstruction(OP_Store, addr_ty, *arg_addr, *arg);
+        scopes.insert(arg->name, *arg_addr);
       }
     }
     if (!is_external) {

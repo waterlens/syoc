@@ -78,6 +78,7 @@ struct SSAValue {
     throw std::runtime_error("cast failed");
   }
   template <typename T> T as_unchecked() { return static_cast<T>(this); }
+  operator SSAValueHandle() const { return identity; }
 };
 
 #undef THIS
@@ -156,10 +157,10 @@ private:
   std::vector<SSAValueHandle> function_table;
   std::vector<SSAValueHandle> global_value_table;
   std::vector<SSAValueHandle> constant_table;
-  std::pair<Function *, SSAValueHandle> function{};
-  std::pair<BasicBlock *, SSAValueHandle> basic_block{};
-  std::pair<GlobalVariable *, SSAValueHandle> global_variable{};
-  std::pair<Instruction *, SSAValueHandle> instruction{};
+  Function *function{};
+  BasicBlock *basic_block{};
+  GlobalVariable *global_variable{};
+  Instruction *instruction{};
 
 private:
   template <typename T>
@@ -173,87 +174,80 @@ private:
   }
 
   void checkBasicBlock() {
-    if (!basic_block.first) {
+    if (!basic_block) {
       throw std::runtime_error("BasicBlock is empty");
     }
   }
 
 public:
-  void setInsertPoint(std::pair<BasicBlock *, SSAValueHandle> pos) {
-    basic_block = pos;
-  }
+  void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
 
-  auto getInsertPoint() {
-    return basic_block;
-  }
+  auto getInsertPoint() { return basic_block; }
 
-  std::pair<Intrinsic *, SSAValueHandle> createIntrinsic(std::string_view name,
-                                                         SSAType type) {
+  Intrinsic *createIntrinsic(std::string_view name, SSAType type) {
     checkBasicBlock();
     auto insn = new Intrinsic();
-    init_parent_and_identity<Intrinsic *>(insn, basic_block.second);
+    init_parent_and_identity<Intrinsic *>(insn, basic_block->identity);
     insn->name = name;
     insn->type = type;
-    basic_block.first->insn.push_back(insn->identity);
-    return {insn, insn->identity};
+    basic_block->insn.push_back(insn->identity);
+    return insn;
   }
 
-  std::pair<Instruction *, SSAValueHandle> createInstruction(
+  Instruction *createInstruction(
     OpType op, SSAType type,
     SSAValueHandle arg0 = SSAValueHandle::InvalidValueHandle(),
     SSAValueHandle arg1 = SSAValueHandle::InvalidValueHandle(),
     SSAValueHandle arg2 = SSAValueHandle::InvalidValueHandle()) {
     checkBasicBlock();
     auto insn = new Instruction();
-    init_parent_and_identity<Instruction *>(insn, basic_block.second);
+    init_parent_and_identity<Instruction *>(insn, basic_block->identity);
     insn->op = op;
     insn->type = type;
     insn->args = {SSAValueHandle{arg0}, SSAValueHandle{arg1},
                   SSAValueHandle{arg2}};
-    basic_block.first->insn.push_back(insn->identity);
-    return {insn, insn->identity};
+    basic_block->insn.push_back(insn->identity);
+    return insn;
   }
 
-  std::pair<Function *, SSAValueHandle> createFunction() {
+  Function *createFunction() {
     auto function = new Function();
     init_parent_and_identity<Function *>(function);
     function_table.emplace_back(function->identity);
-    return {function, function->identity};
+    return function;
   }
 
-  std::pair<BasicBlock *, SSAValueHandle>
-  createBasicBlock(SSAValueHandle parent) {
+  BasicBlock *createBasicBlock(SSAValueHandle parent) {
     auto basic_block = new BasicBlock();
     init_parent_and_identity<BasicBlock *>(basic_block, parent);
-    return {basic_block, basic_block->identity};
+    return basic_block;
   }
 
-  std::pair<GlobalVariable *, SSAValueHandle> createGlobalVariable() {
+  GlobalVariable *createGlobalVariable() {
     auto global_variable = new GlobalVariable();
     init_parent_and_identity<GlobalVariable *>(global_variable);
     global_value_table.emplace_back(global_variable->identity);
-    return {global_variable, global_variable->identity};
+    return global_variable;
   }
 
-  std::pair<ConstantInteger *, SSAValueHandle>
-  createConstantInteger(uint64_t value) {
+  ConstantInteger *createConstantInteger(uint64_t value) {
     auto const_int = new ConstantInteger();
     init_parent_and_identity<GlobalVariable *>(const_int);
     constant_table.emplace_back(const_int->identity);
-    return {const_int, const_int->identity};
+    return const_int;
   }
 
-  std::pair<ConstantArray *, SSAValueHandle> createConstantArray() {
+  ConstantArray *createConstantArray() {
     auto const_arr = new ConstantArray();
     init_parent_and_identity<GlobalVariable *>(const_arr);
     constant_table.emplace_back(const_arr->identity);
-    return {const_arr, const_arr->identity};
+    return const_arr;
   }
 
-  std::pair<Argument *, SSAValueHandle> createArgument(SSAValueHandle parent) {
+  Argument *createArgument(SSAValueHandle parent) {
     auto arg = new Argument();
     init_parent_and_identity<Argument *>(arg, parent);
-    return {arg, arg->identity};
+    return arg;
   }
 
   SSAValue &operator[](SSAValueHandle n) {
