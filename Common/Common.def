@@ -43,6 +43,7 @@ OpcodeDefine(OP_Store,      "store")
 OpcodeDefine(OP_Load,       "load")
 OpcodeDefine(OP_Offset,     "offset")
 OpcodeDefine(OP_Return,     "ret")
+OpcodeDefine(OP_Memset0,    "memset0")
 OpcodeDefine(OP_End, "")
 
 TypeSpecifierDefine(TS_None,  0)

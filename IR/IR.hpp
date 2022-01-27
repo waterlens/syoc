@@ -33,15 +33,13 @@ struct SSAValue;
 
 struct Module;
 struct BasicBlock;
-struct Intrinsic;
 struct Instruction;
 struct ConstantInteger;
-struct ConstantArray;
 struct GlobalVariable;
 struct Function;
 struct Argument;
 
-class IRHost;
+struct IRHost;
 
 struct SSAValueHandle {
   unsigned id;
@@ -75,22 +73,20 @@ struct SSAValue {
   template <typename T> T as() {
     if (is<T>())
       return static_cast<T>(this);
-    throw std::runtime_error("cast failed");
+    return nullptr;
   }
   template <typename T> T as_unchecked() { return static_cast<T>(this); }
+  template <typename T> const T as() const {
+    if (is<T>())
+      return static_cast<T>(this);
+    return nullptr;
+  }
+  template <typename T> const T as_unchecked() const { return static_cast<T>(this); }
   operator SSAValueHandle() const { return identity; }
 };
 
 #undef THIS
 #define THIS(x) constexpr inline static SSAValueType this_type = x
-
-struct Intrinsic : public SSAValue {
-  THIS(SV_Intrinsic);
-  std::string_view name;
-  SSAType type;
-  TrivialValueVector<SSAValueHandle, 3> args;
-  Intrinsic() : SSAValue{this_type} {}
-};
 
 struct Instruction : public SSAValue {
   THIS(SV_Instruction);
@@ -110,12 +106,6 @@ struct ConstantInteger : public SSAValue {
   THIS(SV_ConstantInteger);
   uint64_t value;
   ConstantInteger() : SSAValue{this_type} {}
-};
-
-struct ConstantArray : public SSAValue {
-  THIS(SV_ConstantArray);
-  std::vector<uint64_t> array;
-  ConstantArray() : SSAValue{this_type} {}
 };
 
 struct Argument : public SSAValue {
@@ -145,14 +135,16 @@ struct GlobalVariable : public SSAValue {
 struct SSAValuePool {
   std::vector<SSAValue *> values;
   SSAValuePool() { values.emplace_back(nullptr); }
-  SSAValue &operator[](SSAValueHandle n) {
-    return *values[static_cast<unsigned>(n)];
+  SSAValue *operator[](SSAValueHandle n) {
+    return values[static_cast<unsigned>(n)];
+  }
+  const SSAValue *operator[](SSAValueHandle n) const {
+    return values[static_cast<unsigned>(n)];
   }
   inline static SSAValueHandle top_level{0};
 };
 
-class IRHost {
-private:
+struct IRHost {
   SSAValuePool pool;
   std::vector<SSAValueHandle> function_table;
   std::vector<SSAValueHandle> global_value_table;
@@ -162,7 +154,6 @@ private:
   GlobalVariable *global_variable{};
   Instruction *instruction{};
 
-private:
   template <typename T>
   void init_parent_and_identity(
     SSAValue *value,
@@ -183,16 +174,6 @@ public:
   void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
 
   auto getInsertPoint() { return basic_block; }
-
-  Intrinsic *createIntrinsic(std::string_view name, SSAType type) {
-    checkBasicBlock();
-    auto insn = new Intrinsic();
-    init_parent_and_identity<Intrinsic *>(insn, basic_block->identity);
-    insn->name = name;
-    insn->type = type;
-    basic_block->insn.push_back(insn->identity);
-    return insn;
-  }
 
   Instruction *createInstruction(
     OpType op, SSAType type,
@@ -232,16 +213,10 @@ public:
 
   ConstantInteger *createConstantInteger(uint64_t value) {
     auto const_int = new ConstantInteger();
-    init_parent_and_identity<GlobalVariable *>(const_int);
+    init_parent_and_identity<ConstantInteger *>(const_int);
+    const_int->value = value;
     constant_table.emplace_back(const_int->identity);
     return const_int;
-  }
-
-  ConstantArray *createConstantArray() {
-    auto const_arr = new ConstantArray();
-    init_parent_and_identity<GlobalVariable *>(const_arr);
-    constant_table.emplace_back(const_arr->identity);
-    return const_arr;
   }
 
   Argument *createArgument(SSAValueHandle parent) {
@@ -252,7 +227,7 @@ public:
 
   SSAValue &operator[](SSAValueHandle n) {
     if (n.isValid() && n.id < pool.values.size()) {
-      return pool[n];
+      return *pool[n];
     }
     throw std::runtime_error("SSAValueHandle is invalid");
   }

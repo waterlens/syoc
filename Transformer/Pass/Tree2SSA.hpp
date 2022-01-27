@@ -30,6 +30,7 @@ class Tree2SSA {
     init->args = {};
     init->return_type = SSAType{SSAType::PrimitiveType::Void, 0, {}};
     init->basic_block.push_back(*bb);
+    init->external = false;
 
     global_initializer_block = bb;
   }
@@ -51,10 +52,13 @@ class Tree2SSA {
 
   SSAType convertParameterType(const Type &ty) {
     SSAType ssa_ty{};
-    if (ty.spec == TS_Int)
+    if (ty.spec == TS_Int) {
       ssa_ty.primitive_type = SSAType::PrimitiveType::Integer;
-    else if (ty.spec == TS_Void)
+      ssa_ty.width = 32;
+    } else if (ty.spec == TS_Void) {
       ssa_ty.primitive_type = SSAType::PrimitiveType::Void;
+      ssa_ty.width = 0;
+    }
     for (auto &&dim : ty.dim) {
       ssa_ty.dimension.push_back(dim->as<IntegerLiteral *>()->value);
     }
@@ -193,7 +197,7 @@ class Tree2SSA {
     auto len_constant = host_ref.createConstantInteger(len);
 
     if (ty.dimension.size()) {
-      auto set_insn = host_ref.createIntrinsic("__syoc@memset0", VoidType);
+      auto set_insn = host_ref.createInstruction(OP_Memset0, VoidType);
       set_insn->args = {target, *len_constant};
     }
 
@@ -419,8 +423,7 @@ class Tree2SSA {
       if (!is_external) {
         auto addr_ty = arg->type;
         addr_ty.indirect_level += 1;
-        auto arg_addr =
-          host_ref.createInstruction(OP_Allocate, addr_ty);
+        auto arg_addr = host_ref.createInstruction(OP_Allocate, addr_ty);
 
         host_ref.createInstruction(OP_Store, addr_ty, *arg_addr, *arg);
         scopes.insert(arg->name, *arg_addr);
