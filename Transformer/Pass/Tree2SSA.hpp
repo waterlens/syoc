@@ -433,6 +433,7 @@ class Tree2SSA {
     bool is_void =
       f->return_type.primitive_type == SSAType::PrimitiveType::Void;
 
+    BasicBlock *return_bb = nullptr;
     if (!is_external) {
       auto entry_bb = host_ref.createBasicBlock(*f);
       f->basic_block.push_back(*entry_bb);
@@ -446,8 +447,7 @@ class Tree2SSA {
         current_retval = nullptr;
       }
 
-      auto return_bb = host_ref.createBasicBlock(*f);
-      f->basic_block.push_back(*return_bb);
+      return_bb = host_ref.createBasicBlock(*f);
       host_ref.setInsertPoint(return_bb);
       current_return_bb = return_bb;
 
@@ -482,6 +482,7 @@ class Tree2SSA {
       scopes.enter();
       generateStatement(decl->body);
       scopes.exit();
+      f->basic_block.push_back(*return_bb);
     }
     scopes.exit();
   }
