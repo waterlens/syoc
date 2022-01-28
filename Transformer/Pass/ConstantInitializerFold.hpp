@@ -76,7 +76,7 @@ private:
       auto result = new IntegerLiteral{0};
       if (unary->op == OP_Neg)
         result->value = -constantEvaluation(unary->operand)->value;
-      else if (unary->op == OP_LNot)
+      else if (unary->op == OP_Lnot)
         result->value = !constantEvaluation(unary->operand)->value;
       else
         throw std::runtime_error("not a valid unary operator");

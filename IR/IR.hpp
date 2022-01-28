@@ -6,10 +6,10 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -81,7 +81,9 @@ struct SSAValue {
       return static_cast<T>(this);
     return nullptr;
   }
-  template <typename T> const T as_unchecked() const { return static_cast<T>(this); }
+  template <typename T> const T as_unchecked() const {
+    return static_cast<T>(this);
+  }
   operator SSAValueHandle() const { return identity; }
 };
 
@@ -175,18 +177,14 @@ public:
 
   auto getInsertPoint() { return basic_block; }
 
-  Instruction *createInstruction(
-    OpType op, SSAType type,
-    SSAValueHandle arg0 = SSAValueHandle::InvalidValueHandle(),
-    SSAValueHandle arg1 = SSAValueHandle::InvalidValueHandle(),
-    SSAValueHandle arg2 = SSAValueHandle::InvalidValueHandle()) {
+  Instruction *createInstruction(OpType op, SSAType type,
+                                 std::initializer_list<SSAValueHandle> args = {}) {
     checkBasicBlock();
     auto insn = new Instruction();
     init_parent_and_identity<Instruction *>(insn, basic_block->identity);
     insn->op = op;
     insn->type = type;
-    insn->args = {SSAValueHandle{arg0}, SSAValueHandle{arg1},
-                  SSAValueHandle{arg2}};
+    insn->args = args;
     basic_block->insn.push_back(insn->identity);
     return insn;
   }
@@ -231,4 +229,6 @@ public:
     }
     throw std::runtime_error("SSAValueHandle is invalid");
   }
+
+  SSAValueHandle Zero = *createConstantInteger(0);
 };

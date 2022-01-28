@@ -268,7 +268,7 @@ struct Parser {
     } else if (next_tok.text == "-" || next_tok.text == "!") {
       skip();
       OpType op = next_tok.text == "-"   ? OP_Neg
-                  : next_tok.text == "!" ? OP_LNot
+                  : next_tok.text == "!" ? OP_Lnot
                                          : OP_End;
       return new UnaryExpr{op, unaryExpression()};
     }

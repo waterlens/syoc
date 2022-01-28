@@ -77,7 +77,7 @@ struct Node {
   template <typename T> T as() {
     if (is<T>())
       return static_cast<T>(this);
-    throw std::runtime_error("cast failed");
+    return nullptr;
   }
   template <typename T> T as_unchecked() { return static_cast<T>(this); }
 };

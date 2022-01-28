@@ -11,11 +11,11 @@ class IRDump {
   std::string dumpSSAType(const SSAType &ty) {
     std::string buffer;
     if (ty.dimension.size()) {
-      auto last = ty.dimension.back();
+      auto first = ty.dimension.front();
       auto new_ty = ty;
-      new_ty.dimension.pop_back();
+      new_ty.dimension.pop_front();
       new_ty.indirect_level = 0;
-      buffer += fmt::format("[{} x {}]", last, dumpSSAType(new_ty));
+      buffer += fmt::format("[{} x {}]", first, dumpSSAType(new_ty));
     } else
       switch (ty.primitive_type) {
       case SSAType::PrimitiveType::Void:
