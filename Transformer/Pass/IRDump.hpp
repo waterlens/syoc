@@ -63,7 +63,7 @@ class IRDump {
       else if (auto bb = host[handle].as<BasicBlock *>())
         return fmt::format("label L{}", bb->identity);
       else if (auto f = host[handle].as<Function *>())
-        return fmt::format("fn {}", dumpSSAType(f->return_type), f->name);
+        return fmt::format("fn {} {}", dumpSSAType(f->return_type), f->name);
       else
         throw std::runtime_error("can not dump this SSAValue");
     };

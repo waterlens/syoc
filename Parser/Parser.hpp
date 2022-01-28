@@ -53,9 +53,9 @@ struct Parser {
   inline static std::string_view operators = "()[]{}<>+-*/%!;,=";
 
   inline static std::unordered_map<std::string_view, int> bin_op_precedence = {
-    {"*", 30},  {"/", 30},   {"%", 30},   {"+", 40},  {"-", 40},
-    {"<", 60},  {">", 60},   {"<=", 60},  {">=", 60}, {"==", 70},
-    {"!=", 70}, {"&&", 110}, {"||", 120},
+    {"*", 120},  {"/", 120},   {"%", 120},   {"+", 110},  {"-", 110},
+    {"<", 90},  {">", 90},   {"<=", 90},  {">=", 90}, {"==", 60},
+    {"!=", 80}, {"&&", 30}, {"||", 30},
   };
 
   inline static std::unordered_map<std::string_view, OpType> bin_op_code = {

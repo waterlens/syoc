@@ -119,6 +119,41 @@ class Tree2SSA {
       throw std::runtime_error("not a supported expression");
   }
 
+  TypeHandle generateShortCircuit(BinaryExpr *binary) {
+    auto &host_ref = *host;
+    auto [lhs_ty, lhs] = generateRValue(binary->lhs);
+    auto tmp_addr_ty = lhs_ty;
+    tmp_addr_ty.indirect_level++;
+
+    auto tmp_var_addr = host_ref.createInstruction(OP_Allocate, tmp_addr_ty);
+    host_ref.createInstruction(OP_Store, tmp_addr_ty, {*tmp_var_addr, lhs});
+
+    auto rhs_eval_bb = host_ref.createBasicBlock(*current_function);
+    auto next_bb = host_ref.createBasicBlock(*current_function);
+    auto branch = host_ref.createInstruction(OP_Br, IntType, {lhs});
+
+    if (binary->op == OP_Land) {
+      branch->args.push_back(*rhs_eval_bb);
+      branch->args.push_back(*next_bb);
+    } else {
+      branch->args.push_back(*next_bb);
+      branch->args.push_back(*rhs_eval_bb);
+    }
+
+    host_ref.setInsertPoint(rhs_eval_bb);
+    auto [rhs_ty, rhs] = generateRValue(binary->rhs);
+    host_ref.createInstruction(OP_Store, tmp_addr_ty, {*tmp_var_addr, rhs});
+    host_ref.createInstruction(OP_Jump, IntType, {*next_bb});
+
+    host_ref.setInsertPoint(next_bb);
+    auto final = host_ref.createInstruction(OP_Load, lhs_ty, {*tmp_var_addr});
+
+    current_function->basic_block.push_back(*rhs_eval_bb);
+    current_function->basic_block.push_back(*next_bb);
+
+    return {lhs_ty, *final};
+  }
+
   TypeHandle generateRValue(ExprPtr expr) {
     auto &host_ref = *host;
     switch (expr->node_type) {
@@ -143,39 +178,7 @@ class Tree2SSA {
     case ND_BinaryExpr: {
       auto binary = expr->as_unchecked<BinaryExpr *>();
       if (binary->op == OP_Land || binary->op == OP_Lor) {
-        auto [lhs_ty, lhs] = generateRValue(binary->lhs);
-        auto tmp_addr_ty = lhs_ty;
-        tmp_addr_ty.indirect_level++;
-
-        auto tmp_var_addr =
-          host_ref.createInstruction(OP_Allocate, tmp_addr_ty);
-        host_ref.createInstruction(OP_Store, tmp_addr_ty, {lhs});
-
-        auto rhs_eval_bb = host_ref.createBasicBlock(*current_function);
-        auto next_bb = host_ref.createBasicBlock(*current_function);
-        auto branch = host_ref.createInstruction(OP_Br, IntType, {lhs});
-
-        if (binary->op == OP_Land) {
-          branch->args.push_back(*rhs_eval_bb);
-          branch->args.push_back(*next_bb);
-        } else {
-          branch->args.push_back(*next_bb);
-          branch->args.push_back(*rhs_eval_bb);
-        }
-
-        host_ref.setInsertPoint(rhs_eval_bb);
-        auto [rhs_ty, rhs] = generateRValue(binary->rhs);
-        host_ref.createInstruction(OP_Store, tmp_addr_ty, {rhs});
-        host_ref.createInstruction(OP_Jump, IntType, {*next_bb});
-
-        host_ref.setInsertPoint(next_bb);
-        auto final =
-          host_ref.createInstruction(OP_Load, lhs_ty, {*tmp_var_addr});
-
-        current_function->basic_block.push_back(*rhs_eval_bb);
-        current_function->basic_block.push_back(*next_bb);
-
-        return {lhs_ty, *final};
+        return generateShortCircuit(binary);
       } else {
         auto [lhs_ty, lhs] = generateRValue(binary->lhs);
         auto [rhs_ty, rhs] = generateRValue(binary->rhs);
