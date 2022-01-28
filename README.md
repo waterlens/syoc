@@ -11,7 +11,7 @@ If possible, the compiler may include the following optimization
 passes (in my hope).
 
 #### Front-end
-- [ ] Top-down parser
+- [x] Top-down parser
 
 #### Mid-end & Back-end
 
@@ -40,7 +40,7 @@ passes (in my hope).
 ### Checklist
 
 - [x] Create the project
-- [ ] Finish the parser
-- [ ] Definition of IR
-- [ ] Finish the pass manager
+- [x] Finish the parser
+- [x] Definition of IR
+- [x] Finish the pass manager
 
