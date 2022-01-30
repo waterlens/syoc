@@ -8,13 +8,13 @@
 class IRDump {
   std::string buffer;
 
-  std::string dumpSSAType(const SSAType &ty) {
+  std::string dumpSSATypeOld(const SSAType &ty) {
     std::string buffer;
-    if (ty.dimension.size()) {
-      auto first = ty.dimension.front();
+    if (ty.dim.size()) {
+      auto first = ty.dim.front();
       auto new_ty = ty;
-      new_ty.dimension.pop_front();
-      new_ty.indirect_level = 0;
+      new_ty.dim.pop_front();
+      new_ty.pointer = 0;
       buffer += fmt::format("[{} x {}]", first, dumpSSAType(new_ty));
     } else
       switch (ty.primitive_type) {
@@ -25,7 +25,22 @@ class IRDump {
         buffer += fmt::format("i{}", ty.width);
         break;
       }
-    buffer += std::string(ty.indirect_level, '*');
+    buffer += std::string(ty.pointer, '*');
+    return buffer;
+    throw std::runtime_error("can not dump this SSAType");
+  }
+
+  std::string dumpSSAType(const SSAType &ty) {
+    std::string buffer;
+    switch (ty.primitive_type) {
+    case SSAType::PrimitiveType::Void:
+      buffer += "void";
+      break;
+    case SSAType::PrimitiveType::Integer:
+      buffer += fmt::format("i{}", ty.width);
+      break;
+    }
+    buffer += std::string(ty.pointer, '*');
     return buffer;
     throw std::runtime_error("can not dump this SSAType");
   }

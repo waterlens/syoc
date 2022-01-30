@@ -1,0 +1,11 @@
+int cutout(int val){
+    if(1){
+        //val = 0;
+    }
+    else{
+        if(1){
+            //val = 255;
+        }
+    }
+    return val;
+}

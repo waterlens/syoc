@@ -4,15 +4,18 @@
 #include "Tree/Tree.hpp"
 #include "Util/TrivialValueVector.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <numeric>
 #include <stdexcept>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
 class Tree2SSA {
-  using TypeHandle = std::pair<SSAType, SSAValue &>;
+  using TypeHandle = std::pair<SSAType, const SSAValue &>;
   NodePtr root;
   IRHost *host;
   BasicBlock *global_initializer_block, *current_return_bb;
@@ -41,29 +44,13 @@ class Tree2SSA {
     else if (ty.spec == TS_Void)
       ssa_ty = VoidType;
     for (auto &&dim : ty.dim)
-      ssa_ty.dimension.push_back(dim->as<IntegerLiteral *>()->value);
-    return ssa_ty;
-  }
-
-  SSAType convertParameterType(const Type &ty) {
-    SSAType ssa_ty;
-    if (ty.spec == TS_Int)
-      ssa_ty = IntType;
-    else if (ty.spec == TS_Void)
-      ssa_ty = VoidType;
-    for (auto &&dim : ty.dim)
-      ssa_ty.dimension.push_back(dim->as<IntegerLiteral *>()->value);
-    // array name decay
-    if (ssa_ty.dimension.size()) {
-      ssa_ty.dimension.pop_front();
-      ssa_ty.indirect_level++;
-    }
+      ssa_ty.dim.push_back(dim->as<IntegerLiteral *>()->value);
     return ssa_ty;
   }
 
   size_t calculateArrayTotalLength(SSAType ty) {
     return std::accumulate(
-      ty.dimension.begin(), ty.dimension.end(),
+      ty.dim.begin(), ty.dim.end(),
       ty.width / CHAR_BIT *
         (ty.primitive_type == SSAType::PrimitiveType::Void ? 0 : 1),
       [](auto lhs, auto rhs) { return lhs * rhs; });
@@ -83,44 +70,45 @@ class Tree2SSA {
   }
 
   void addBasicBlockToCurrentFunction(BasicBlock *bb) {
-    clearExtraJump(bb);
     current_function->basic_block.push_back(*bb);
+  }
+
+  TypeHandle findInScope(std::string_view name) {
+    auto handle = scopes.find(name);
+    if (handle == 0 || !handle.isValid())
+      throw std::runtime_error(fmt::format("undefined variable: {}", name));
+    auto &value = (*host)[handle];
+    SSAType ty;
+    if (value.is<Instruction *>() &&
+        value.as_unchecked<Instruction *>()->op == OP_Allocate) {
+      ty = value.as_unchecked<Instruction *>()->type;
+    } else if (value.is<GlobalVariable *>()) {
+      ty = value.as_unchecked<GlobalVariable *>()->type;
+    } else
+      throw std::runtime_error("name is not variable");
+    return TypeHandle{ty, value};
   }
 
   TypeHandle generateLValue(ExprPtr expr) {
     if (auto arr_sub = expr->as<ArraySubscriptExpr *>()) {
       auto [arr_ty, arr_handle] = generateLValue(arr_sub->array);
       auto [idx_ty, idx_handle] = generateRValue(arr_sub->subscript);
-      assert(arr_ty.indirect_level + arr_ty.dimension.size());
       auto new_ty = arr_ty;
-      if (new_ty.dimension.size())
-        new_ty.dimension.pop_front();
-      else
-        new_ty.indirect_level--;
-      auto elem = host->createInstruction(OP_Offset, new_ty,
-                                          {arr_handle, host->Zero, idx_handle});
+      auto n = new_ty.dim.front();
+      new_ty.dim.pop_front();
+      auto elem = host->createInstruction(
+        OP_Offset, new_ty,
+        {arr_handle, *host->createConstantInteger(n), idx_handle});
       return {new_ty, *elem};
     } else if (auto ref = expr->as<RefExpr *>()) {
-      auto handle = scopes.find(ref->name);
-      if (handle == 0)
-        throw std::runtime_error(
-          fmt::format("undefined variable: {}", ref->name));
-      auto &value = (*host)[handle];
-      SSAType ty;
-      if (value.is<Instruction *>() &&
-          value.as_unchecked<Instruction *>()->op == OP_Allocate) {
-        ty = value.as_unchecked<Instruction *>()->type;
-      } else if (value.is<GlobalVariable *>()) {
-        ty = value.as_unchecked<GlobalVariable *>()->type;
-      } else
-        throw std::runtime_error("name is not variable");
-      return TypeHandle{ty, value};
+      auto th = findInScope(ref->name);
+      return th;
     } else if (auto assign = expr->as<AssignExpr *>()) {
       auto [lhs_ty, lhs_handle] = generateLValue(assign->lhs);
       auto [rhs_ty, rhs_handle] = generateRValue(assign->rhs);
 
       auto assign_insn =
-        host->createInstruction(OP_Store, lhs_ty, {lhs_handle, rhs_handle});
+        host->createInstruction(OP_Store, VoidType, {lhs_handle, rhs_handle});
 
       return {lhs_ty, lhs_handle};
     } else
@@ -130,10 +118,12 @@ class Tree2SSA {
   TypeHandle generateShortCircuit(BinaryExpr *binary) {
     auto [lhs_ty, lhs] = generateRValue(binary->lhs);
     auto tmp_addr_ty = lhs_ty;
-    tmp_addr_ty.indirect_level++;
+    tmp_addr_ty.pointer++;
 
-    auto tmp_var_addr = host->createInstruction(OP_Allocate, tmp_addr_ty);
-    host->createInstruction(OP_Store, tmp_addr_ty, {*tmp_var_addr, lhs});
+    auto tmp_var_addr = host->createInstruction(
+      OP_Allocate, tmp_addr_ty,
+      {*host->createConstantInteger(calculateArrayTotalLength(tmp_addr_ty))});
+    host->createInstruction(OP_Store, VoidType, {*tmp_var_addr, lhs});
 
     auto rhs_eval_bb = host->createBasicBlock(*current_function);
     auto next_bb = host->createBasicBlock(*current_function);
@@ -149,7 +139,7 @@ class Tree2SSA {
 
     host->setInsertPoint(rhs_eval_bb);
     auto [rhs_ty, rhs] = generateRValue(binary->rhs);
-    host->createInstruction(OP_Store, tmp_addr_ty, {*tmp_var_addr, rhs});
+    host->createInstruction(OP_Store, VoidType, {*tmp_var_addr, rhs});
     host->createInstruction(OP_Jump, IntType, {*next_bb});
 
     host->setInsertPoint(next_bb);
@@ -188,7 +178,7 @@ class Tree2SSA {
       } else {
         auto [lhs_ty, lhs] = generateRValue(binary->lhs);
         auto [rhs_ty, rhs] = generateRValue(binary->rhs);
-        assert(lhs_ty.dimension.empty() && rhs_ty.dimension.empty());
+        assert(lhs_ty.dim.empty() && rhs_ty.dim.empty());
         return {lhs_ty,
                 *host->createInstruction(binary->op, lhs_ty, {lhs, rhs})};
       }
@@ -214,74 +204,130 @@ class Tree2SSA {
     case ND_RefExpr:
     case ND_AssignExpr: {
       auto [lv_ty, lv_handle] = generateLValue(expr);
-      assert(lv_ty.indirect_level + lv_ty.dimension.size());
-      auto new_ty = lv_ty;
-      new_ty.indirect_level--;
-      return TypeHandle{new_ty,
-                        *host->createInstruction(OP_Load, new_ty, {lv_handle})};
+      return generateLoad(lv_ty, lv_handle);
     }
     default:
       throw std::runtime_error("not a supported expression");
     }
   }
 
-  void generateInitializer(ExprPtr init, SSAType ty, SSAValueHandle target,
-                           bool memset0 = true) {
-    assert(ty.indirect_level + ty.dimension.size());
-
+  void arrayZeroInitializer(TypeHandle th) {
+    // targer should be the array head element pointer
+    auto [ty, target] = th;
+    assert(ty.dim.size());
     auto len = calculateArrayTotalLength(ty);
     auto len_constant = host->createConstantInteger(len);
 
-    if (memset0 && ty.dimension.size()) {
-      auto set_insn = host->createInstruction(OP_Memset0, VoidType);
-      set_insn->args = {target, *len_constant};
+    auto set_insn = host->createInstruction(OP_Memset0, VoidType);
+    set_insn->args = {target, *len_constant};
+  }
+
+  void generateStore(ExprPtr expr, SSAValueHandle target) {
+    if (!expr)
+      return;
+    auto [rv_ty, rv_handle] = generateRValue(expr);
+    host->createInstruction(OP_Store, VoidType, {target, rv_handle});
+  }
+
+  TypeHandle generateLoad(const SSAType &ty, SSAValueHandle target) {
+    return {
+      ty.createDereference(),
+      *host->createInstruction(OP_Load, ty.createDereference(), {target})};
+  }
+
+  void generateListInitializer(InitListExpr *init, TypeHandle th) {
+    auto ty = th.first;
+    auto arr = th.second;
+    std::vector<std::pair<ExprPtr, unsigned>> stack;
+    std::vector<unsigned> array_idx(ty.dim.size(), 0);
+    std::vector<unsigned> current_limit;
+    unsigned idx = 0;
+    enum { BRACE_END };
+
+    auto adjust_array_index = [&]() {
+      if (array_idx.size())
+        array_idx.back()++;
+      for (int i = (int)(array_idx.size() - 1); i >= 0; --i) {
+        if (array_idx[i] >= ty.dim[i]) {
+          array_idx[i] = 0;
+          if (i - 1 >= 0)
+            array_idx[i - 1]++;
+        }
+      };
+    };
+
+    stack.emplace_back(init, 0);
+    while (!stack.empty()) {
+      auto [expr, level] = stack.back();
+      stack.pop_back();
+      if (!expr) {
+        if (level == BRACE_END) {
+          idx = 0;
+          current_limit.pop_back();
+          auto [_1, level2] = stack.back();
+          stack.pop_back();
+          auto [_2, last_index] = stack.back();
+          stack.pop_back();
+          if (level2 >= 1)
+            if (array_idx[level2 - 1] == last_index)
+              array_idx[level2 - 1]++; // brace end, trailing elements must be
+                                       // all zero, skip to next index
+          if (array_idx.begin() + level2 <= array_idx.end())
+            std::fill(array_idx.begin() + level2, array_idx.end(), 0);
+        }
+      } else if (auto init = expr->as<InitListExpr *>()) {
+        stack.emplace_back(nullptr, level >= 1 ? array_idx[level - 1] : 0);
+        stack.emplace_back(nullptr, level);
+        stack.emplace_back(nullptr, BRACE_END);
+        for (auto iter = init->values.rbegin(); iter != init->values.rend();
+             ++iter)
+          stack.emplace_back(*iter, level + 1);
+        current_limit.emplace_back(
+          std::accumulate(ty.dim.begin() + level, ty.dim.end(), 1,
+                          std::multiplies<unsigned>()));
+        idx = 0;
+      } else {
+        if (level > ty.dim.size())
+          throw std::runtime_error("initializer list too deep");
+        if (idx >= current_limit.back())
+          throw std::runtime_error("too many initializer elements");
+        auto offset =
+          host->createInstruction(OP_Offset, IntType.createReference(), {arr});
+        for (size_t i = 0; i < array_idx.size(); ++i) {
+          offset->args.push_back(*host->createConstantInteger(ty.dim[i]));
+          offset->args.push_back(*host->createConstantInteger(array_idx[i]));
+        }
+        generateStore(expr, *offset);
+        adjust_array_index();
+        idx++;
+      }
     }
+  }
+
+  void generateInitializer(ExprPtr init, TypeHandle th) {
+    // target should be a pointer
+    // it is either an address to local/global scalar variable
+    // or a pointer to the array head element address
+
+    auto ty = th.first;
+    auto target = th.second;
 
     if (init) {
-      if (init->is<InitListExpr *>()) {
-        auto l = init->as_unchecked<InitListExpr *>();
-        size_t i = 0;
-        auto bound = ty.dimension.size() ? ty.dimension[0] : 1;
-        auto elem_ty = ty;
-        elem_ty.dimension.pop_front();
-        for (auto &&e : l->values) {
-          if (i >= bound)
-            break;
-          auto offset_n = host->createConstantInteger(i);
-          auto elem = host->createInstruction(OP_Offset, elem_ty,
-                                              {target, host->Zero, *offset_n});
-          generateInitializer(e, elem_ty, *elem, false);
-          i++;
-        }
-      } else {
-        auto [rv_ty, rv_handle] = generateRValue(init);
-        auto final_ty = ty;
-        if (ty.dimension.size() + ty.indirect_level > 1) {
-          final_ty.indirect_level = 1;
-          final_ty.dimension.clear();
-          auto offset = host->createInstruction(OP_Offset, final_ty, {target});
-          for (size_t i = 0; i < ty.indirect_level; ++i)
-            offset->args.push_back(host->Zero);
-          for (auto &&dim : ty.dimension) {
-            auto offset_n = host->createConstantInteger(dim);
-            offset->args.push_back(*offset_n);
-          }
-          target = *offset;
-        }
-        auto init_insn =
-          host->createInstruction(OP_Store, final_ty, {target, rv_handle});
-      }
+      if (auto l = init->as<InitListExpr *>())
+        generateListInitializer(l, {ty, target});
+      else
+        generateStore(init, target);
     }
   }
 
   void generateGlobalVariable(GlobalDeclaration *decl) {
     auto ty = convertType(decl->type);
-    ty.indirect_level++;
+    ty.reference();
     auto g = host->createGlobalVariable();
     g->type = ty;
     g->name = decl->name;
     host->setInsertPoint(global_initializer_block);
-    generateInitializer(decl->initializer, ty, *g);
+    generateInitializer(decl->initializer, {ty, *g});
     scopes.insert(decl->name, *g);
   }
 
@@ -307,11 +353,13 @@ class Tree2SSA {
     case ND_LocalDeclaration: {
       auto decl = stmt->as_unchecked<LocalDeclaration *>();
       auto addr_ty = convertType(decl->type);
-      addr_ty.indirect_level++;
-      auto var = host->createInstruction(OP_Allocate, addr_ty);
+      addr_ty.reference();
+      auto var = host->createInstruction(
+        OP_Allocate, addr_ty,
+        {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))});
       scopes.insert(decl->name, *var);
       if (decl->initializer)
-        generateInitializer(decl->initializer, addr_ty, *var);
+        generateInitializer(decl->initializer, findInScope(decl->name));
       return;
     }
     case ND_CompoundStmt: {
@@ -326,48 +374,40 @@ class Tree2SSA {
       auto [cond_ty, cond] =
         generateRValue(if_stmt->condition->as_unchecked<Expr *>());
       auto cur_bb = host->getInsertPoint();
-
       auto then_bb = host->createBasicBlock(*current_function);
+      auto cont_bb = host->createBasicBlock(*current_function);
+      decltype(cur_bb) else_bb;
+
+      addBasicBlockToCurrentFunction(then_bb);
       host->setInsertPoint(then_bb);
       generateStatement(if_stmt->then_stmt);
+      host->createInstruction(OP_Jump, VoidType, {*cont_bb});
 
-      decltype(cur_bb) else_bb;
       if (if_stmt->else_stmt) {
         else_bb = host->createBasicBlock(*current_function);
+        addBasicBlockToCurrentFunction(else_bb);
         host->setInsertPoint(else_bb);
         generateStatement(if_stmt->else_stmt);
+        host->createInstruction(OP_Jump, VoidType, {*cont_bb});
       }
-
-      auto cont_bb = host->createBasicBlock(*current_function);
 
       host->setInsertPoint(cur_bb);
       host->createInstruction(
         OP_Br, cond_ty,
         {cond, *then_bb, if_stmt->else_stmt ? *else_bb : *cont_bb});
 
-      host->setInsertPoint(then_bb);
-      host->createInstruction(OP_Jump, VoidType, {*cont_bb});
-
-      if (if_stmt->else_stmt) {
-        host->setInsertPoint(else_bb);
-        host->createInstruction(OP_Jump, VoidType, {*cont_bb});
-      }
-
-      host->setInsertPoint(cont_bb);
-      addBasicBlockToCurrentFunction(then_bb);
-      if (if_stmt->else_stmt)
-        addBasicBlockToCurrentFunction(else_bb);
       addBasicBlockToCurrentFunction(cont_bb);
+      host->setInsertPoint(cont_bb);
       return;
     }
     case ND_WhileStmt: {
       auto while_stmt = stmt->as_unchecked<WhileStmt *>();
       auto cur_bb = host->getInsertPoint();
-
       auto end_bb = host->createBasicBlock(*current_function);
-
       auto cond_bb = host->createBasicBlock(*current_function);
+
       host->setInsertPoint(cond_bb);
+      addBasicBlockToCurrentFunction(cond_bb);
       auto [cond_ty, cond] =
         generateRValue(while_stmt->condition->as_unchecked<Expr *>());
 
@@ -375,8 +415,12 @@ class Tree2SSA {
       bb_continue.push_back(cond_bb);
 
       auto body_bb = host->createBasicBlock(*current_function);
+      addBasicBlockToCurrentFunction(body_bb);
       host->setInsertPoint(body_bb);
       generateStatement(while_stmt->body);
+      host->createInstruction(OP_Jump, VoidType, {*cond_bb});
+
+      addBasicBlockToCurrentFunction(end_bb);
 
       bb_break.pop_back();
       bb_continue.pop_back();
@@ -389,8 +433,6 @@ class Tree2SSA {
 
       host->setInsertPoint(end_bb);
 
-      for (auto &&bb : {cond_bb, body_bb, end_bb})
-        addBasicBlockToCurrentFunction(bb);
       return;
     }
     case ND_ContinueStmt: {
@@ -409,7 +451,7 @@ class Tree2SSA {
       auto ret_stmt = stmt->as_unchecked<ReturnStmt *>();
       if (ret_stmt->value) {
         auto [ret_ty, ret_handle] = generateRValue(ret_stmt->value);
-        host->createInstruction(OP_Store, current_retval->type,
+        host->createInstruction(OP_Store, VoidType,
                                 {*current_retval, ret_handle});
       }
       host->createInstruction(OP_Jump, VoidType, {*current_return_bb});
@@ -441,8 +483,10 @@ class Tree2SSA {
 
       if (!is_void) {
         auto ty = f->return_type;
-        ty.indirect_level++;
-        current_retval = host->createInstruction(OP_Allocate, ty);
+        ty.reference();
+        current_retval = host->createInstruction(
+          OP_Allocate, ty,
+          {*host->createConstantInteger(calculateArrayTotalLength(ty))});
       } else {
         current_retval = nullptr;
       }
@@ -466,15 +510,16 @@ class Tree2SSA {
     for (auto &&param : decl->parameters) {
       auto arg = host->createArgument(*f);
       arg->name = param.first;
-      arg->type = convertParameterType(param.second);
+      arg->type = convertType(param.second);
       f->args.push_back(*arg);
 
       if (!is_external) {
         auto addr_ty = arg->type;
-        addr_ty.indirect_level += 1;
-        auto arg_addr = host->createInstruction(OP_Allocate, addr_ty);
-
-        host->createInstruction(OP_Store, addr_ty, {*arg_addr, *arg});
+        addr_ty.reference();
+        auto arg_addr = host->createInstruction(
+          OP_Allocate, addr_ty,
+          {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))});
+        host->createInstruction(OP_Store, VoidType, {*arg_addr, *arg});
         scopes.insert(arg->name, *arg_addr);
       }
     }

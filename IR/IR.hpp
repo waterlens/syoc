@@ -56,12 +56,34 @@ struct SSAType {
     Integer,
   } primitive_type;
   uint8_t width;
-  uint8_t indirect_level;
-  TrivialValueVector<unsigned, 2> dimension;
+  uint8_t pointer;
+  TrivialValueVector<unsigned, 2> dim;
+  SSAType &reference() {
+    pointer++;
+    return *this;
+  }
+  SSAType createReference() const {
+    SSAType ty = *this;
+    ty.reference();
+    return ty;
+  }
+  SSAType &dereference() {
+    if (pointer)
+      pointer--;
+    else
+      throw std::runtime_error("can't deref this");
+    return *this;
+  }
+  SSAType createDereference() const {
+    SSAType ty = *this;
+    ty.dereference();
+    return ty;
+  }
 };
 
-static inline SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
-static inline SSAType IntType = {SSAType::PrimitiveType::Integer, 32, 0, {}};
+static inline const SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
+static inline const SSAType IntType = {
+  SSAType::PrimitiveType::Integer, 32, 0, {}};
 
 struct SSAValue {
   SSAValueType value_type;
@@ -177,8 +199,9 @@ public:
 
   auto getInsertPoint() { return basic_block; }
 
-  Instruction *createInstruction(OpType op, SSAType type,
-                                 std::initializer_list<SSAValueHandle> args = {}) {
+  Instruction *
+  createInstruction(OpType op, SSAType type,
+                    std::initializer_list<SSAValueHandle> args = {}) {
     checkBasicBlock();
     auto insn = new Instruction();
     init_parent_and_identity<Instruction *>(insn, basic_block->identity);
