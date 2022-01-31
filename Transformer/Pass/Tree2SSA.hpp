@@ -18,7 +18,8 @@ class Tree2SSA {
   using TypeHandle = std::pair<SSAType, const SSAValue &>;
   NodePtr root;
   IRHost *host;
-  BasicBlock *global_initializer_block, *current_return_bb;
+  BasicBlock *global_initializer_block, *current_return_bb, *current_alloca_bb,
+    *current_entry_bb;
   Function *current_function;
   Instruction *current_retval;
   Scope<SSAValueHandle> scopes;
@@ -122,7 +123,8 @@ class Tree2SSA {
 
     auto tmp_var_addr = host->createInstruction(
       OP_Allocate, tmp_addr_ty,
-      {*host->createConstantInteger(calculateArrayTotalLength(tmp_addr_ty))});
+      {*host->createConstantInteger(calculateArrayTotalLength(tmp_addr_ty))},
+      current_alloca_bb);
     host->createInstruction(OP_Store, VoidType, {*tmp_var_addr, lhs});
 
     auto rhs_eval_bb = host->createBasicBlock(*current_function);
@@ -356,7 +358,8 @@ class Tree2SSA {
       addr_ty.reference();
       auto var = host->createInstruction(
         OP_Allocate, addr_ty,
-        {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))});
+        {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))},
+        current_alloca_bb);
       scopes.insert(decl->name, *var);
       if (decl->initializer)
         generateInitializer(decl->initializer, findInScope(decl->name));
@@ -477,8 +480,14 @@ class Tree2SSA {
 
     BasicBlock *return_bb = nullptr;
     if (!is_external) {
+      auto alloca_bb = host->createBasicBlock(*f);
+      f->basic_block.push_back(*alloca_bb);
+      current_alloca_bb = alloca_bb;
+      host->setInsertPoint(alloca_bb);
+
       auto entry_bb = host->createBasicBlock(*f);
       f->basic_block.push_back(*entry_bb);
+      current_entry_bb = entry_bb;
       host->setInsertPoint(entry_bb);
 
       if (!is_void) {
@@ -486,7 +495,8 @@ class Tree2SSA {
         ty.reference();
         current_retval = host->createInstruction(
           OP_Allocate, ty,
-          {*host->createConstantInteger(calculateArrayTotalLength(ty))});
+          {*host->createConstantInteger(calculateArrayTotalLength(ty))},
+          current_alloca_bb);
       } else {
         current_retval = nullptr;
       }
@@ -518,7 +528,8 @@ class Tree2SSA {
         addr_ty.reference();
         auto arg_addr = host->createInstruction(
           OP_Allocate, addr_ty,
-          {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))});
+          {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))},
+          current_alloca_bb);
         host->createInstruction(OP_Store, VoidType, {*arg_addr, *arg});
         scopes.insert(arg->name, *arg_addr);
       }
@@ -528,7 +539,12 @@ class Tree2SSA {
       generateStatement(decl->body);
       scopes.exit();
       f->basic_block.push_back(*return_bb);
+      host->createInstruction(OP_Jump, VoidType, {*current_entry_bb},
+                              current_alloca_bb);
+      for (auto &&b : f->basic_block)
+        clearExtraJump((*host)[b].as<BasicBlock *>());
     }
+
     scopes.exit();
   }
 

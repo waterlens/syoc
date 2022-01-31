@@ -201,14 +201,17 @@ public:
 
   Instruction *
   createInstruction(OpType op, SSAType type,
-                    std::initializer_list<SSAValueHandle> args = {}) {
-    checkBasicBlock();
+                    std::initializer_list<SSAValueHandle> args = {},
+                    BasicBlock *bb = nullptr) {
+    if (!bb)
+      checkBasicBlock();
+    auto target_bb = bb ? bb : basic_block;
     auto insn = new Instruction();
-    init_parent_and_identity<Instruction *>(insn, basic_block->identity);
+    init_parent_and_identity<Instruction *>(insn, target_bb->identity);
     insn->op = op;
     insn->type = type;
     insn->args = args;
-    basic_block->insn.push_back(insn->identity);
+    target_bb->insn.push_back(insn->identity);
     return insn;
   }
 
