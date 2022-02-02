@@ -2,6 +2,7 @@
 #include "Transformer/Pass.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
+#include "Util/OptionParser.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>
