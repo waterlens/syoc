@@ -15,6 +15,8 @@ add_subdirectory(Transformer)
 add_subdirectory(ThirdParty)
 add_subdirectory(Util)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(COMPILE_OPTIONS "-march=native")
 set(COMPILE_DEBUG_OPTIONS "${COMPILE_OPTIONS}")
 set(COMPILE_RELEASE_OPTIONS "${COMPILE_OPTIONS}")
