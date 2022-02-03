@@ -21,4 +21,6 @@ set(COMPILE_RELEASE_OPTIONS "${COMPILE_OPTIONS}")
 
 target_compile_options(syoc PRIVATE "$<$<CONFIG:Debug>:${COMPILE_DEBUG_OPTIONS}>")
 target_compile_options(syoc PRIVATE "$<$<CONFIG:Release>:${COMPILE_RELEASE_OPTIONS}>")
-target_link_options(syoc PRIVATE "-Wl,--stack,8388608")
+if (WIN32)
+    target_link_options(syoc PRIVATE "-Wl,--stack,8388608")
+endif()
