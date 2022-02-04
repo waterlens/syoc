@@ -282,7 +282,7 @@ class Tree2SSA {
         stack.emplace_back(nullptr, level >= 1 ? array_idx[level - 1] : 0);
         stack.emplace_back(nullptr, level);
         stack.emplace_back(nullptr, BRACE_END);
-        for (auto iter = init->values.rbegin(); iter != init->values.rend();
+        for (auto iter = init->values.rbegin(); iter != init->values.rend(); // NOLINT
              ++iter)
           stack.emplace_back(*iter, level + 1);
         current_limit.emplace_back(std::accumulate(
