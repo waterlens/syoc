@@ -60,13 +60,13 @@ struct SSAType {
   uint8_t width;
   uint8_t pointer;
   TrivialValueVector<unsigned, 2> dim;
-  SSAType &reference() {
-    pointer++;
+  SSAType &reference(uint8_t n = 1) {
+    pointer += n;
     return *this;
   }
-  [[nodiscard]] SSAType createReference() const {
+  [[nodiscard]] SSAType createReference(uint8_t n = 1) const {
     SSAType ty = *this;
-    ty.reference();
+    ty.reference(n);
     return ty;
   }
   SSAType &dereference() {
@@ -85,6 +85,8 @@ struct SSAType {
 
 static inline const SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
 static inline const SSAType IntType = {
+  SSAType::PrimitiveType::Integer, 32, 0, {}};
+static inline const SSAType PointerType = {
   SSAType::PrimitiveType::Integer, 32, 0, {}};
 
 struct SSAValue {
@@ -182,8 +184,9 @@ struct IRHost {
   void init_parent_and_identity(
     SSAValue *value,
     SSAValueHandle parent = SSAValueHandle::InvalidValueHandle()) {
-    value->parent =
-      parent == SSAValueHandle::InvalidValueHandle() ? SSAValuePool::top_level : parent;
+    value->parent = parent == SSAValueHandle::InvalidValueHandle()
+                      ? SSAValuePool::top_level
+                      : parent;
     value->identity = SSAValueHandle{(unsigned)pool.values.size()};
     pool.values.emplace_back(value);
   }

@@ -86,6 +86,8 @@ class Tree2SSA {
       ty = value.as_unchecked<Instruction *>()->type;
     } else if (value.is<GlobalVariable *>()) {
       ty = value.as_unchecked<GlobalVariable *>()->type;
+    } else if (value.is<Argument *>()) {
+      ty = value.as_unchecked<Argument *>()->type;
     } else
       throw std::runtime_error("name is not variable");
     return TypeHandle{ty, value};
@@ -195,7 +197,7 @@ class Tree2SSA {
       auto *f = (*host)[handle].as<Function *>();
       TrivialValueVector<SSAValueHandle, 3> args;
       for (auto &&arg : call->args) {
-        auto [arg_ty, arg_handle] = generateRValue(arg);
+        auto [arg_ty, arg_handle] = generateArgumentValue(arg);
         args.push_back(arg_handle);
       }
       auto *call_insn =
@@ -212,6 +214,15 @@ class Tree2SSA {
     default:
       throw std::runtime_error("not a supported expression");
     }
+  }
+
+  TypeHandle generateArgumentValue(ExprPtr expr) {
+    if (auto *ref = expr->as<RefExpr *>()) {
+      auto th = findInScope(ref->name);
+      if (!th.first.dim.empty())
+        return th;
+    }
+    return generateRValue(expr);
   }
 
   void arrayZeroInitializer(TypeHandle th) {
@@ -282,8 +293,8 @@ class Tree2SSA {
         stack.emplace_back(nullptr, level >= 1 ? array_idx[level - 1] : 0);
         stack.emplace_back(nullptr, level);
         stack.emplace_back(nullptr, BRACE_END);
-        for (auto iter = init->values.rbegin(); iter != init->values.rend(); // NOLINT
-             ++iter)
+        for (auto iter = init->values.rbegin(); // NOLINT
+             iter != init->values.rend(); ++iter)
           stack.emplace_back(*iter, level + 1);
         current_limit.emplace_back(std::accumulate(
           ty.dim.begin() + level, ty.dim.end(), 1, std::multiplies<>()));
@@ -362,7 +373,7 @@ class Tree2SSA {
         current_alloca_bb);
       scopes.insert(decl->name, *var);
       if (decl->initializer != nullptr)
-        generateInitializer(decl->initializer, findInScope(decl->name));
+        generateInitializer(decl->initializer, {addr_ty, *var});
       return;
     }
     case ND_CompoundStmt: {
@@ -521,17 +532,22 @@ class Tree2SSA {
       auto *arg = host->createArgument(*f);
       arg->name = param.first;
       arg->type = convertType(param.second);
+      if (!arg->type.dim.empty())
+        arg->type.reference();
       f->args.push_back(*arg);
 
       if (!is_external) {
-        auto addr_ty = arg->type;
-        addr_ty.reference();
-        auto *arg_addr = host->createInstruction(
-          OP_Allocate, addr_ty,
-          {*host->createConstantInteger(calculateArrayTotalLength(addr_ty))},
-          current_alloca_bb);
-        host->createInstruction(OP_Store, VoidType, {*arg_addr, *arg});
-        scopes.insert(arg->name, *arg_addr);
+        if (!arg->type.dim.empty()) {
+          scopes.insert(arg->name, *arg);
+        } else {
+          auto *arg_local_addr =
+            host->createInstruction(OP_Allocate, PointerType,
+                                    {*host->createConstantInteger(
+                                      calculateArrayTotalLength(PointerType))},
+                                    current_alloca_bb);
+          host->createInstruction(OP_Store, VoidType, {*arg_local_addr, *arg});
+          scopes.insert(arg->name, *arg_local_addr);
+        }
       }
     }
     if (!is_external) {
@@ -549,7 +565,8 @@ class Tree2SSA {
   }
 
 public:
-  Tree2SSA()= default;;
+  Tree2SSA() = default;
+  ;
   IRHost *operator()(NodePtr tree) {
     host = new IRHost();
     root = tree;
