@@ -21,12 +21,11 @@ public:
 
 private:
   unsigned m_capacity;
-  unsigned m_size;
+  unsigned m_size{};
   T *m_access_ptr;
   T m_small_data[DefaultSize];
-  bool m_heap_allocated;
+  bool m_heap_allocated{};
 
-private:
   constexpr void grow() {
     auto new_capacity = m_capacity + m_capacity / 2;
     T *new_data = new T[new_capacity];
@@ -55,18 +54,18 @@ private:
   }
 
 public:
-  TrivialValueVector()
-    : m_capacity(DefaultSize), m_size(), m_access_ptr(m_small_data),
-      m_heap_allocated(false) {}
+  TrivialValueVector() : m_capacity(DefaultSize), m_access_ptr(m_small_data) {}
   ~TrivialValueVector() {
     if (m_heap_allocated)
       delete[] m_access_ptr;
   }
   TrivialValueVector(const TrivialValueVector &v) { copy_another(v); }
   TrivialValueVector &operator=(const TrivialValueVector &v) {
-    if (m_heap_allocated)
-      delete[] m_access_ptr;
-    copy_another(v);
+    if (this != &v) {
+      if (m_heap_allocated)
+        delete[] m_access_ptr;
+      copy_another(v);
+    }
     return *this;
   }
   TrivialValueVector(std::initializer_list<T> l) {
@@ -102,18 +101,18 @@ public:
     m_access_ptr[m_size++] = value;
   }
   constexpr void pop_back() {
-    if (m_size)
+    if (m_size != 0U)
       m_size--;
   }
   constexpr void pop_front() {
-    if (m_size) {
+    if (m_size != 0U) {
       for (unsigned i = 0; i < m_size - 1; ++i)
         m_access_ptr[i] = m_access_ptr[i + 1];
       m_size--;
     }
   }
-  constexpr bool empty() const noexcept { return size() == 0; }
-  constexpr unsigned size() const noexcept { return m_size; }
+  [[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
+  [[nodiscard]] constexpr unsigned size() const noexcept { return m_size; }
   constexpr iterator begin() noexcept { return m_access_ptr; }
   constexpr iterator end() noexcept { return m_access_ptr + m_size; }
   constexpr const_iterator cbegin() const noexcept { return m_access_ptr; }

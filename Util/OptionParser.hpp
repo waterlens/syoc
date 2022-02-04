@@ -19,7 +19,7 @@ template <typename T> class Option {
   OptionName name;
   std::string_view default_value;
   bool has_default_value;
-  Option() {}
+  Option() = default;
 
 public:
   using ValueType = T;
@@ -63,18 +63,18 @@ class OptionParser {
   std::unordered_map<std::string_view, unsigned> positional_option;
   std::vector<std::pair<std::string_view, bool>> raw_storage;
   std::vector<std::string_view> positional_storage;
-  std::tuple<std::string_view, std::string_view, bool>
+  static std::tuple<std::string_view, std::string_view, bool>
   split_arg(std::string_view arg) {
     auto pos = arg.find_first_of('=');
     if (pos == std::string_view::npos)
       return {arg, {}, false};
-    else
-      return {arg.substr(0, pos), arg.substr(pos + 1), true};
+    return {arg.substr(0, pos), arg.substr(pos + 1), true};
   }
 
 public:
   template <typename T> void add(T opt) {
-    std::string_view l = opt.getLongName(), s = opt.getShortName();
+    std::string_view l = opt.getLongName();
+    std::string_view s = opt.getShortName();
     int ty;
     if constexpr (std::is_same_v<typename T::ValueType, bool>)
       ty = 0;
@@ -145,12 +145,13 @@ public:
         config_value = &short_option.at(name);
       else
         throw std::invalid_argument("no such an option");
-      auto &[idx, has_default, val_ty] = *config_value;
+      const auto &[idx, has_default, val_ty] = *config_value;
       auto storage = raw_storage.at(idx);
       if (!(has_default || storage.second))
         throw std::invalid_argument("required option is not supplied");
       return {storage.first};
-    } else if (positional_option.contains(name))
+    }
+    if (positional_option.contains(name))
       return {positional_storage.at(positional_option.at(name))};
     throw std::invalid_argument("no such a positional option");
   }
