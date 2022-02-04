@@ -87,7 +87,7 @@ static inline const SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
 static inline const SSAType IntType = {
   SSAType::PrimitiveType::Integer, 32, 0, {}};
 static inline const SSAType PointerType = {
-  SSAType::PrimitiveType::Integer, 32, 0, {}};
+  SSAType::PrimitiveType::Integer, 32, 1, {}};
 
 struct SSAValue {
   SSAValueType value_type;
