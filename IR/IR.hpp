@@ -44,7 +44,9 @@ struct IRHost;
 struct SSAValueHandle {
   unsigned id;
   operator unsigned() const { return id; }
-  bool isValid() const { return id != std::numeric_limits<unsigned>::max(); }
+  [[nodiscard]] bool isValid() const {
+    return id != std::numeric_limits<unsigned>::max();
+  }
   static SSAValueHandle InvalidValueHandle() {
     return SSAValueHandle{std::numeric_limits<unsigned>::max()};
   }
@@ -62,19 +64,19 @@ struct SSAType {
     pointer++;
     return *this;
   }
-  SSAType createReference() const {
+  [[nodiscard]] SSAType createReference() const {
     SSAType ty = *this;
     ty.reference();
     return ty;
   }
   SSAType &dereference() {
-    if (pointer)
+    if (pointer != 0U)
       pointer--;
     else
       throw std::runtime_error("can't deref this");
     return *this;
   }
-  SSAType createDereference() const {
+  [[nodiscard]] SSAType createDereference() const {
     SSAType ty = *this;
     ty.dereference();
     return ty;
@@ -98,14 +100,12 @@ struct SSAValue {
     return nullptr;
   }
   template <typename T> T as_unchecked() { return static_cast<T>(this); }
-  template <typename T> const T as() const {
+  template <typename T> T as() const {
     if (is<T>())
       return static_cast<T>(this);
     return nullptr;
   }
-  template <typename T> const T as_unchecked() const {
-    return static_cast<T>(this);
-  }
+  template <typename T> T as_unchecked() const { return static_cast<T>(this); }
   operator SSAValueHandle() const { return identity; }
 };
 
@@ -183,13 +183,13 @@ struct IRHost {
     SSAValue *value,
     SSAValueHandle parent = SSAValueHandle::InvalidValueHandle()) {
     value->parent =
-      parent == SSAValueHandle::InvalidValueHandle() ? pool.top_level : parent;
+      parent == SSAValueHandle::InvalidValueHandle() ? SSAValuePool::top_level : parent;
     value->identity = SSAValueHandle{(unsigned)pool.values.size()};
     pool.values.emplace_back(value);
   }
 
-  void checkBasicBlock() {
-    if (!basic_block) {
+  void checkBasicBlock() const {
+    if (basic_block == nullptr) {
       throw std::runtime_error("BasicBlock is empty");
     }
   }
@@ -197,46 +197,46 @@ struct IRHost {
 public:
   void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
 
-  auto getInsertPoint() { return basic_block; }
+  [[nodiscard]] auto getInsertPoint() const { return basic_block; }
 
   Instruction *
   createInstruction(OpType op, SSAType type,
                     std::initializer_list<SSAValueHandle> args = {},
                     BasicBlock *bb = nullptr) {
-    if (!bb)
+    if (bb == nullptr)
       checkBasicBlock();
-    auto target_bb = bb ? bb : basic_block;
-    auto insn = new Instruction();
+    auto *target_bb = bb != nullptr ? bb : basic_block;
+    auto *insn = new Instruction();
     init_parent_and_identity<Instruction *>(insn, target_bb->identity);
     insn->op = op;
-    insn->type = type;
+    insn->type = std::move(type);
     insn->args = args;
     target_bb->insn.push_back(insn->identity);
     return insn;
   }
 
   Function *createFunction() {
-    auto function = new Function();
+    auto *function = new Function();
     init_parent_and_identity<Function *>(function);
     function_table.emplace_back(function->identity);
     return function;
   }
 
   BasicBlock *createBasicBlock(SSAValueHandle parent) {
-    auto basic_block = new BasicBlock();
+    auto *basic_block = new BasicBlock();
     init_parent_and_identity<BasicBlock *>(basic_block, parent);
     return basic_block;
   }
 
   GlobalVariable *createGlobalVariable() {
-    auto global_variable = new GlobalVariable();
+    auto *global_variable = new GlobalVariable();
     init_parent_and_identity<GlobalVariable *>(global_variable);
     global_value_table.emplace_back(global_variable->identity);
     return global_variable;
   }
 
   ConstantInteger *createConstantInteger(uint64_t value) {
-    auto const_int = new ConstantInteger();
+    auto *const_int = new ConstantInteger();
     init_parent_and_identity<ConstantInteger *>(const_int);
     const_int->value = value;
     constant_table.emplace_back(const_int->identity);
@@ -244,7 +244,7 @@ public:
   }
 
   Argument *createArgument(SSAValueHandle parent) {
-    auto arg = new Argument();
+    auto *arg = new Argument();
     init_parent_and_identity<Argument *>(arg, parent);
     return arg;
   }

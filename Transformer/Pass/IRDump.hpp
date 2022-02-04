@@ -2,15 +2,17 @@
 #include "Tree/Tree.hpp"
 #include "fmt/format.h"
 #include "fmt/os.h"
+#include <corecrt.h>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
 class IRDump {
   std::string buffer;
 
-  std::string dumpSSATypeOld(const SSAType &ty) {
+  static std::string dumpSSATypeOld(const SSAType &ty) {
     std::string buffer;
-    if (ty.dim.size()) {
+    if (!ty.dim.empty()) {
       auto first = ty.dim.front();
       auto new_ty = ty;
       new_ty.dim.pop_front();
@@ -30,7 +32,7 @@ class IRDump {
     throw std::runtime_error("can not dump this SSAType");
   }
 
-  std::string dumpSSAType(const SSAType &ty) {
+  static std::string dumpSSAType(const SSAType &ty) {
     std::string buffer;
     switch (ty.primitive_type) {
     case SSAType::PrimitiveType::Void:
@@ -46,10 +48,10 @@ class IRDump {
   }
 
   void dumpIRText(IRHost &host) {
-    buffer.reserve(256 * 1024);
+    buffer.reserve(static_cast<std::size_t>(256 * 1024));
     buffer.clear();
     for (auto &&handle : host.global_value_table) {
-      auto gv = host[handle].as<GlobalVariable *>();
+      auto *gv = host[handle].as<GlobalVariable *>();
       buffer += fmt::format("@{}.addr %{}: {}\n", gv->name, gv->identity,
                             dumpSSAType(gv->type));
     }
@@ -59,7 +61,7 @@ class IRDump {
       for (auto iter = args.cbegin(); iter != args.cend(); ++iter) {
         if (iter != args.cbegin())
           buffer += ", ";
-        auto arg = host[*iter].as<Argument *>();
+        auto *arg = host[*iter].as<Argument *>();
         buffer += fmt::format("{}: {}", arg->name, dumpSSAType(arg->type));
       }
       return buffer;
@@ -67,24 +69,23 @@ class IRDump {
     auto insn_arg_printer = [this, &host](SSAValueHandle handle) {
       if (!handle.isValid())
         return std::string();
-      if (auto ci = host[handle].as<ConstantInteger *>())
+      if (auto *ci = host[handle].as<ConstantInteger *>())
         return fmt::format("{}", ci->value);
-      else if (auto insn = host[handle].as<Instruction *>())
+      if (auto *insn = host[handle].as<Instruction *>())
         return fmt::format("{} %{}", dumpSSAType(insn->type), insn->identity);
-      else if (auto arg = host[handle].as<Argument *>())
+      if (auto *arg = host[handle].as<Argument *>())
         return fmt::format("{} {}", dumpSSAType(arg->type), arg->name);
-      else if (auto gv = host[handle].as<GlobalVariable *>())
+      if (auto *gv = host[handle].as<GlobalVariable *>())
         return fmt::format("{} %{}", dumpSSAType(gv->type), gv->identity);
-      else if (auto bb = host[handle].as<BasicBlock *>())
+      if (auto *bb = host[handle].as<BasicBlock *>())
         return fmt::format("label L{}", bb->identity);
-      else if (auto f = host[handle].as<Function *>())
+      if (auto *f = host[handle].as<Function *>())
         return fmt::format("fn {} {}", dumpSSAType(f->return_type), f->name);
-      else
-        throw std::runtime_error("can not dump this SSAValue");
+      throw std::runtime_error("can not dump this SSAValue");
     };
     buffer += "\n";
     for (auto &&handle : host.function_table) {
-      auto func = host[handle].as<Function *>();
+      auto *func = host[handle].as<Function *>();
       buffer += fmt::format("fn {} %{} ({}) -> {}", func->name, func->identity,
                             func_arg_printer(func->args),
                             dumpSSAType(func->return_type));
@@ -93,13 +94,13 @@ class IRDump {
       else {
         buffer += " {\n";
         for (auto &&bb_handle : func->basic_block) {
-          auto bb = host[bb_handle].as<BasicBlock *>();
+          auto *bb = host[bb_handle].as<BasicBlock *>();
           buffer += fmt::format("L{}:\n", bb->identity);
           for (auto &&inst_handle : bb->insn) {
-            auto inst = host[inst_handle].as<Instruction *>();
+            auto *inst = host[inst_handle].as<Instruction *>();
             buffer += fmt::format("    {} %{} <- {} ", dumpSSAType(inst->type),
                                   inst->identity, op_name[inst->op]);
-            for (auto iter = inst->args.cbegin(); iter != inst->args.cend();
+            for (const auto *iter = inst->args.cbegin(); iter != inst->args.cend();
                  ++iter) {
               if (!iter->isValid())
                 break;
@@ -119,6 +120,6 @@ class IRDump {
   }
 
 public:
-  IRDump(){};
+  IRDump()= default;;
   void operator()(IRHost &host) { dumpIRText(host); }
 };

@@ -65,7 +65,7 @@ struct Type {
   std::string toString();
   std::string dump();
   Type(TypeSpecifier spec, TypeQualifier qual, std::vector<ExprPtr> dim)
-    : spec(spec), qual(qual), dim(dim) {}
+    : spec(spec), qual(qual), dim(std::move(dim)) {}
 };
 
 struct Node {
@@ -88,7 +88,8 @@ struct Node {
 struct Module : public Node {
   THIS(ND_Module);
   std::vector<NodePtr> decls;
-  Module(std::vector<NodePtr> decls) : Node(this_type), decls(decls) {}
+  Module(std::vector<NodePtr> decls)
+    : Node(this_type), decls(std::move(decls)) {}
 };
 
 struct FunctionDeclaration : public Node {
@@ -100,8 +101,8 @@ struct FunctionDeclaration : public Node {
   FunctionDeclaration(Type return_type, std::string_view name,
                       std::vector<std::pair<std::string_view, Type>> parameters,
                       NodePtr body)
-    : Node(this_type), return_type(return_type), name(name),
-      parameters(parameters), body(body) {}
+    : Node(this_type), return_type(std::move(return_type)), name(name),
+      parameters(std::move(parameters)), body(body) {}
 };
 
 struct VariableDeclaration : public Node {
@@ -110,25 +111,27 @@ struct VariableDeclaration : public Node {
   ExprPtr initializer;
   VariableDeclaration(NodeType this_type, Type type, std::string_view name,
                       ExprPtr initializer)
-    : Node(this_type), type(type), name(name), initializer(initializer) {}
+    : Node(this_type), type(std::move(type)), name(name),
+      initializer(initializer) {}
 };
 
 struct GlobalDeclaration : public VariableDeclaration {
   THIS(ND_GlobalDeclaration);
   GlobalDeclaration(Type type, std::string_view name, ExprPtr initializer)
-    : VariableDeclaration(this_type, type, name, initializer) {}
+    : VariableDeclaration(this_type, std::move(type), name, initializer) {}
 };
 
 struct LocalDeclaration : public VariableDeclaration {
   THIS(ND_LocalDeclaration);
   LocalDeclaration(Type type, std::string_view name, ExprPtr initializer)
-    : VariableDeclaration(this_type, type, name, initializer) {}
+    : VariableDeclaration(this_type, std::move(type), name, initializer) {}
 };
 
 struct CompoundStmt : public Node {
   THIS(ND_CompoundStmt);
   std::vector<NodePtr> stmts;
-  CompoundStmt(std::vector<NodePtr> stmts) : Node(this_type), stmts(stmts) {}
+  CompoundStmt(std::vector<NodePtr> stmts)
+    : Node(this_type), stmts(std::move(stmts)) {}
 };
 
 struct IfStmt : public Node {
@@ -156,7 +159,8 @@ struct Expr : public Node {
 struct InitListExpr : public Expr {
   THIS(ND_InitListExpr);
   std::vector<ExprPtr> values;
-  InitListExpr(std::vector<ExprPtr> values) : Expr(this_type), values(values) {}
+  InitListExpr(std::vector<ExprPtr> values)
+    : Expr(this_type), values(std::move(values)) {}
 };
 
 struct ArraySubscriptExpr : public Expr {
@@ -172,7 +176,7 @@ struct CallExpr : public Expr {
   ExprPtr func;
   std::vector<ExprPtr> args;
   CallExpr(ExprPtr name, std::vector<ExprPtr> args)
-    : Expr(this_type), func(name), args(args) {}
+    : Expr(this_type), func(name), args(std::move(args)) {}
 };
 
 struct AssignExpr : public Expr {
@@ -199,8 +203,8 @@ struct UnaryExpr : public Expr {
 
 struct IntegerLiteral : public Expr {
   THIS(ND_IntegerLiteral);
-  uint64_t value;
-  IntegerLiteral(uint64_t value) : Expr(this_type), value(value) {}
+  int64_t value;
+  IntegerLiteral(int64_t value) : Expr(this_type), value(value) {}
 };
 
 struct RefExpr : public Expr {
@@ -213,12 +217,12 @@ struct RefExpr : public Expr {
 
 struct ContinueStmt : public Node {
   THIS(ND_ContinueStmt);
-  ContinueStmt(NodePtr parent) : Node(this_type) {}
+  ContinueStmt(NodePtr  /*parent*/) : Node(this_type) {}
 };
 
 struct BreakStmt : public Node {
   THIS(ND_BreakStmt);
-  BreakStmt(NodePtr parent) : Node(this_type) {}
+  BreakStmt(NodePtr  /*parent*/) : Node(this_type) {}
 };
 
 struct ReturnStmt : public Node {

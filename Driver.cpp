@@ -44,7 +44,7 @@ void stoptime();
 
   Parser parser(fileContent);
   parser.tokenize();
-  auto tree = parser.parse();
+  auto *tree = parser.parse();
   Transformer transformer(tree);
   transformer.registerTreeTransformation(
     {{"Constant Initializer Fold", ConstantInitializerFold{}},

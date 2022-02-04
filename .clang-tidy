@@ -1,0 +1,19 @@
+Checks: >
+  -*,
+  bugprone-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -readability-braces-around-statements,
+  -readability-function-cognitive-complexity,
+  -readability-magic-numbers,
+  -bugprone-narrowing-conversions,
+  -bugprone-easily-swappable-parameters,
+
+FormatStyle: "file"

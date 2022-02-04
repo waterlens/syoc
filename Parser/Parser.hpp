@@ -53,8 +53,8 @@ struct Parser {
   inline static std::string_view operators = "()[]{}<>+-*/%!;,=";
 
   inline static std::unordered_map<std::string_view, int> bin_op_precedence = {
-    {"*", 120},  {"/", 120},   {"%", 120},   {"+", 110},  {"-", 110},
-    {"<", 90},  {">", 90},   {"<=", 90},  {">=", 90}, {"==", 60},
+    {"*", 120}, {"/", 120}, {"%", 120}, {"+", 110}, {"-", 110},
+    {"<", 90},  {">", 90},  {"<=", 90}, {">=", 90}, {"==", 60},
     {"!=", 80}, {"&&", 30}, {"||", 30},
   };
 
@@ -66,7 +66,7 @@ struct Parser {
   };
 
   void skipWhitespace() {
-    for (; index < input.size() && isspace(input[index]); index++)
+    for (; index < input.size() && isspace(input[index]) != 0; index++)
       ;
   }
 
@@ -77,9 +77,10 @@ struct Parser {
 
   size_t delimitIdentifier() {
     if (index < input.length())
-      if (isalpha(input[index]) || input[index] == '_') {
+      if (isalpha(input[index]) != 0 || input[index] == '_') {
         auto i = index + 1;
-        for (; i < input.length() && ((isalnum(input[i]) || input[i] == '_'));
+        for (; i < input.length() &&
+               ((isalnum(input[i]) != 0 || input[i] == '_'));
              ++i)
           ;
         return i - index;
@@ -102,9 +103,9 @@ struct Parser {
       auto i = index;
       if (startWith("0x")) {
         i += 2;
-        while (i < input.length() && isxdigit(input[i])) i++;
+        while (i < input.length() && isxdigit(input[i]) != 0) i++;
       } else
-        while (i < input.length() && isdigit(input[i])) i++;
+        while (i < input.length() && isdigit(input[i]) != 0) i++;
       return i - index;
     }
     return 0;
@@ -117,9 +118,9 @@ struct Parser {
 
   void skipBlockComment() {
     index += 2;
-    auto begin = input.c_str() + index;
-    auto closed = strstr(begin, "*/");
-    if (!closed)
+    const auto *begin = input.c_str() + index;
+    auto *closed = strstr(begin, "*/");
+    if (closed == nullptr)
       throw std::runtime_error("block comment doesn't have a close tag");
     index += closed - begin;
     index += 2;
@@ -135,16 +136,16 @@ struct Parser {
         skipLineComment();
       } else if (startWith("/*")) {
         skipBlockComment();
-      } else if ((len = delimitIdentifier())) {
+      } else if ((len = delimitIdentifier()) != 0U) {
         index += len;
         auto id = input_view.substr(start, len);
-        tokens.push_back(
-          {keywords.count(id) ? TokenType::Keyword : TokenType::Identifier,
-           id});
-      } else if ((len = delimitOperator())) {
+        tokens.push_back({keywords.count(id) != 0U ? TokenType::Keyword
+                                                   : TokenType::Identifier,
+                          id});
+      } else if ((len = delimitOperator()) != 0U) {
         index += len;
         tokens.push_back({TokenType::Operator, input_view.substr(start, len)});
-      } else if ((len = delimitIntegerConstant())) {
+      } else if ((len = delimitIntegerConstant()) != 0U) {
         index += len;
         tokens.push_back(
           {TokenType::IntegerConstant, input_view.substr(start, len)});
@@ -218,11 +219,11 @@ struct Parser {
   ExprPtr expression() { return assignmentExpression(); }
 
   ExprPtr assignmentExpression() {
-    auto lhs = conditionalExpression();
+    auto *lhs = conditionalExpression();
     ExprPtr rhs = nullptr;
     if (consume("="))
       rhs = assignmentExpression();
-    if (rhs)
+    if (rhs != nullptr)
       return new AssignExpr{lhs, rhs};
     return lhs;
   }
@@ -234,23 +235,24 @@ struct Parser {
   ExprPtr binaryOpExpression(int prec, ExprPtr lhs) {
     for (;;) {
       auto tok = peek();
-      int tok_prec, next_prec;
-      if (!bin_op_precedence.count(tok.text))
+      int tok_prec;
+      int next_prec;
+      if (bin_op_precedence.count(tok.text) == 0U)
         tok_prec = -1;
       else
         tok_prec = bin_op_precedence.find(tok.text)->second;
       if (tok_prec < prec)
         return lhs;
       skip();
-      auto rhs = castExpression();
+      auto *rhs = castExpression();
       auto next_tok = peek();
-      if (!bin_op_precedence.count(next_tok.text))
+      if (bin_op_precedence.count(next_tok.text) == 0U)
         next_prec = -1;
       else
         next_prec = bin_op_precedence.find(next_tok.text)->second;
       if (tok_prec < next_prec)
         rhs = binaryOpExpression(tok_prec + 1, rhs);
-      if (!bin_op_code.count(tok.text))
+      if (bin_op_code.count(tok.text) == 0U)
         throw std::runtime_error(
           fmt::format("unknown binary operator {}", tok.text));
       lhs = new BinaryExpr{bin_op_code.find(tok.text)->second, lhs, rhs};
@@ -265,7 +267,8 @@ struct Parser {
     if (next_tok.text == "+") {
       skip();
       return castExpression();
-    } else if (next_tok.text == "-" || next_tok.text == "!") {
+    }
+    if (next_tok.text == "-" || next_tok.text == "!") {
       skip();
       OpType op = next_tok.text == "-"   ? OP_Neg
                   : next_tok.text == "!" ? OP_Lnot
@@ -276,10 +279,10 @@ struct Parser {
   }
 
   ExprPtr postfixExpression() {
-    auto expr = primaryExpression();
+    auto *expr = primaryExpression();
     while (peek("[") || peek("("))
       if (consume("[")) {
-        auto dim = expression();
+        auto *dim = expression();
         expect("]");
         expr = new ArraySubscriptExpr{expr, dim};
       } else if (peek("(")) {
@@ -303,7 +306,7 @@ struct Parser {
   ExprPtr primaryExpression() {
     static std::string convert_buffer;
     if (consume("(")) {
-      auto expr = expression();
+      auto *expr = expression();
       expect(")");
       return expr;
     }
@@ -312,10 +315,11 @@ struct Parser {
     if (tok.token_type == TokenType::IntegerConstant) {
       convert_buffer = tok.text;
       return new IntegerLiteral{
-        std::strtoull(convert_buffer.c_str(), nullptr, 0)};
-    } else if (tok.token_type == TokenType::Identifier) {
-      auto node = scope.find(tok.text);
-      if (!node)
+        std::strtoll(convert_buffer.c_str(), nullptr, 0)};
+    }
+    if (tok.token_type == TokenType::Identifier) {
+      auto *node = scope.find(tok.text);
+      if (node == nullptr)
         throw std::runtime_error(fmt::format("undefined symbol {}", tok.text));
       return new RefExpr{tok.text, node};
     }
@@ -323,20 +327,24 @@ struct Parser {
   }
 
   NodePtr selectionStatement() {
-    NodePtr cond, then_stmt, else_stmt = nullptr;
+    NodePtr cond;
+    NodePtr then_stmt;
+    NodePtr else_stmt;
     expect("if");
     expect("(");
     cond = expression();
     expect(")");
     then_stmt = statement();
-    if (consume("else")) {
+    if (consume("else"))
       else_stmt = statement();
-    }
+    else
+      else_stmt = nullptr;
     return new IfStmt{cond, then_stmt, else_stmt};
   }
 
   NodePtr iterationStatement() {
-    NodePtr cond, body_stmt = nullptr;
+    NodePtr cond;
+    NodePtr body_stmt;
     expect("while");
     expect("(");
     cond = expression();
@@ -368,7 +376,7 @@ struct Parser {
       expr = expression();
     }
     expect(";");
-    return expr ? expr : new CompoundStmt{{}};
+    return expr != nullptr ? expr : new CompoundStmt{{}};
   }
 
   NodePtr statement() {
@@ -396,13 +404,13 @@ struct Parser {
           stmts.emplace_back(initDeclarator(declspec, false));
       }
       expect(";");
-    } else if (auto stmt = statement())
+    } else if (auto *stmt = statement())
       stmts.emplace_back(stmt);
   }
 
   NodePtr compoundStatement() {
     scope.enter();
-    auto stmt = new CompoundStmt{{}};
+    auto *stmt = new CompoundStmt{{}};
     expect("{");
     while (!peek("}")) blockItem(stmt->stmts);
     expect("}");
@@ -425,10 +433,9 @@ struct Parser {
       consume(",");
       expect("}");
       return new InitListExpr{initList};
-    } else {
-      auto expr = assignmentExpression();
-      return expr;
     }
+    auto *expr = assignmentExpression();
+    return expr;
   }
 
   std::vector<NodePtr> externalDeclaration() {
@@ -437,13 +444,13 @@ struct Parser {
     std::vector<NodePtr> all_decls;
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0) {
-      auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      auto *func = new FunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
       all_decls.emplace_back(func);
       if (peek("{")) { // function definition
         scope.enter();
         for (auto &param : param_list) scope.insert(param.first, func);
-        auto stmt = compoundStatement();
+        auto *stmt = compoundStatement();
         scope.exit();
         func->body = stmt;
       } else {
@@ -469,14 +476,14 @@ struct Parser {
     return all_decls;
   }
 
-  NodePtr initDeclarator(Type declspec, bool is_global) {
+  NodePtr initDeclarator(const Type &declspec, bool is_global) {
     auto [name, index, param_list, dimensions] = declarator();
     ExprPtr init = nullptr;
     if (consume("="))
       init = initializer();
 
     if (index == 0) {
-      auto func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      auto *func = new FunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
       scope.enter();
       for (auto &param : param_list) scope.insert(param.first, func);
@@ -530,7 +537,7 @@ struct Parser {
       skip();
       if (peek("]"))
         dimensions.emplace_back(
-          new IntegerLiteral{std::numeric_limits<uint64_t>::max()});
+          new IntegerLiteral{std::numeric_limits<int64_t>::max()});
       else
         dimensions.push_back(assignmentExpression());
 

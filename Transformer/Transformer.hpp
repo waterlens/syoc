@@ -6,6 +6,7 @@
 #include <initializer_list>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "IR/IR.hpp"
@@ -46,11 +47,11 @@ public:
   }
 
   void registerTree2SSATransformation(Tree2SSATransformationFunction func) {
-    tree2ssa_transformation = func;
+    tree2ssa_transformation = std::move(func);
   }
 
   void transform() {
-    if (!tree)
+    if (tree == nullptr)
       throw std::runtime_error("tree is null");
     for (auto &&[name, func] : tree_transformation) {
       auto t1 = std::chrono::steady_clock::now();
