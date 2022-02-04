@@ -1,10 +1,9 @@
-#pragma once
-
 #include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
-
-#include <fmt/format.h>
-#include <fmt/os.h>
+#include "fmt/format.h"
+#include "fmt/os.h"
+#include <corecrt.h>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
