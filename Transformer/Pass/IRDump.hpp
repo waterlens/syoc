@@ -1,11 +1,14 @@
+#pragma once
 #include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
 #include "fmt/format.h"
 #include "fmt/os.h"
-#include <corecrt.h>
+
+#include <cassert>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 class IRDump {
   std::string buffer;
@@ -47,8 +50,67 @@ class IRDump {
     throw std::runtime_error("can not dump this SSAType");
   }
 
+  void dumpCFG(IRHost &host) {
+    buffer.clear();
+    auto add_edge = [&](SSAValueHandle from, SSAValueHandle to,
+                        std::string_view label = "") {
+      buffer +=
+        fmt::format("  node_{} -> node_{} [label=\"{}\"];\n", from, to, label);
+    };
+    auto add_node = [&](SSAValueHandle node, std::string_view label) {
+      buffer += fmt::format("  node_{} [label=\"{}\"];\n", node, label);
+    };
+    auto bb_printer = [&](BasicBlock *bb) {
+      static std::string small_str(16, 0);
+      assert(bb != nullptr);
+      if (!bb->insn.empty()) {
+        auto value = host[bb->insn.back()];
+        if (auto *insn = host[bb->insn.back()].as<Instruction *>()) {
+          if (insn->op == OP_Return) {
+            small_str = fmt::format("L{} exit", bb->identity);
+            add_node(bb->identity, small_str);
+          } else if (insn->op == OP_Branch) {
+            small_str = fmt::format("L{}", bb->identity);
+            add_node(bb->identity, small_str);
+            add_edge(bb->identity, insn->args[1]);
+            add_edge(bb->identity, insn->args[2]);
+          } else if (insn->op == OP_Jump) {
+            small_str = fmt::format("L{}", bb->identity);
+            add_node(bb->identity, small_str);
+            add_edge(bb->identity, insn->args[0]);
+          } else
+            throw std::runtime_error("last of the basic block is not a "
+                                     "terminator");
+        } else
+          throw std::runtime_error(
+            "last of the basic block is not an instruction");
+      }
+      else {
+        small_str = fmt::format("L{} empty", bb->identity);
+        add_node(bb->identity, small_str);
+      }
+    };
+    for (auto &&handle : host.function_table) {
+      auto *func = host[handle].as<Function *>();
+      if (func->basic_block.empty())
+        continue;
+      add_node(handle, fmt::format("Function {}", func->name));
+      add_edge(handle, func->basic_block.front());
+      for (auto &&bb : func->basic_block) {
+        bb_printer(host[bb].as<BasicBlock *>());
+      }
+    }
+
+    auto out = fmt::output_file("dump.cfg.dot");
+    out.print(
+      R"(digraph CFG {{
+  node [shape=box];
+{}
+}})",
+      buffer);
+  }
+
   void dumpIRText(IRHost &host) {
-    buffer.reserve(static_cast<std::size_t>(256 * 1024));
     buffer.clear();
     for (auto &&handle : host.global_value_table) {
       auto *gv = host[handle].as<GlobalVariable *>();
@@ -100,8 +162,8 @@ class IRDump {
             auto *inst = host[inst_handle].as<Instruction *>();
             buffer += fmt::format("    {} %{} <- {} ", dumpSSAType(inst->type),
                                   inst->identity, op_name[inst->op]);
-            for (const auto *iter = inst->args.cbegin(); iter != inst->args.cend();
-                 ++iter) {
+            for (const auto *iter = inst->args.cbegin();
+                 iter != inst->args.cend(); ++iter) {
               if (!iter->isValid())
                 break;
               if (iter != inst->args.cbegin())
@@ -120,6 +182,10 @@ class IRDump {
   }
 
 public:
-  IRDump()= default;;
-  void operator()(IRHost &host) { dumpIRText(host); }
+  IRDump() = default;
+  void operator()(IRHost &host) {
+    buffer.reserve(static_cast<std::size_t>(256 * 1024));
+    dumpIRText(host);
+    dumpCFG(host);
+  }
 };

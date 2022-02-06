@@ -1,10 +1,10 @@
 int cutout(int val){
     if(1){
-        //val = 0;
+        val = 0;
     }
     else{
         if(1){
-            //val = 255;
+            val = 255;
         }
     }
     return val;

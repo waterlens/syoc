@@ -62,7 +62,7 @@ class Tree2SSA {
     for (auto p = bb->insn.begin(); p != bb->insn.end(); ++p) {
       auto v = *p;
       if (auto *insn = (*host)[v].as<Instruction *>()) {
-        if (insn->op == OP_Jump || insn->op == OP_Br) {
+        if (insn->op == OP_Jump || insn->op == OP_Branch) {
           bb->insn.resize(p - bb->insn.begin() + 1);
           break;
         }
@@ -134,7 +134,7 @@ class Tree2SSA {
 
     auto *rhs_eval_bb = host->createBasicBlock(*current_function);
     auto *next_bb = host->createBasicBlock(*current_function);
-    auto *branch = host->createInstruction(OP_Br, IntType, {lhs});
+    auto *branch = host->createInstruction(OP_Branch, IntType, {lhs});
 
     if (binary->op == OP_Land) {
       branch->args.push_back(*rhs_eval_bb);
@@ -358,6 +358,7 @@ class Tree2SSA {
       } else
         throw std::runtime_error("not a supported declaration");
     }
+    host->createInstruction(OP_Return, VoidType, {}, global_initializer_block);
     scopes.exit();
   }
 
@@ -407,7 +408,7 @@ class Tree2SSA {
 
       host->setInsertPoint(cur_bb);
       host->createInstruction(
-        OP_Br, cond_ty,
+        OP_Branch, cond_ty,
         {cond, *then_bb, if_stmt->else_stmt != nullptr ? *else_bb : *cont_bb});
 
       addBasicBlockToCurrentFunction(cont_bb);
@@ -424,6 +425,7 @@ class Tree2SSA {
       addBasicBlockToCurrentFunction(cond_bb);
       auto [cond_ty, cond] =
         generateRValue(while_stmt->condition->as_unchecked<Expr *>());
+      cond_bb = host->getInsertPoint();
 
       bb_break.push_back(end_bb);
       bb_continue.push_back(cond_bb);
@@ -443,7 +445,7 @@ class Tree2SSA {
       host->createInstruction(OP_Jump, VoidType, {*cond_bb});
 
       host->setInsertPoint(cond_bb);
-      host->createInstruction(OP_Br, cond_ty, {cond, *body_bb, *end_bb});
+      host->createInstruction(OP_Branch, cond_ty, {cond, *body_bb, *end_bb});
 
       host->setInsertPoint(end_bb);
 
@@ -557,16 +559,15 @@ class Tree2SSA {
       f->basic_block.push_back(*return_bb);
       host->createInstruction(OP_Jump, VoidType, {*current_entry_bb},
                               current_alloca_bb);
+      host->createInstruction(OP_Jump, VoidType, {*current_return_bb});
       for (auto &&b : f->basic_block)
         clearExtraJump((*host)[b].as<BasicBlock *>());
     }
-
     scopes.exit();
   }
 
 public:
   Tree2SSA() = default;
-  ;
   IRHost *operator()(NodePtr tree) {
     host = new IRHost();
     root = tree;
