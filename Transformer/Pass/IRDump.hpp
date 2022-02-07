@@ -69,23 +69,17 @@ class IRDump {
           if (insn->op == OP_Return) {
             small_str = fmt::format("L{} exit", bb->identity);
             add_node(bb->identity, small_str);
-          } else if (insn->op == OP_Branch) {
+          } else if (insn->op == OP_Branch || insn->op == OP_Jump) {
             small_str = fmt::format("L{}", bb->identity);
             add_node(bb->identity, small_str);
-            add_edge(bb->identity, insn->args[1]);
-            add_edge(bb->identity, insn->args[2]);
-          } else if (insn->op == OP_Jump) {
-            small_str = fmt::format("L{}", bb->identity);
-            add_node(bb->identity, small_str);
-            add_edge(bb->identity, insn->args[0]);
           } else
             throw std::runtime_error("last of the basic block is not a "
                                      "terminator");
+          for (auto &&succ : bb->succ) add_edge(bb->identity, succ);
         } else
           throw std::runtime_error(
             "last of the basic block is not an instruction");
-      }
-      else {
+      } else {
         small_str = fmt::format("L{} empty", bb->identity);
         add_node(bb->identity, small_str);
       }
@@ -112,23 +106,32 @@ class IRDump {
 
   void dumpIRText(IRHost &host) {
     buffer.clear();
-    for (auto &&handle : host.global_value_table) {
-      auto *gv = host[handle].as<GlobalVariable *>();
-      buffer += fmt::format("@{}.addr %{}: {}\n", gv->name, gv->identity,
-                            dumpSSAType(gv->type));
-    }
-    auto func_arg_printer = [this,
-                             &host](const std::vector<SSAValueHandle> &args) {
+
+    auto user_printer = [&](const SSAValue &v) {
+      std::string tmp;
+      const auto &user = v.user;
+      for (const auto *iter = user.cbegin(); iter != user.cend(); ++iter) {
+        if (iter != user.cbegin())
+          tmp += " ";
+        tmp += fmt::format("%{}", iter->id);
+      }
+      return tmp;
+    };
+
+    auto func_arg_printer = [&](const std::vector<SSAValueHandle> &args) {
       std::string buffer;
       for (auto iter = args.cbegin(); iter != args.cend(); ++iter) {
         if (iter != args.cbegin())
           buffer += ", ";
         auto *arg = host[*iter].as<Argument *>();
-        buffer += fmt::format("{}: {}", arg->name, dumpSSAType(arg->type));
+        buffer +=
+          fmt::format("{}: {} /* {} */", arg->name, dumpSSAType(arg->type),
+                      user_printer(host[*iter]));
       }
       return buffer;
     };
-    auto insn_arg_printer = [this, &host](SSAValueHandle handle) {
+
+    auto insn_arg_printer = [&](SSAValueHandle handle) {
       if (!handle.isValid())
         return std::string();
       if (auto *ci = host[handle].as<ConstantInteger *>())
@@ -145,6 +148,14 @@ class IRDump {
         return fmt::format("fn {} {}", dumpSSAType(f->return_type), f->name);
       throw std::runtime_error("can not dump this SSAValue");
     };
+
+    for (auto &&handle : host.global_value_table) {
+      auto *gv = host[handle].as<GlobalVariable *>();
+      buffer +=
+        fmt::format("@{}.addr %{}: {} /* {} */\n", gv->name, gv->identity,
+                    dumpSSAType(gv->type), user_printer(host[handle]));
+    }
+
     buffer += "\n";
     for (auto &&handle : host.function_table) {
       auto *func = host[handle].as<Function *>();
@@ -164,13 +175,12 @@ class IRDump {
                                   inst->identity, op_name[inst->op]);
             for (const auto *iter = inst->args.cbegin();
                  iter != inst->args.cend(); ++iter) {
-              if (!iter->isValid())
-                break;
               if (iter != inst->args.cbegin())
                 buffer += ", ";
               buffer += insn_arg_printer(*iter);
             }
-            buffer += "\n";
+            buffer +=
+              fmt::format(" /* {} */\n", user_printer(host[inst_handle]));
           }
         }
         buffer += "}\n\n";

@@ -93,6 +93,7 @@ struct SSAValue {
   SSAValueType value_type;
   SSAValueHandle parent;
   SSAValueHandle identity;
+  TrivialValueVector<SSAValueHandle, 4> user;
   template <typename T> bool is() {
     return value_type == std::remove_pointer_t<T>::this_type;
   }
@@ -125,6 +126,8 @@ struct Instruction : public SSAValue {
 struct BasicBlock : public SSAValue {
   THIS(SV_BasicBlock);
   std::vector<SSAValueHandle> insn;
+  TrivialValueVector<SSAValueHandle, 2> pred;
+  TrivialValueVector<SSAValueHandle, 2> succ;
   BasicBlock() : SSAValue{this_type} {}
 };
 
