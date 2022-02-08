@@ -52,7 +52,7 @@ public:
             break;
           case OP_Offset:
             for (unsigned i = 0; i < insn->args.size(); ++i)
-              if (i % 2 == 1)
+              if (i % 2 == 0)
                 host[insn->args[i]].user.push_back(insn_handle);
             break;
           case OP_Store:
