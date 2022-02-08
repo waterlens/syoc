@@ -1,6 +1,6 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
-#include "Transformer/Pass.hpp"
+#include "Pass/PassCollection.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -51,8 +51,7 @@ void stoptime();
     {{"Constant Initializer Fold", ConstantInitializerFold{}},
      {"Type Check", TypeCheck{}}});
   transformer.registerTree2SSATransformation(Tree2SSA{});
-  transformer.registerSSATransformation(
-    {{"SSA Dump", IRDump{}}});
+  transformer.registerSSATransformation({{"SSA Dump", IRDump{}}});
   transformer.transform();
   return 0;
 }

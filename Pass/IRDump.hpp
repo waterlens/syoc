@@ -1,14 +1,12 @@
 #pragma once
+#include "AnalysisPassCollection.hpp"
 #include "IR/IR.hpp"
-#include "Transformer/Pass/BBPredSuccAnalysis.hpp"
-#include "Transformer/Pass/UseAnalysis.hpp"
 #include "Tree/Tree.hpp"
-#include "fmt/format.h"
-#include "fmt/os.h"
-#include "Analysis.hpp"
 
 #include <cassert>
 #include <cstddef>
+#include <fmt/format.h>
+#include <fmt/os.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -199,7 +197,7 @@ public:
   void operator()(IRHost &host) {
     BBPredSuccAnalysis{}(host);
     UseAnalysis{}(host);
-    
+
     buffer.reserve(static_cast<std::size_t>(256 * 1024));
     dumpIRText(host);
     dumpCFG(host);
