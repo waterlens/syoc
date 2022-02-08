@@ -52,9 +52,7 @@ void stoptime();
      {"Type Check", TypeCheck{}}});
   transformer.registerTree2SSATransformation(Tree2SSA{});
   transformer.registerSSATransformation(
-    {{"Use Analysis", UseAnalysis{}},
-     {"Basic Block Predecessor and Successor Analysis", BBPredSuccAnalysis{}},
-     {"SSA Dump", IRDump{}}});
+    {{"SSA Dump", IRDump{}}});
   transformer.transform();
   return 0;
 }

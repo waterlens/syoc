@@ -1,8 +1,11 @@
 #pragma once
 #include "IR/IR.hpp"
+#include "Transformer/Pass/BBPredSuccAnalysis.hpp"
+#include "Transformer/Pass/UseAnalysis.hpp"
 #include "Tree/Tree.hpp"
 #include "fmt/format.h"
 #include "fmt/os.h"
+#include "Analysis.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -194,6 +197,9 @@ class IRDump {
 public:
   IRDump() = default;
   void operator()(IRHost &host) {
+    BBPredSuccAnalysis{}(host);
+    UseAnalysis{}(host);
+    
     buffer.reserve(static_cast<std::size_t>(256 * 1024));
     dumpIRText(host);
     dumpCFG(host);
