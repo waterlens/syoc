@@ -6,7 +6,7 @@
 #include <type_traits>
 
 template <typename T, size_t DefaultSize = 4,
-          typename = typename std::enable_if<std::is_trivial_v<T>>::type>
+          typename = std::enable_if_t<std::is_trivial<T>::value>>
 class TrivialValueVector {
 public:
   using value_type = T;

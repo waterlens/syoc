@@ -4,72 +4,61 @@
 #include <fmt/format.h>
 #include <functional>
 #include <initializer_list>
+#include <memory>
 #include <stdexcept>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "IR/IR.hpp"
+#include "Pass/PassBase.hpp"
+#include "Pass/Tree2SSA.hpp"
 #include "Tree/Tree.hpp"
 
 class Transformer {
-public:
-  using TreeTransformationFunction = std::function<NodePtr(NodePtr)>;
-  using SSATransformationFunction = std::function<void(IRHost &)>;
-  using Tree2SSATransformationFunction = std::function<IRHost *(NodePtr)>;
-
 private:
   NodePtr tree;
   IRHost *host;
-  std::vector<std::tuple<std::string_view, TreeTransformationFunction>>
-    tree_transformation;
-  std::vector<std::tuple<std::string_view, SSATransformationFunction>>
-    ssa_transformation;
-  Tree2SSATransformationFunction tree2ssa_transformation;
+
+  static void run(std::function<void()> &&func, std::string_view name) {
+    auto t1 = std::chrono::steady_clock::now();
+    func();
+    auto t2 = std::chrono::steady_clock::now();
+    fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
+  }
 
 public:
   Transformer(NodePtr tree) : tree(tree) {}
-
-  void registerTreeTransformation(
-    std::initializer_list<
-      std::tuple<std::string_view, TreeTransformationFunction>>
-      list) {
-    for (auto &&[name, func] : list)
-      tree_transformation.emplace_back(name, func);
+  template <typename T> void doTreeTransformation() {
+    T f{};
+    run([&]() { f(tree); }, f.getName());
   }
 
-  void registerSSATransformation(
-    std::initializer_list<
-      std::tuple<std::string_view, SSATransformationFunction>>
-      list) {
-    for (auto &&[name, func] : list)
-      ssa_transformation.emplace_back(name, func);
+  template <typename T> void doSSATransformation() {
+    T f{};
+    run([&]() { f(*host); }, f.getName());
   }
 
-  void registerTree2SSATransformation(Tree2SSATransformationFunction func) {
-    tree2ssa_transformation = std::move(func);
+  template <typename T> void doTree2SSATransformation() {
+    T f{};
+    run([&]() { f(tree, host); }, f.getName());
   }
 
-  void transform() {
-    if (tree == nullptr)
-      throw std::runtime_error("tree is null");
-    for (auto &&[name, func] : tree_transformation) {
-      auto t1 = std::chrono::steady_clock::now();
-      tree = func(tree);
-      auto t2 = std::chrono::steady_clock::now();
-      fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
-    }
+  template <typename T1, typename T2, typename... Tail>
+  void doTreeTransformation() {
+    doTreeTransformation<T1>();
+    doTreeTransformation<T2, Tail...>();
+  }
 
-    auto t1 = std::chrono::steady_clock::now();
-    host = tree2ssa_transformation(tree);
-    auto t2 = std::chrono::steady_clock::now();
-    fmt::print("{}: {:%Q%q}\n", "Tree to SSA",
-               std::chrono::duration<double>(t2 - t1));
-    for (auto &&[name, func] : ssa_transformation) {
-      auto t1 = std::chrono::steady_clock::now();
-      func(*host);
-      auto t2 = std::chrono::steady_clock::now();
-      fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
-    }
+  template <typename T1, typename T2, typename... Tail>
+  void doSSATransformation() {
+    doSSATransformation<T1>();
+    doSSATransformation<T2, Tail...>();
+  }
+
+  template <typename T1, typename T2, typename... Tail>
+  void doTree2SSATransformation() {
+    doTree2SSATransformation<T1>();
+    doTree2SSATransformation<T2, Tail...>();
   }
 };

@@ -14,6 +14,7 @@ add_subdirectory(Tree)
 add_subdirectory(Transformer)
 add_subdirectory(ThirdParty)
 add_subdirectory(Util)
+add_subdirectory(Pass)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IR/IR.hpp"
-#include "Tree/Tree.hpp"
+#include "PassBase.hpp"
 #include "Util/TrivialValueVector.hpp"
 
 #include <algorithm>
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-class Tree2SSA {
+class Tree2SSA final : public Tree2SSATransformation<Tree2SSA> {
   using TypeHandle = std::pair<SSAType, const SSAValue &>;
   NodePtr root;
   IRHost *host;
@@ -568,10 +568,11 @@ class Tree2SSA {
 
 public:
   Tree2SSA() = default;
-  IRHost *operator()(NodePtr tree) {
+  [[nodiscard]] static std::string_view getName()  { return "Tree to SSA"; }
+  void operator()(const NodePtr &tree, IRHost *&out)  {
     host = new IRHost();
     root = tree;
     globalGeneration();
-    return host;
+    out = host;
   }
 };

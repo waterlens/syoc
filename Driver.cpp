@@ -47,11 +47,8 @@ void stoptime();
   parser.tokenize();
   auto *tree = parser.parse();
   Transformer transformer(tree);
-  transformer.registerTreeTransformation(
-    {{"Constant Initializer Fold", ConstantInitializerFold{}},
-     {"Type Check", TypeCheck{}}});
-  transformer.registerTree2SSATransformation(Tree2SSA{});
-  transformer.registerSSATransformation({{"SSA Dump", IRDump{}}});
-  transformer.transform();
+  transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
+  transformer.doTree2SSATransformation<Tree2SSA>();
+  transformer.doSSATransformation<IRDump>();
   return 0;
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "AnalysisPassCollection.hpp"
 #include "IR/IR.hpp"
+#include "Pass/PassBase.hpp"
 #include "Tree/Tree.hpp"
 
 #include <cassert>
@@ -11,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-class IRDump {
+class IRDump final : public SSAAnalysis<IRDump> {
   std::string buffer;
 
   static std::string dumpSSATypeOld(const SSAType &ty) {
@@ -194,6 +195,7 @@ class IRDump {
 
 public:
   IRDump() = default;
+  [[nodiscard]] static std::string_view getName()  { return "IR Dump"; }
   void operator()(IRHost &host) {
     BBPredSuccAnalysis{}(host);
     UseAnalysis{}(host);

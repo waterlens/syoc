@@ -1,13 +1,14 @@
 #pragma once
 
-#include "IR/IR.hpp"
+#include "Pass/PassBase.hpp"
 
 #include <cassert>
 #include <stdexcept>
 
-class UseAnalysis {
+class UseAnalysis : public SSAAnalysis<UseAnalysis> {
 public:
   UseAnalysis() = default;
+  [[nodiscard]] static std::string_view getName() { return "Use Analysis"; }
   void operator()(IRHost &host) {
     for (auto &&handle : host.function_table) {
       auto *func = host[handle].as<Function *>();
