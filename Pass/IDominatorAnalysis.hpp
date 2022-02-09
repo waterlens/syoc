@@ -63,7 +63,6 @@ class IDominatorAnalysis : public SSAAnalysis<IDominatorAnalysis> {
       auto rpo_idx = doms_size - i - 1;
       idom_map[rpo[rpo_idx]] = rpo[doms_size - doms[i] - 1];
     }
-    changed = true;
   }
 
 public:
