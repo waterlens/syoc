@@ -1,8 +1,10 @@
 #pragma once
 #include "AnalysisPassCollection.hpp"
 #include "IR/IR.hpp"
+#include "Pass/IDominatorAnalysis.hpp"
 #include "Pass/PassBase.hpp"
 #include "Tree/Tree.hpp"
+#include "Util/GraphHelper.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -11,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 
 class IRDump final : public SSAAnalysis<IRDump> {
   std::string buffer;
@@ -53,15 +56,8 @@ class IRDump final : public SSAAnalysis<IRDump> {
   }
 
   void dumpCFG(IRHost &host) {
+    GraphHelper cfg;
     buffer.clear();
-    auto add_edge = [&](SSAValueHandle from, SSAValueHandle to,
-                        std::string_view label = "") {
-      buffer +=
-        fmt::format("  node_{} -> node_{} [label=\"{}\"];\n", from, to, label);
-    };
-    auto add_node = [&](SSAValueHandle node, std::string_view label) {
-      buffer += fmt::format("  node_{} [label=\"{}\"];\n", node, label);
-    };
     auto bb_printer = [&](BasicBlock *bb) {
       static std::string small_str(16, 0);
       assert(bb != nullptr);
@@ -69,41 +65,31 @@ class IRDump final : public SSAAnalysis<IRDump> {
         auto value = host[bb->insn.back()];
         if (auto *insn = host[bb->insn.back()].as<Instruction *>()) {
           if (insn->op == OP_Return) {
-            small_str = fmt::format("L{} exit", bb->identity);
-            add_node(bb->identity, small_str);
+            cfg.addNode(bb->identity, fmt::format("L{} exit", bb->identity));
           } else if (insn->op == OP_Branch || insn->op == OP_Jump) {
-            small_str = fmt::format("L{}", bb->identity);
-            add_node(bb->identity, small_str);
+            cfg.addNode(bb->identity, fmt::format("L{}", bb->identity));
           } else
             throw std::runtime_error("last of the basic block is not a "
                                      "terminator");
-          for (auto &&succ : bb->succ) add_edge(bb->identity, succ);
+          for (auto &&succ : bb->succ) cfg.addEdge(bb->identity, succ, "");
         } else
           throw std::runtime_error(
             "last of the basic block is not an instruction");
       } else {
-        small_str = fmt::format("L{} empty", bb->identity);
-        add_node(bb->identity, small_str);
+        cfg.addNode(bb->identity, fmt::format("L{} empty", bb->identity));
       }
     };
     for (auto &&handle : host.function_table) {
       auto *func = host[handle].as<Function *>();
       if (func->basic_block.empty())
         continue;
-      add_node(handle, fmt::format("Function {}", func->name));
-      add_edge(handle, func->basic_block.front());
-      for (auto &&bb : func->basic_block) {
+      cfg.addNode(handle, fmt::format("Function {}", func->name));
+      cfg.addEdge(handle, func->basic_block.front(), "");
+      for (auto &&bb : func->basic_block)
         bb_printer(host[bb].as<BasicBlock *>());
-      }
     }
 
-    auto out = fmt::output_file("dump.cfg.dot");
-    out.print(
-      R"(digraph CFG {{
-  node [shape=box];
-{}
-}})",
-      buffer);
+    cfg.outputToFile("dump.cfg.dot", "CFG");
   }
 
   void dumpIRText(IRHost &host) {
@@ -193,15 +179,35 @@ class IRDump final : public SSAAnalysis<IRDump> {
     out.print("{}", buffer);
   }
 
+  static void dumpIDominator(IDominatorAnalysis &ida) {
+    GraphHelper idg;
+    std::unordered_set<unsigned> visited;
+    for (auto &&[idom, target] : ida.getIDominatorMap()) {
+      if (visited.count(idom) == 0) {
+        idg.addNode(idom, fmt::format("L{}", idom));
+        visited.insert(idom);
+      }
+      if (visited.count(target) == 0) {
+        idg.addNode(target, fmt::format("L{}", target));
+        visited.insert(target);
+      }
+      idg.addEdge(target, idom, "");
+    }
+    idg.outputToFile("dump.dom.dot", "Dominator");
+  }
+
 public:
   IRDump() = default;
-  [[nodiscard]] static std::string_view getName()  { return "IR Dump"; }
+  [[nodiscard]] static std::string_view getName() { return "IR Dump"; }
   void operator()(IRHost &host) {
     BBPredSuccAnalysis{}(host);
     UseAnalysis{}(host);
+    IDominatorAnalysis idom;
+    idom(host);
 
     buffer.reserve(static_cast<std::size_t>(256 * 1024));
     dumpIRText(host);
     dumpCFG(host);
+    dumpIDominator(idom);
   }
 };

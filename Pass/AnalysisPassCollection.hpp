@@ -1,4 +1,6 @@
 #pragma once
 
-#include "UseAnalysis.hpp"
 #include "BBPredSuccAnalysis.hpp"
+#include "BasicBlockTraversalAnalysis.hpp"
+#include "IDominatorAnalysis.hpp"
+#include "UseAnalysis.hpp"

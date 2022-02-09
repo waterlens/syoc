@@ -8,7 +8,7 @@
 class BBPredSuccAnalysis final : public SSAAnalysis<BBPredSuccAnalysis> {
 public:
   BBPredSuccAnalysis() = default;
-  [[nodiscard]] static std::string_view getName()  {
+  [[nodiscard]] static std::string_view getName() {
     return "Basic Block Predecessor and Successor Analysis";
   }
   void operator()(IRHost &host) {
@@ -16,9 +16,12 @@ public:
       auto *func = host[handle].as<Function *>();
       for (auto &&bb_handle : func->basic_block) {
         auto *bb = host[bb_handle].as<BasicBlock *>();
-
         bb->pred.clear();
         bb->succ.clear();
+      }
+
+      for (auto &&bb_handle : func->basic_block) {
+        auto *bb = host[bb_handle].as<BasicBlock *>();
 
         if (!bb->insn.empty()) {
           auto value = host[bb->insn.back()];
@@ -49,6 +52,28 @@ public:
             throw std::runtime_error(
               "last of the basic block is not an instruction");
         } else {
+          throw std ::runtime_error("basic block is empty");
+        }
+      }
+
+      // TODO: remove and compact
+      bool changed = true;
+      while (changed) {
+        changed = false;
+        for (auto &&bb_handle : func->basic_block) {
+          auto *bb = host[bb_handle].as<BasicBlock *>();
+          if (bb->pred.empty() && !bb->succ.empty() &&
+              bb_handle.id != func->basic_block.front().id) {
+            // dangling basic block
+            changed = true;
+            for (auto succ_handle : bb->succ) {
+              auto *succ_bb = host[succ_handle].as<BasicBlock *>();
+              succ_bb->pred.resize(std::remove(succ_bb->pred.begin(),
+                                               succ_bb->pred.end(), bb_handle) -
+                                   succ_bb->pred.begin());
+            }
+            bb->succ.clear();
+          }
         }
       }
     }

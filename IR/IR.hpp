@@ -128,6 +128,8 @@ struct BasicBlock : public SSAValue {
   std::vector<SSAValueHandle> insn;
   TrivialValueVector<SSAValueHandle, 2> pred;
   TrivialValueVector<SSAValueHandle, 2> succ;
+  unsigned extra_id;
+  bool visited;
   BasicBlock() : SSAValue{this_type} {}
 };
 

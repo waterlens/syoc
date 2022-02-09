@@ -124,4 +124,9 @@ public:
   constexpr reference back() { return m_access_ptr[m_size - 1]; }
   constexpr const_reference front() const { return *m_access_ptr; }
   constexpr const_reference back() const { return m_access_ptr[m_size - 1]; }
+  constexpr void resize(size_type count) {
+    if (count > m_size)
+      throw std::runtime_error("not supported");
+    m_size = count;
+  }
 };
