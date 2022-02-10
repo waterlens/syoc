@@ -57,20 +57,7 @@ class Tree2SSA final : public Tree2SSATransformation<Tree2SSA> {
         (ty.primitive_type == SSAType::PrimitiveType::Void ? 0 : 1),
       [](auto lhs, auto rhs) { return lhs * rhs; });
   }
-
-  void clearExtraJump(BasicBlock *bb) {
-    for (auto p = bb->insn.begin(); p != bb->insn.end(); ++p) {
-      auto v = *p;
-      if (auto *insn = (*host)[v].as<Instruction *>()) {
-        if (insn->op == OP_Jump || insn->op == OP_Branch) {
-          bb->insn.resize(p - bb->insn.begin() + 1);
-          break;
-        }
-      } else
-        throw std::runtime_error("not a instruction");
-    }
-  }
-
+  
   void addBasicBlockToCurrentFunction(BasicBlock *bb) {
     current_function->basic_block.push_back(*bb);
   }
@@ -419,22 +406,22 @@ class Tree2SSA final : public Tree2SSATransformation<Tree2SSA> {
       auto *while_stmt = stmt->as_unchecked<WhileStmt *>();
       auto *cur_bb = host->getInsertPoint();
       auto *end_bb = host->createBasicBlock(*current_function);
-      auto *cond_bb = host->createBasicBlock(*current_function);
-
-      host->setInsertPoint(cond_bb);
-      addBasicBlockToCurrentFunction(cond_bb);
+      auto *cond_bb_begin = host->createBasicBlock(*current_function);
+      
+      host->setInsertPoint(cond_bb_begin);
+      addBasicBlockToCurrentFunction(cond_bb_begin);
       auto [cond_ty, cond] =
         generateRValue(while_stmt->condition->as_unchecked<Expr *>());
-      cond_bb = host->getInsertPoint();
+      auto *cond_bb_end = host->getInsertPoint();
 
       bb_break.push_back(end_bb);
-      bb_continue.push_back(cond_bb);
+      bb_continue.push_back(cond_bb_begin);
 
       auto *body_bb = host->createBasicBlock(*current_function);
       addBasicBlockToCurrentFunction(body_bb);
       host->setInsertPoint(body_bb);
       generateStatement(while_stmt->body);
-      host->createInstruction(OP_Jump, VoidType, {*cond_bb});
+      host->createInstruction(OP_Jump, VoidType, {*cond_bb_begin});
 
       addBasicBlockToCurrentFunction(end_bb);
 
@@ -442,9 +429,9 @@ class Tree2SSA final : public Tree2SSATransformation<Tree2SSA> {
       bb_continue.pop_back();
 
       host->setInsertPoint(cur_bb);
-      host->createInstruction(OP_Jump, VoidType, {*cond_bb});
+      host->createInstruction(OP_Jump, VoidType, {*cond_bb_begin});
 
-      host->setInsertPoint(cond_bb);
+      host->setInsertPoint(cond_bb_end);
       host->createInstruction(OP_Branch, cond_ty, {cond, *body_bb, *end_bb});
 
       host->setInsertPoint(end_bb);
@@ -560,8 +547,6 @@ class Tree2SSA final : public Tree2SSATransformation<Tree2SSA> {
       host->createInstruction(OP_Jump, VoidType, {*current_entry_bb},
                               current_alloca_bb);
       host->createInstruction(OP_Jump, VoidType, {*current_return_bb});
-      for (auto &&b : f->basic_block)
-        clearExtraJump((*host)[b].as<BasicBlock *>());
     }
     scopes.exit();
   }

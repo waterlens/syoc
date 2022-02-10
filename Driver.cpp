@@ -1,6 +1,5 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
-#include "Pass/IDominatorAnalysis.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
@@ -50,6 +49,7 @@ void stoptime();
   Transformer transformer(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<Tree2SSA>();
-  transformer.doSSATransformation<IRDump>();
+  transformer.doSSATransformation<BBPredSuccAnalysis, SimplifyCFG, UseAnalysis,
+                                  CFGDump, IRDump, IDominatorDump>();
   return 0;
 }
