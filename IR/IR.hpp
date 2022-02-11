@@ -19,6 +19,7 @@
 
 #include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
+#include "Util/Filter.hpp"
 #include "Util/TrivialValueVector.hpp"
 
 #define SSAValueTypeDefine(x) x,
@@ -50,6 +51,10 @@ struct SSAValueHandle {
   static SSAValueHandle InvalidValueHandle() {
     return SSAValueHandle{std::numeric_limits<unsigned>::max()};
   }
+};
+
+constexpr auto handleIsValid = [](const SSAValueHandle &handle) {
+  return handle.isValid();
 };
 
 struct SSAType {
@@ -110,6 +115,7 @@ struct SSAValue {
   }
   template <typename T> T as_unchecked() const { return static_cast<T>(this); }
   operator SSAValueHandle() const { return identity; }
+  [[nodiscard]] auto getValidUser() { return filter(user, handleIsValid); }
 };
 
 #undef THIS
@@ -131,6 +137,19 @@ struct BasicBlock : public SSAValue {
   unsigned extra_id;
   bool visited;
   BasicBlock() : SSAValue{this_type} {}
+  [[nodiscard]] auto getValidInstruction() {
+    return filter(insn, handleIsValid);
+  }
+  [[nodiscard]] auto getValidPredecessor() {
+    return filter(pred, handleIsValid);
+  }
+  [[nodiscard]] auto getValidSuccessor() { return filter(succ, handleIsValid); }
+  [[nodiscard]] auto getValidInstructionFront() {
+    return filter(insn, handleIsValid).front();
+  }
+  [[nodiscard]] auto getValidInstructionBack() {
+    return reverse_filter(insn, handleIsValid).front();
+  }
 };
 
 struct ConstantInteger : public SSAValue {
@@ -154,6 +173,12 @@ struct Function : public SSAValue {
   std::string_view name;
   bool external;
   Function() : SSAValue{this_type} {}
+  [[nodiscard]] auto getValidBasicBlock() {
+    return filter(basic_block, handleIsValid);
+  }
+  [[nodiscard]] auto getValidBasicBlockFront() {
+    return filter(basic_block, handleIsValid).front();
+  }
 };
 
 struct GlobalVariable : public SSAValue {
@@ -179,7 +204,6 @@ struct IRHost {
   SSAValuePool pool;
   std::vector<SSAValueHandle> function_table;
   std::vector<SSAValueHandle> global_value_table;
-  std::vector<SSAValueHandle> constant_table;
   Function *function{};
   BasicBlock *basic_block{};
   GlobalVariable *global_variable{};
@@ -247,7 +271,6 @@ public:
     auto *const_int = new ConstantInteger();
     init_parent_and_identity<ConstantInteger *>(const_int);
     const_int->value = value;
-    constant_table.emplace_back(const_int->identity);
     return const_int;
   }
 
@@ -265,4 +288,12 @@ public:
   }
 
   SSAValueHandle Zero = *createConstantInteger(0);
+
+  [[nodiscard]] auto getValidFunction() {
+    return filter(function_table, handleIsValid);
+  }
+
+  [[nodiscard]] auto getValidGlobalVariable() {
+    return filter(global_value_table, handleIsValid);
+  }
 };

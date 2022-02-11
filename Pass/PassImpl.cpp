@@ -1,25 +1,26 @@
 #include "IR/IR.hpp"
 #include "PassCollection.hpp"
 #include "Tree/Tree.hpp"
+#include "Util/Filter.hpp"
 #include <limits>
 #include <stdexcept>
 #include <string>
 
 void BBPredSuccAnalysis::operator()(IRHost &host) {
-  for (auto &&handle : host.function_table) {
+  for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
-    for (auto &&bb_handle : func->basic_block) {
+    for (auto &&bb_handle : func->getValidBasicBlock()) {
       auto *bb = host[bb_handle].as<BasicBlock *>();
       bb->pred.clear();
       bb->succ.clear();
     }
 
-    for (auto &&bb_handle : func->basic_block) {
+    for (auto &&bb_handle : func->getValidBasicBlock()) {
       auto *bb = host[bb_handle].as<BasicBlock *>();
 
-      if (!bb->insn.empty()) {
-        auto value = host[bb->insn.back()];
-        if (auto *insn = host[bb->insn.back()].as<Instruction *>()) {
+      if (!bb->getValidInstruction().empty()) {
+        if (auto *insn =
+              host[bb->getValidInstructionBack()].as<Instruction *>()) {
           if (insn->op == OP_Return) {
             // do nothing
           } else if (insn->op == OP_Branch) {
@@ -66,9 +67,9 @@ void IDominatorDump::operator()(IRHost &host) { dumpIDominator(host); }
 void IDominatorAnalysis::operator()(IRHost &host) {
   BasicBlockTraversalAnalysis bb_traversal;
   bb_traversal(host);
-  for (auto &&handle : host.function_table) {
+  for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
-    if (!func->basic_block.empty())
+    if (!func->getValidBasicBlock().empty())
       calculateImmediateDominator(host, bb_traversal, func);
   }
 }
@@ -115,9 +116,10 @@ void CFGDump::dumpCFG(IRHost &host) {
   auto bb_printer = [&](BasicBlock *bb) {
     static std::string small_str(16, 0);
     assert(bb != nullptr);
-    if (!bb->insn.empty()) {
-      auto value = host[bb->insn.back()];
-      if (auto *insn = host[bb->insn.back()].as<Instruction *>()) {
+    if (!bb->getValidInstruction().empty()) {
+      auto value = host[bb->getValidInstructionBack()];
+      if (auto *insn =
+            host[bb->getValidInstructionBack()].as<Instruction *>()) {
         if (insn->op == OP_Return) {
           cfg.addNode(bb->identity, fmt::format("L{} exit", bb->identity));
         } else if (insn->op == OP_Branch || insn->op == OP_Jump) {
@@ -133,13 +135,15 @@ void CFGDump::dumpCFG(IRHost &host) {
       cfg.addNode(bb->identity, fmt::format("L{} empty", bb->identity));
     }
   };
-  for (auto &&handle : host.function_table) {
+
+  for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
-    if (func->basic_block.empty())
+    if (func->external)
       continue;
     cfg.addNode(handle, fmt::format("Function {}", func->name));
-    cfg.addEdge(handle, func->basic_block.front(), "");
-    for (auto &&bb : func->basic_block) bb_printer(host[bb].as<BasicBlock *>());
+    cfg.addEdge(handle, func->getValidBasicBlockFront(), "");
+    for (auto &&bb : func->getValidBasicBlock())
+      bb_printer(host[bb].as<BasicBlock *>());
   }
 
   static int cfg_count = 0;
@@ -151,9 +155,9 @@ void IRDump::dumpIRText(IRHost &host) {
 
   auto user_printer = [&](const SSAValue &v) {
     std::string tmp;
-    const auto &user = v.user;
-    for (const auto *iter = user.cbegin(); iter != user.cend(); ++iter) {
-      if (iter != user.cbegin())
+    const auto &valid_user = const_filter(v.user, handleIsValid);
+    for (auto iter = valid_user.cbegin(); iter != valid_user.cend(); ++iter) {
+      if (iter != valid_user.cbegin())
         tmp += " ";
       tmp += fmt::format("%{}", iter->id);
     }
@@ -173,8 +177,6 @@ void IRDump::dumpIRText(IRHost &host) {
   };
 
   auto insn_arg_printer = [&](SSAValueHandle handle) {
-    if (!handle.isValid())
-      return std::string();
     if (auto *ci = host[handle].as<ConstantInteger *>())
       return fmt::format("{}", ci->value);
     if (auto *insn = host[handle].as<Instruction *>())
@@ -190,14 +192,14 @@ void IRDump::dumpIRText(IRHost &host) {
     throw std::runtime_error("can not dump this SSAValue");
   };
 
-  for (auto &&handle : host.global_value_table) {
+  for (auto &&handle : host.getValidGlobalVariable()) {
     auto *gv = host[handle].as<GlobalVariable *>();
     buffer += fmt::format("@{}.addr %{}: {} /* {} */\n", gv->name, gv->identity,
                           dumpSSAType(gv->type), user_printer(host[handle]));
   }
 
   buffer += "\n";
-  for (auto &&handle : host.function_table) {
+  for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
     buffer +=
       fmt::format("fn {} %{} ({}) -> {}", func->name, func->identity,
@@ -206,10 +208,10 @@ void IRDump::dumpIRText(IRHost &host) {
       buffer += ";\n\n";
     else {
       buffer += " {\n";
-      for (auto &&bb_handle : func->basic_block) {
+      for (auto &&bb_handle : func->getValidBasicBlock()) {
         auto *bb = host[bb_handle].as<BasicBlock *>();
         buffer += fmt::format("L{}:\n", bb->identity);
-        for (auto &&inst_handle : bb->insn) {
+        for (auto &&inst_handle : bb->getValidInstruction()) {
           auto *inst = host[inst_handle].as<Instruction *>();
           buffer += fmt::format("    {} %{} <- {} ", dumpSSAType(inst->type),
                                 inst->identity, op_name[inst->op]);
@@ -276,11 +278,13 @@ void IDominatorAnalysis::calculateImmediateDominator(
       auto cur_id = bb->extra_id;
 
       assert(cur_id != std::numeric_limits<decltype(cur_id)>::max());
-      assert(!bb->pred.empty());
-      int new_idom = host[bb->pred.front()].as<BasicBlock *>()->extra_id;
+      assert(!bb->getValidPredecessor().empty());
+      int new_idom =
+        host[bb->getValidPredecessor().front()].as<BasicBlock *>()->extra_id;
       assert(new_idom != std::numeric_limits<decltype(cur_id)>::max());
-      for (int j = 1; j < bb->pred.size(); ++j) {
-        auto other_pred_id = host[bb->pred[j]].as<BasicBlock *>()->extra_id;
+      for (auto iter = ++bb->getValidPredecessor().cbegin();
+           iter != bb->getValidPredecessor().cend(); ++iter) {
+        auto other_pred_id = host[*iter].as<BasicBlock *>()->extra_id;
         assert(other_pred_id != std::numeric_limits<decltype(cur_id)>::max());
         if (doms[other_pred_id] != -1)
           new_idom = intersect(doms, other_pred_id, new_idom);
@@ -310,7 +314,7 @@ void BasicBlockTraversalAnalysis::dfs(BasicBlock *bb) {
   auto &host = *p_host;
   bb->visited = true;
   prefix.push_back(bb->identity);
-  for (auto &&succ_handle : bb->succ) {
+  for (auto &&succ_handle : bb->getValidSuccessor()) {
     auto *succ = host[succ_handle].as<BasicBlock *>();
     if (!succ->visited)
       dfs(succ);
@@ -321,7 +325,7 @@ void BasicBlockTraversalAnalysis::dfs(BasicBlock *bb) {
 void BasicBlockTraversalAnalysis::clearVisitedFlag(Function *f) {
   if (f == nullptr || f->external)
     return;
-  for (auto &&bb_handle : f->basic_block) {
+  for (auto &&bb_handle : f->getValidBasicBlock()) {
     (*p_host)[bb_handle].as<BasicBlock *>()->visited = false;
   }
 }
@@ -332,7 +336,7 @@ void BasicBlockTraversalAnalysis::runOnFunction(Function *f) {
   clearVisitedFlag(f);
   prefix.clear();
   postfix.clear();
-  auto *entry = (*p_host)[f->basic_block.front()].as<BasicBlock *>();
+  auto *entry = (*p_host)[f->getValidBasicBlockFront()].as<BasicBlock *>();
   dfs(entry);
 }
 
@@ -348,11 +352,11 @@ int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
 }
 
 void UseAnalysis::operator()(IRHost &host) {
-  for (auto &&handle : host.function_table) {
+  for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
-    for (auto &&bb_handle : func->basic_block) {
+    for (auto &&bb_handle : func->getValidBasicBlock()) {
       auto *bb = host[bb_handle].as<BasicBlock *>();
-      for (auto &&insn_handle : bb->insn) {
+      for (auto &&insn_handle : bb->getValidInstruction()) {
         auto *insn = host[insn_handle].as<Instruction *>();
         switch (insn->op) {
         case OP_Phi:
@@ -420,29 +424,30 @@ void SimplifyCFG::clearExtraJump(IRHost &host, BasicBlock *bb) {
 }
 
 void SimplifyCFG::removeDanglingBB(IRHost &host) {
-  for (auto &&func_handle : host.function_table) {
+  for (auto &&func_handle : host.getValidFunction()) {
     auto *func = host[func_handle].as<Function *>();
     if (func->external)
       continue;
-    for (auto &&bb_handle : func->basic_block) {
+    for (auto &&bb_handle : func->getValidBasicBlock()) {
       auto *bb = host[bb_handle].as<BasicBlock *>();
       clearExtraJump(host, bb);
     }
   }
   BBPredSuccAnalysis{}(host);
-  for (auto &&func_handle : host.function_table) {
+  for (auto &&func_handle : host.getValidFunction()) {
     auto *func = host[func_handle].as<Function *>();
     if (func->external)
       continue;
     bool changed = true;
     while (changed) {
       changed = false;
-      for (auto &&bb_handle : func->basic_block) {
+      for (auto &&bb_handle : func->getValidBasicBlock()) {
         auto *bb = host[bb_handle].as<BasicBlock *>();
-        if (bb->pred.empty() && !bb->succ.empty() &&
-            bb_handle.id != func->basic_block.front().id) {
+        if (bb->getValidPredecessor().empty() &&
+            !bb->getValidSuccessor().empty() &&
+            bb_handle.id != func->getValidBasicBlockFront().id) {
           // dangling basic block
-          for (auto &&insn_handle : bb->insn) {
+          for (auto &&insn_handle : bb->getValidInstruction()) {
             switch (host[insn_handle].as<Instruction *>()->op) {
             case OP_Jump:
             case OP_Branch:
@@ -453,14 +458,14 @@ void SimplifyCFG::removeDanglingBB(IRHost &host) {
             }
           }
           changed = true;
-          for (auto succ_handle : bb->succ) {
+          for (auto succ_handle : bb->getValidSuccessor()) {
             auto *succ_bb = host[succ_handle].as<BasicBlock *>();
             succ_bb->pred.resize(std::remove(succ_bb->pred.begin(),
                                              succ_bb->pred.end(), bb_handle) -
                                  succ_bb->pred.begin());
           }
           bb->succ.clear();
-          // TODO: remove the bb from func->basic_block
+          bb_handle = SSAValueHandle::InvalidValueHandle();
         }
       }
     }
@@ -472,7 +477,7 @@ void SimplifyCFG::operator()(IRHost &host) { removeDanglingBB(host); }
 void IDominatorAnalysis::invalidateAllExtraId(IRHost &host, Function *f) {
   if (f == nullptr || f->external)
     return;
-  for (auto &&bb_handle : f->basic_block) {
+  for (auto &&bb_handle : f->getValidBasicBlock()) {
     auto *bb = host[bb_handle].as<BasicBlock *>();
     bb->extra_id = std::numeric_limits<decltype(bb->extra_id)>::max();
   }

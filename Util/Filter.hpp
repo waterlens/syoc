@@ -57,6 +57,11 @@ public:
   filter_range(Iterator begin, Iterator end) : m_begin(begin), m_end(end){};
   constexpr Iterator begin() const { return m_begin; }
   constexpr Iterator end() const { return m_end; }
+  constexpr Iterator cbegin() const { return m_begin; }
+  constexpr Iterator cend() const { return m_end; }
+  constexpr auto &front() { return *begin(); }
+  constexpr bool empty() { return m_begin == m_end; }
+  constexpr size_t size() { return std::distance(m_begin, m_end); }
 
 private:
   Iterator m_begin;
@@ -66,4 +71,22 @@ private:
 template <typename T, typename Predicate> auto filter(T &t, Predicate f) {
   return filter_range(filter_iterator(f, std::begin(t), std::end(t)),
                       filter_iterator(f, std::end(t), std::end(t)));
+}
+
+template <typename T, typename Predicate>
+auto const_filter(const T &t, Predicate f) {
+  return filter_range(filter_iterator(f, std::cbegin(t), std::cend(t)),
+                      filter_iterator(f, std::cend(t), std::cend(t)));
+}
+
+template <typename T, typename Predicate>
+auto reverse_filter(T &t, Predicate f) {
+  return filter_range(filter_iterator(f, std::rbegin(t), std::rend(t)),
+                      filter_iterator(f, std::rend(t), std::rend(t)));
+}
+
+template <typename T, typename Predicate>
+auto const_reverse_filter(const T &t, Predicate f) {
+  return filter_range(filter_iterator(f, std::crbegin(t), std::crend(t)),
+                      filter_iterator(f, std::crend(t), std::crend(t)));
 }

@@ -115,10 +115,12 @@ public:
   [[nodiscard]] constexpr unsigned size() const noexcept { return m_size; }
   constexpr iterator begin() noexcept { return m_access_ptr; }
   constexpr iterator end() noexcept { return m_access_ptr + m_size; }
-  constexpr const_iterator cbegin() const noexcept { return m_access_ptr; }
-  constexpr const_iterator cend() const noexcept {
+  constexpr const_iterator begin() const noexcept { return m_access_ptr; }
+  constexpr const_iterator end() const noexcept {
     return m_access_ptr + m_size;
   }
+  constexpr const_iterator cbegin() const noexcept { return begin(); }
+  constexpr const_iterator cend() const noexcept { return end(); }
   constexpr void clear() noexcept { m_size = 0; }
   constexpr reference front() { return *m_access_ptr; }
   constexpr reference back() { return m_access_ptr[m_size - 1]; }
