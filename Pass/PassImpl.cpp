@@ -142,7 +142,8 @@ void CFGDump::dumpCFG(IRHost &host) {
     for (auto &&bb : func->basic_block) bb_printer(host[bb].as<BasicBlock *>());
   }
 
-  cfg.outputToFile("dump.cfg.dot", "CFG");
+  static int cfg_count = 0;
+  cfg.outputToFile(fmt::format("dump.cfg.{}.dot", cfg_count++), "CFG");
 }
 
 void IRDump::dumpIRText(IRHost &host) {
@@ -225,7 +226,8 @@ void IRDump::dumpIRText(IRHost &host) {
     }
   }
 
-  auto out = fmt::output_file("dump.ir.txt");
+  static int ir_count = 0;
+  auto out = fmt::output_file(fmt::format("dump.ir.{}.txt", ir_count++));
   out.print("{}", buffer);
 }
 
@@ -246,7 +248,8 @@ void IDominatorDump::dumpIDominator(IRHost &host) {
     }
     idg.addEdge(target, idom, "");
   }
-  idg.outputToFile("dump.dom.dot", "Dominator");
+  static int idg_count = 0;
+  idg.outputToFile(fmt::format("dump.dom.{}.dot", idg_count++), "Dominator");
 }
 
 void IDominatorAnalysis::calculateImmediateDominator(

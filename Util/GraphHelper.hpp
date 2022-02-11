@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 #include <fmt/os.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class GraphHelper {
@@ -18,8 +19,8 @@ public:
   void addNode(unsigned node, const std::string &label = "") {
     nodes.emplace_back(node, label);
   }
-  void outputToFile(const char *path, const char *graph_name) {
-    auto out = fmt::output_file(path);
+  void outputToFile(std::string_view path, const char *graph_name) {
+    auto out = fmt::output_file(path.data());
     out.print("digraph {} {{\n  node[shape = box];\n", graph_name);
     for (auto &[node, label] : nodes)
       out.print("  node_{} [label=\"{}\"];\n", node, label);

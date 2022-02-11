@@ -11,24 +11,26 @@ public:
   }
 };
 
-template <typename T> class TreeTransformation : public TransformationBase<T> {
+template <typename T>
+class TreeTransformation : public TransformationBase<TreeTransformation<T>> {
 public:
   void operator()(NodePtr &root) { static_cast<T *>(this)->operator()(root); }
 };
 
 template <typename T>
-class Tree2SSATransformation : public TransformationBase<T> {
+class Tree2SSATransformation
+  : public TransformationBase<Tree2SSATransformation<T>> {
 public:
   void operator()(const NodePtr &root, IRHost *&out) {
     static_cast<T *>(this)->operator()(root, out);
   }
 };
 
-template <typename T> class SSATransformation : public TransformationBase<T> {
+template <typename T>
+class SSATransformation : public TransformationBase<SSATransformation<T>> {
 public:
-  void operator()(IRHost &host) {
-    static_cast<T *>(this)->operator()(host);
-  }
+  void operator()(IRHost &host) { static_cast<T *>(this)->operator()(host); }
 };
 
-template <typename T> class SSAAnalysis : public SSATransformation<T> {};
+template <typename T>
+class SSAAnalysis : public SSATransformation<SSAAnalysis<T>> {};
