@@ -22,3 +22,6 @@ class UseAnalysis;
 #include "TypeCheck.hpp"
 #include "UseAnalysis.hpp"
 #include "ValuePoolCompact.hpp"
+#include "SimpleAllocationElimination.hpp"
+#include "PromoteMemToReg.hpp"
+#include "OffsetFold.hpp"
