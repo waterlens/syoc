@@ -1,7 +1,4 @@
 #include "IR/IR.hpp"
-#include "Pass/OffsetFold.hpp"
-#include "Pass/SimpleAllocationElimination.hpp"
-#include "Pass/UseAnalysis.hpp"
 #include "PassCollection.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
@@ -484,18 +481,5 @@ void IDominatorAnalysis::invalidateAllExtraId(IRHost &host, Function *f) {
   for (auto &&bb_handle : f->getValidBasicBlock()) {
     auto *bb = host[bb_handle].as<BasicBlock *>();
     bb->extra_id = std::numeric_limits<decltype(bb->extra_id)>::max();
-  }
-}
-
-void offsetChainTravesalAndFold(IRHost &host, SSAValueHandle start) {
-
-}
-
-void OffsetFold::operator()(IRHost &host) {
-  for (auto &&f_handle : host.getValidFunction()) {
-    auto *f = host[f_handle].as<Function *>();
-    if (f->external)
-      continue;
-    
   }
 }

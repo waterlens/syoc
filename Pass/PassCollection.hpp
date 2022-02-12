@@ -24,4 +24,3 @@ class UseAnalysis;
 #include "ValuePoolCompact.hpp"
 #include "SimpleAllocationElimination.hpp"
 #include "PromoteMemToReg.hpp"
-#include "OffsetFold.hpp"
