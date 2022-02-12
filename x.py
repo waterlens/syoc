@@ -96,7 +96,7 @@ def get_cc_args(cc):
 def check(args):
     cc, cc_path = get_cc_path('syoc', None)
     if args.test is None:
-        for root, dirs, files in os.walk(test_dir):
+        for root, dirs, files in sorted(os.walk(test_dir)):
             for name in sorted(files):
                 if name.endswith('.sy'):
                     name = os.path.join(root, name)
@@ -124,7 +124,7 @@ def check(args):
 def run(args):
     cc = args.cc
     if args.test is None:
-        for root, dirs, files in os.walk(test_dir):
+        for root, dirs, files in sorted(os.walk(test_dir)):
             for name in sorted(files):
                 if name.endswith('.sy'):
                     bin_root = root.replace(test_dir, f'{binary_dir}{cc}/')
@@ -156,7 +156,7 @@ def compile(args):
     print(f'Flags: {cc_args}')
 
     if args.test is None:
-        for root, dirs, files in os.walk(test_dir):
+        for root, dirs, files in sorted(os.walk(test_dir)):
             for name in sorted(files):
                 if name.endswith('.sy'):
                     full = os.path.join(root, name)
@@ -179,7 +179,7 @@ def clean(args):
     if os.path.isfile('./current.txt'):
         os.remove('./current.txt')
     for dir in [binary_dir, output_dir]:
-        for root, dirs, files in os.walk(dir, topdown=False):
+        for root, dirs, files in os.walk(dir, topdown=True):
             for name in files:
                 os.remove(os.path.join(root, name))
             for name in dirs:
