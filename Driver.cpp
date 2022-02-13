@@ -50,6 +50,7 @@ void stoptime();
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<Tree2SSA>();
   transformer.doSSATransformation<BBPredSuccAnalysis, SimplifyCFG, UseAnalysis,
-                                  CFGDump, IRDump, IDominatorDump>();
+                                  IRDump, SimpleAllocationElimination, CFGDump,
+                                  IRDump, IDominatorDump>();
   return 0;
 }

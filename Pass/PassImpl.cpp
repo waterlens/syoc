@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 
 void BBPredSuccAnalysis::operator()(IRHost &host) {
   for (auto &&handle : host.getValidFunction()) {
@@ -240,19 +241,58 @@ void IDominatorDump::dumpIDominator(IRHost &host) {
   ida(host);
 
   std::unordered_set<unsigned> visited;
-  for (auto &&[idom, target] : ida.getIDominatorMap()) {
-    if (visited.count(idom) == 0) {
-      idg.addNode(idom, fmt::format("L{}", idom));
-      visited.insert(idom);
+  const auto &idominated_map = ida.getIDominatorMap().first;
+  for (auto [idominated, idominator] : idominated_map) {
+    if (visited.count(idominated) == 0) {
+      idg.addNode(idominated, fmt::format("L{}", idominated));
+      visited.insert(idominated);
     }
-    if (visited.count(target) == 0) {
-      idg.addNode(target, fmt::format("L{}", target));
-      visited.insert(target);
+    if (visited.count(idominator) == 0) {
+      idg.addNode(idominator, fmt::format("L{}", idominator));
+      visited.insert(idominator);
     }
-    idg.addEdge(target, idom, "");
+    idg.addEdge(idominator, idominated, "");
   }
-  static int idg_count = 0;
-  idg.outputToFile(fmt::format("dump.dom.{}.dot", idg_count++), "Dominator");
+  visited.clear();
+
+  static int g_count = 0;
+  idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
+}
+
+std::vector<SSAValueHandle>
+IDominatorAnalysis::findAllDominated(SSAValueHandle dominator) const {
+  std::vector<SSAValueHandle> tmp;
+  std::vector<SSAValueHandle> dominated;
+  tmp.push_back(dominator);
+  while (!tmp.empty()) {
+    auto handle = tmp.back();
+    tmp.pop_back();
+    auto range = immediate_dominating_map.equal_range(handle);
+    for (auto iter = range.first; iter != range.second; ++iter) {
+      dominated.push_back({iter->second});
+      tmp.push_back({iter->second});
+    }
+  }
+  dominated.push_back(dominator); // always dominates itself
+  return dominated;
+}
+
+std::unordered_set<SSAValueHandle>
+IDominatorAnalysis::findAllDominatedSet(SSAValueHandle dominator) const {
+  std::vector<SSAValueHandle> tmp;
+  std::unordered_set<SSAValueHandle> dominated;
+  tmp.push_back(dominator);
+  while (!tmp.empty()) {
+    auto handle = tmp.back();
+    tmp.pop_back();
+    auto range = immediate_dominating_map.equal_range(handle);
+    for (auto iter = range.first; iter != range.second; ++iter) {
+      dominated.insert({iter->second});
+      tmp.push_back({iter->second});
+    }
+  }
+  dominated.insert(dominator); // always dominates itself
+  return dominated;
 }
 
 void IDominatorAnalysis::calculateImmediateDominator(
@@ -297,9 +337,13 @@ void IDominatorAnalysis::calculateImmediateDominator(
     }
   }
   auto doms_size = doms.size();
-  for (int i = 0; i < doms_size; ++i) {
+  for (int i = 0; i < doms_size - 1;
+       ++i) { // up bound is not doms_size, because last one is pointed to
+              // itself
     auto rpo_idx = doms_size - i - 1;
-    idom_map[rpo[rpo_idx]] = rpo[doms_size - doms[i] - 1];
+    immediate_dominated_map[rpo[rpo_idx]] = rpo[doms_size - doms[i] - 1];
+    immediate_dominating_map.emplace(rpo[doms_size - doms[i] - 1],
+                                     rpo[rpo_idx]);
   }
 }
 
@@ -353,6 +397,7 @@ int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
 }
 
 void UseAnalysis::operator()(IRHost &host) {
+  for (auto &&handle : host.pool.values) handle->user.clear();
   for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
     for (auto &&bb_handle : func->getValidBasicBlock()) {

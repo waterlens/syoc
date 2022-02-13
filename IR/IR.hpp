@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -50,6 +51,12 @@ struct SSAValueHandle {
   }
   static SSAValueHandle InvalidValueHandle() {
     return SSAValueHandle{std::numeric_limits<unsigned>::max()};
+  }
+};
+
+template <> struct std::hash<SSAValueHandle> {
+  std::size_t operator()(const SSAValueHandle &h) const noexcept {
+    return std::hash<unsigned>{}(h.id);
   }
 };
 
@@ -136,6 +143,7 @@ struct BasicBlock : public SSAValue {
   TrivialValueVector<SSAValueHandle, 2> succ;
   unsigned extra_id;
   bool visited;
+  std::unordered_set<SSAValueHandle> remove_cache;
   BasicBlock() : SSAValue{this_type} {}
   [[nodiscard]] auto getValidInstruction() {
     return filter(insn, handleIsValid);
@@ -149,6 +157,20 @@ struct BasicBlock : public SSAValue {
   }
   [[nodiscard]] auto getValidInstructionBack() {
     return reverse_filter(insn, handleIsValid).front();
+  }
+
+  void removeInstructionInFuture(SSAValueHandle handle) {
+    remove_cache.insert(handle);
+  }
+
+  void removeInstruction() {
+    if (remove_cache.empty())
+      return;
+    for (auto &&insn : insn) {
+      if (remove_cache.count(insn) != 0)
+        insn = SSAValueHandle::InvalidValueHandle();
+    }
+    remove_cache.clear();
   }
 };
 
@@ -228,6 +250,11 @@ struct IRHost {
 
 public:
   void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
+
+  void replace(SSAValueHandle old_val, SSAValueHandle new_val) {
+    pool.values[static_cast<unsigned>(old_val)] =
+      pool.values[static_cast<unsigned>(new_val)];
+  }
 
   [[nodiscard]] auto getInsertPoint() const { return basic_block; }
 
