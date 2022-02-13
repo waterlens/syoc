@@ -397,7 +397,9 @@ int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
 }
 
 void UseAnalysis::operator()(IRHost &host) {
-  for (auto &&handle : host.pool.values) handle->user.clear();
+  for (auto iter = host.pool.values.begin() + 1; iter != host.pool.values.end();
+       ++iter)
+    (*iter)->user.clear();
   for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
     for (auto &&bb_handle : func->getValidBasicBlock()) {
