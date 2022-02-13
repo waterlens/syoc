@@ -28,20 +28,27 @@ private:
         continue;
       auto *alloca_bb = host[f->getValidBasicBlockFront()].as<BasicBlock *>();
       for (auto &&insn_handle : alloca_bb->getValidInstruction()) {
-        auto *insn = host[insn_handle].as<Instruction *>();
-        if (insn->op != OP_Allocate)
+        auto *alloca = host[insn_handle].as<Instruction *>();
+        if (alloca->op != OP_Allocate)
           continue;
-        if (insn->getValidUser().size() == 0) {
+        if (alloca->getValidUser().size() == 0) {
           insn_handle = SSAValueHandle::InvalidValueHandle();
           continue;
         }
 
         TrivialValueVector<SSAValueHandle *, 8> defs;
-        for (auto &&user_handle : insn->getValidUser()) {
+        bool skip = false;
+        for (auto &&user_handle : alloca->getValidUser()) {
           auto *insn = host[user_handle].as<Instruction *>();
           if (insn->op == OP_Store || insn->op == OP_Memset0)
             defs.push_back(&user_handle); // definition
+          else if (insn->op == OP_Offset) {
+            skip = true;
+            break; // do not touch those allocation used by offset
+          }
         }
+        if (skip)
+          continue;
 
         if (defs.size() == 1) {
           auto &def_handle = *defs[0]; // the only definition
@@ -51,16 +58,16 @@ private:
             auto store_source = def_insn->args[1];
             auto all_dominated = lazy_idom().findAllDominatedSet(def_bb_handle);
             auto user_count =
-              insn->getValidUser().size() - 1; // except the store
+              alloca->getValidUser().size() - 1; // except the store
             size_t replace_count = 0;
 
-            for (auto &&load_handle : insn->getValidUser()) {
+            for (auto &&load_handle : alloca->getValidUser()) {
               if (auto *load = host[load_handle].as<Instruction *>()) {
                 if (load->op == OP_Load)
                   // the load inst occurs in a dominated block but not the
                   // definition block
                   if (all_dominated.count(load->parent) > 0 &&
-                      load->parent != def_bb_handle) {
+                      load->parent != alloca_bb->identity) {
                     // remove the load
                     auto *load_bb = host[load->parent].as<BasicBlock *>();
                     load_bb->removeInstructionInFuture(load_handle);
@@ -78,7 +85,7 @@ private:
               auto *def_bb = host[def_bb_handle].as<BasicBlock *>();
               def_bb->removeInstructionInFuture(def_handle);
               def_handle = SSAValueHandle::InvalidValueHandle();
-              if (insn->getValidUser().size() == 0)
+              if (alloca->getValidUser().size() == 0)
                 insn_handle = SSAValueHandle::InvalidValueHandle();
             }
           }
