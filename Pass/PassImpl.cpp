@@ -161,7 +161,7 @@ void IRDump::dumpIRText(IRHost &host) {
     for (auto iter = valid_user.cbegin(); iter != valid_user.cend(); ++iter) {
       if (iter != valid_user.cbegin())
         tmp += " ";
-      tmp += fmt::format("%{}", iter->id);
+      tmp += fmt::format("%{}", host[*iter].identity);
     }
     return tmp;
   };

@@ -123,6 +123,17 @@ struct SSAValue {
   template <typename T> T as_unchecked() const { return static_cast<T>(this); }
   operator SSAValueHandle() const { return identity; }
   [[nodiscard]] auto getValidUser() { return filter(user, handleIsValid); }
+  void removeUser(SSAValueHandle target) {
+    for (auto &user: getValidUser())
+      if (user == target)
+        user = SSAValueHandle::InvalidValueHandle();
+  }
+
+    void removeUser(const std::unordered_set<SSAValueHandle>& set) {
+    for (auto &user: getValidUser())
+      if (set.contains(user))
+        user = SSAValueHandle::InvalidValueHandle();
+  }
 };
 
 #undef THIS
