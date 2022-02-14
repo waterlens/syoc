@@ -16,7 +16,7 @@ passes (in my hope).
 #### Mid-end & Back-end
 
 - [ ] Array SSA
-- [ ] Dominator Tree
+- [ ] Dominator tree
 - [ ] Sparse conditional constant propagation
 - [ ] Dead code elimination
 - [ ] Partial redundancy elimination
