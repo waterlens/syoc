@@ -124,13 +124,13 @@ struct SSAValue {
   operator SSAValueHandle() const { return identity; }
   [[nodiscard]] auto getValidUser() { return filter(user, handleIsValid); }
   void removeUser(SSAValueHandle target) {
-    for (auto &user: getValidUser())
+    for (auto &user : getValidUser())
       if (user == target)
         user = SSAValueHandle::InvalidValueHandle();
   }
 
-    void removeUser(const std::unordered_set<SSAValueHandle>& set) {
-    for (auto &user: getValidUser())
+  void removeUser(const std::unordered_set<SSAValueHandle> &set) {
+    for (auto &user : getValidUser())
       if (set.contains(user))
         user = SSAValueHandle::InvalidValueHandle();
   }
@@ -224,11 +224,34 @@ struct GlobalVariable : public SSAValue {
 struct SSAValuePool {
   std::vector<SSAValue *> values;
   SSAValuePool() { values.emplace_back(nullptr); }
+  [[nodiscard]] SSAValue **getRealSlotAddress(SSAValueHandle n) const {
+    TrivialValueVector<SSAValueHandle *, 8> ptrs;
+    const auto *p = values[static_cast<unsigned>(n)];
+    bool is_ref = p >= (SSAValue *)values.data() &&
+                  p < (SSAValue *)(values.data() + values.size());
+    while (is_ref) {
+      ptrs.push_back((SSAValueHandle *)p);
+      p = *(SSAValue **)p;
+      is_ref = p >= (SSAValue *)values.data() &&
+               p < (SSAValue *)(values.data() + values.size());
+    }
+    if (ptrs.empty())
+      return (SSAValue **)&values[static_cast<unsigned>(n)];
+    return (SSAValue **)ptrs.back();
+  }
   SSAValue *operator[](SSAValueHandle n) {
-    return values[static_cast<unsigned>(n)];
+    return const_cast<SSAValue *>(static_cast<const SSAValuePool &>(*this)[n]);
   }
   const SSAValue *operator[](SSAValueHandle n) const {
-    return values[static_cast<unsigned>(n)];
+    const auto *p = values[static_cast<unsigned>(n)];
+    bool is_ref = p >= (SSAValue *)values.data() &&
+                  p < (SSAValue *)(values.data() + values.size());
+    while (is_ref) {
+      p = *(SSAValue **)p;
+      is_ref = p >= (SSAValue *)values.data() &&
+               p < (SSAValue *)(values.data() + values.size());
+    }
+    return p;
   }
   inline static SSAValueHandle top_level{0};
 };
@@ -263,8 +286,11 @@ public:
   void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
 
   void replace(SSAValueHandle old_val, SSAValueHandle new_val) {
+    auto &o = (*this)[old_val];
+    auto &n = (*this)[new_val];
+    for (auto &user : o.getValidUser()) n.user.push_back(user);
     pool.values[static_cast<unsigned>(old_val)] =
-      pool.values[static_cast<unsigned>(new_val)];
+      (SSAValue *)pool.getRealSlotAddress(new_val);
   }
 
   [[nodiscard]] auto getInsertPoint() const { return basic_block; }

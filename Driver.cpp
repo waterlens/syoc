@@ -1,6 +1,9 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
+#include "Pass/LocalCopyPropagation.hpp"
 #include "Pass/PassCollection.hpp"
+#include "Pass/SimpleAllocationElimination.hpp"
+#include "Pass/UseAnalysis.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -49,8 +52,8 @@ void stoptime();
   Transformer transformer(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<Tree2SSA>();
-  transformer.doSSATransformation<BBPredSuccAnalysis, SimplifyCFG, UseAnalysis,
-                                  IRDump, SimpleAllocationElimination, CFGDump,
-                                  IRDump, IDominatorDump>();
+  transformer.doSSATransformation<
+    BBPredSuccAnalysis, SimplifyCFG, UseAnalysis, SimpleAllocationElimination,
+    LocalCopyPropagation, CFGDump, IRDump, IDominatorDump>();
   return 0;
 }

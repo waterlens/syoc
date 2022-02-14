@@ -23,4 +23,5 @@ class UseAnalysis;
 #include "UseAnalysis.hpp"
 #include "ValuePoolCompact.hpp"
 #include "SimpleAllocationElimination.hpp"
+#include "LocalCopyPropagation.hpp"
 #include "PromoteMemToReg.hpp"

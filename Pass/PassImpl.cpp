@@ -2,6 +2,7 @@
 #include "PassCollection.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
+
 #include <cassert>
 #include <limits>
 #include <stdexcept>
@@ -397,9 +398,8 @@ int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
 }
 
 void UseAnalysis::operator()(IRHost &host) {
-  for (auto iter = host.pool.values.begin() + 1; iter != host.pool.values.end();
-       ++iter)
-    (*iter)->user.clear();
+  for (unsigned i = 1; i < host.pool.values.size(); ++i)
+    host[SSAValueHandle{i}].user.clear();
   for (auto &&handle : host.getValidFunction()) {
     auto *func = host[handle].as<Function *>();
     for (auto &&bb_handle : func->getValidBasicBlock()) {

@@ -214,9 +214,7 @@ public:
   }
   void operator()(IRHost &host) {
     eliminateDeadAllocation(host);
-    IRDump{}(host);
     eliminateSingleDefinitionAllocation(host);
-    IRDump{}(host);
     eliminateSingleBlockAllocation(host);
     eliminateDeadAllocation(host);
   }
