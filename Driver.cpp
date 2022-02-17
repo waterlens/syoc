@@ -1,6 +1,7 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
 #include "Pass/LocalCopyPropagation.hpp"
+#include "Pass/NewPass/Tree2SSA.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimpleAllocationElimination.hpp"
 #include "Pass/UseAnalysis.hpp"
@@ -8,6 +9,7 @@
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/TrivialValueVector.hpp"
+#include "Util/TrivialValueList.hpp"
 #include <fmt/core.h>
 #include <fstream>
 #include <string_view>
@@ -49,11 +51,8 @@ void stoptime();
   Parser parser(fileContent);
   parser.tokenize();
   auto *tree = parser.parse();
-  Transformer transformer(tree);
+  YIR::Transformer transformer(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
-  transformer.doTree2SSATransformation<Tree2SSA>();
-  transformer.doSSATransformation<
-    BBPredSuccAnalysis, SimplifyCFG, UseAnalysis, SimpleAllocationElimination,
-    LocalCopyPropagation, CFGDump, IRDump, IDominatorDump>();
+  transformer.doTree2SSATransformation<YIR::Tree2SSA>();
   return 0;
 }

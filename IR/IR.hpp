@@ -18,7 +18,6 @@
 #include <variant>
 #include <vector>
 
-#include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
 #include "Util/TrivialValueVector.hpp"

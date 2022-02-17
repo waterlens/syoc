@@ -1,5 +1,6 @@
 #pragma once
 
+#include <corecrt.h>
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
@@ -20,8 +21,8 @@ public:
   using difference_type = std::ptrdiff_t;
 
 private:
-  unsigned m_capacity;
-  unsigned m_size{};
+  size_type m_capacity;
+  size_type m_size{};
   T *m_access_ptr;
   T m_small_data[DefaultSize];
   bool m_heap_allocated{};
@@ -83,19 +84,19 @@ public:
     auto p = m_access_ptr;
     for (auto &&elem : l) *p++ = elem;
   }
-  const T &operator[](unsigned i) const { return m_access_ptr[i]; }
-  const T &at(unsigned i) const {
+  const_reference operator[](size_type i) const { return m_access_ptr[i]; }
+  const_reference at(size_type i) const {
     if (i >= m_size)
       throw std::out_of_range("TrivialValueVector::at");
     return m_access_ptr[i];
   }
-  T &operator[](unsigned i) { return m_access_ptr[i]; }
-  T &at(unsigned i) {
+  reference operator[](size_type i) { return m_access_ptr[i]; }
+  reference &at(size_type i) {
     if (i >= m_size)
       throw std::out_of_range("TrivialValueVector::at");
     return m_access_ptr[i];
   }
-  constexpr void push_back(const T &value) {
+  constexpr void push_back(const_reference value) {
     if (m_size == m_capacity)
       grow();
     m_access_ptr[m_size++] = value;
@@ -112,7 +113,7 @@ public:
     }
   }
   [[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
-  [[nodiscard]] constexpr unsigned size() const noexcept { return m_size; }
+  [[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
   constexpr iterator begin() noexcept { return m_access_ptr; }
   constexpr iterator end() noexcept { return m_access_ptr + m_size; }
   constexpr const_iterator begin() const noexcept { return m_access_ptr; }
