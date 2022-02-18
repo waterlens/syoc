@@ -83,7 +83,7 @@ template <typename T> struct Edge : public TrivialValueListNode<Edge<T>> {
 
 struct Value {
 protected:
-  TrivialValueListIterator<Edge<Value>> edges;
+  TrivialValueListIterator<Edge<Value>> edge;
   Value *parent;
   ClassType class_type;
   unsigned identity = std::numeric_limits<unsigned>::max();
@@ -101,8 +101,22 @@ public:
     return nullptr;
   }
   template <typename T> T as() const { return as<T>(); }
-  auto &getEdges() { return edges; }
-  [[nodiscard]] auto getImmutableEdges() const { return edges; }
+  auto &getEdge() { return edge; }
+  void removeEdge(Edge<Value> *edge) {
+    if (edge == getEdge().base())
+      ++getEdge();
+    edge->remove_from_list();
+  }
+  void addEdge(Edge<Value> *edge) {
+    if (getEdge().base() != nullptr) {
+      getEdge()->insert_before(edge);
+      --getEdge();
+    }
+    else
+      getEdge() = edge;
+    assert(getEdge()->prev() == nullptr);
+  }
+  [[nodiscard]] auto getImmutableEdges() const { return edge; }
 };
 
 #undef THIS
@@ -112,7 +126,7 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   THIS(SV_Instruction);
   OpType op;
   Type type;
-  TrivialValueVector<Edge<Value>, 2> input;
+  TrivialValueVector<Edge<Value>, 4> input;
   Instruction() : Value{this_type} {}
   static Instruction *create(OpType op, Type type,
                              std::initializer_list<Value *> inputs = {},
@@ -125,19 +139,11 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
     InputProxy &operator=(Value *v) {
       assert(edge != nullptr);
       if (edge->from != nullptr)
-        edge->extract();
+        edge->remove_from_list();
       edge->from = v;
       edge->to = user;
-      if (v != nullptr) {
-        if (v->getEdges().base() != nullptr) {
-          v->getEdges()->insert_before(edge);
-          --v->getEdges();
-        } else {
-          v->getEdges() = edge;
-          assert(edge->next() == nullptr);
-          assert(edge->prev() == nullptr);
-        }
-      }
+      if (v != nullptr)
+        v->addEdge(edge);
       return *this;
     }
   };
@@ -148,8 +154,16 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   }
   InputProxy getLastInput() { return InputProxy{&input.back(), this}; }
   void addInput(Value *value) {
-    input.push_back({});
-    input.back().extract();
+    input.push_back_with_hook(
+      {},
+      [](Edge<Value> &edge) {
+        if (edge.from != nullptr)
+          edge.from->removeEdge(&edge);
+      },
+      [](Edge<Value> &edge) {
+        if (edge.from != nullptr)
+          edge.from->addEdge(&edge);
+      });
     getLastInput() = value;
   }
 };

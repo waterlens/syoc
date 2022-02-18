@@ -165,7 +165,7 @@ public:
     }
   }
 
-  constexpr void extract() {
+  constexpr void remove_from_list() {
     if (m_prev)
       m_prev->m_next = m_next;
     if (m_next)

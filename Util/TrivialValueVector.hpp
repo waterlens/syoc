@@ -54,8 +54,7 @@ private:
   }
 
 public:
-  TrivialValueVector()
-    : m_capacity(DefaultSize), m_access_ptr(m_small_data) {}
+  TrivialValueVector() : m_capacity(DefaultSize), m_access_ptr(m_small_data) {}
   ~TrivialValueVector() {
     if (m_heap_allocated)
       delete[] m_access_ptr;
@@ -99,6 +98,15 @@ public:
   constexpr void push_back(const_reference value) {
     if (m_size == m_capacity)
       grow();
+    m_access_ptr[m_size++] = value;
+  }
+  template <typename Hook1, typename Hook2>
+  constexpr void push_back_with_hook(const_reference value, Hook1 pre_hook, Hook2 post_hook) {
+    if (m_size == m_capacity) {
+      for (size_t i = 0; i < m_size; ++i) pre_hook(m_access_ptr[i]);
+      grow();
+      for (size_t i = 0; i < m_size; ++i) post_hook(m_access_ptr[i]);
+    }
     m_access_ptr[m_size++] = value;
   }
   constexpr void pop_back() {
