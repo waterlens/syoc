@@ -86,9 +86,11 @@ protected:
   TrivialValueListIterator<Edge<Value>> edges;
   Value *parent;
   ClassType class_type;
+  unsigned identity = std::numeric_limits<unsigned>::max();
 
 public:
-  [[nodiscard]] Value *&getParent() { return parent; }
+  unsigned &getIdentity() { return identity; }
+  Value *&getParent() { return parent; }
   Value(ClassType t) : class_type(t) {}
   template <typename T> bool is() {
     return class_type == std::remove_pointer_t<T>::this_type;
@@ -99,7 +101,8 @@ public:
     return nullptr;
   }
   template <typename T> T as() const { return as<T>(); }
-  auto &edges_begin() { return edges; }
+  auto &getEdges() { return edges; }
+  [[nodiscard]] auto getImmutableEdges() const { return edges; }
 };
 
 #undef THIS
@@ -114,21 +117,23 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   static Instruction *create(OpType op, Type type,
                              std::initializer_list<Value *> inputs = {},
                              BasicBlock *bb = nullptr);
+  [[nodiscard]] const auto &getInput() const { return input; }
+  auto &getInput() { return input; }
   struct InputProxy {
     Edge<Value> *edge;
     Value *user;
-    InputProxy &operator=(Value * v) {
+    InputProxy &operator=(Value *v) {
       assert(edge != nullptr);
       if (edge->from != nullptr)
         edge->extract();
       edge->from = v;
       edge->to = user;
       if (v != nullptr) {
-        if (v->edges_begin().base() != nullptr) {
-          v->edges_begin()->insert_before(edge);
-          --v->edges_begin();
+        if (v->getEdges().base() != nullptr) {
+          v->getEdges()->insert_before(edge);
+          --v->getEdges();
         } else {
-          v->edges_begin() = edge;
+          v->getEdges() = edge;
           assert(edge->next() == nullptr);
           assert(edge->prev() == nullptr);
         }
@@ -233,44 +238,26 @@ struct Module : public Value {
 
 struct IRHost {
   Module *root;
-  Function *function;
   BasicBlock *basic_block;
-  Instruction *instruction;
   IRHost() { root = new Module(); }
   [[nodiscard]] Module *getModule() const { return root; }
   void setInsertPoint(BasicBlock *bb) {
     basic_block = bb;
-    if (bb->getInstruction().empty())
-      instruction = nullptr;
-    else
-      instruction = &bb->getInstruction().back();
   }
   [[nodiscard]] BasicBlock *getInsertPoint() const { return basic_block; }
-  void insertInstruction(Instruction *insn) {
+  void insertInstruction(Instruction *insn) const {
     if (basic_block == nullptr)
       throw std::runtime_error("basic block is not specified");
-    if (instruction == nullptr)
-      instruction = insn;
-    else
-      instruction->insert_after(insn);
+    basic_block->getInstruction().push_back(insn);
   }
   auto *createInstruction(OpType op, Type type,
                           std::initializer_list<Value *> inputs = {},
-                          BasicBlock *bb = nullptr) {
+                          BasicBlock *bb = nullptr) const {
     if (bb != nullptr)
       return Instruction::create(op, type, inputs, bb);
     if (basic_block == nullptr)
       throw std::runtime_error("basic block is not specified");
-    if (instruction == nullptr)
-      instruction = Instruction::create(op, type, inputs, basic_block);
-    else {
-      assert(instruction->getParent() == basic_block);
-      auto *new_insn = Instruction::create(op, type, inputs);
-      new_insn->getParent() = basic_block;
-      instruction->insert_after(new_insn);
-      instruction = new_insn;
-    }
-    return instruction;
+    return Instruction::create(op, type, inputs, basic_block);
   }
 };
 

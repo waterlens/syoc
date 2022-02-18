@@ -1,6 +1,6 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
-#include "Pass/LocalCopyPropagation.hpp"
+#include "Pass/NewPass/Dump.hpp"
 #include "Pass/NewPass/Tree2SSA.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimpleAllocationElimination.hpp"
@@ -8,11 +8,12 @@
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
-#include "Util/TrivialValueVector.hpp"
 #include "Util/TrivialValueList.hpp"
+#include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>
 #include <string_view>
+
 
 using namespace std;
 
@@ -52,7 +53,11 @@ void stoptime();
   parser.tokenize();
   auto *tree = parser.parse();
   YIR::Transformer transformer(tree);
+  Transformer transformer2(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<YIR::Tree2SSA>();
+  transformer.doSSATransformation<YIR::IRDump>();
+  transformer2.doTree2SSATransformation<Tree2SSA>();
+  transformer2.doSSATransformation<UseAnalysis, BBPredSuccAnalysis, IRDump, CFGDump>();
   return 0;
 }
