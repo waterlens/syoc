@@ -137,11 +137,14 @@ protected:
   friend TrivialValueListIterator<T>;
   friend TrivialValueList<T>;
 
+  pointer cast_to_derived(auto *p) const {
+    return static_cast<pointer>(p);
+  }
 public:
-  constexpr const_pointer next() const { return m_next; }
-  constexpr pointer next() { return m_next; }
-  constexpr const_pointer prev() const { return m_prev; }
-  constexpr pointer prev() { return m_prev; }
+  constexpr const_pointer next() const { return cast_to_derived(m_next); }
+  constexpr pointer next() { return cast_to_derived(m_next); }
+  constexpr const_pointer prev() const { return cast_to_derived(m_prev); }
+  constexpr pointer prev() { return cast_to_derived(m_prev); }
   constexpr void insert_before(pointer node) {
     if (node) {
       if (m_prev)

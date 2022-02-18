@@ -74,7 +74,7 @@ class Tree2SSA final {
         host->createInstruction(OP_Offset, PredefinedType::IntPtr,
                                 {arr, ConstantInteger::create(bound), idx,
                                  ConstantInteger::create(offset_unit_size)});
-      return {arr_ty, elem};
+      return {{PredefinedType::IntPtr, {}}, elem};
     }
     if (auto *ref = expr->as<RefExpr *>()) {
       return findInScope(ref->name);

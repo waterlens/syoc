@@ -55,7 +55,8 @@ private:
   }
 
 public:
-  TrivialValueVector() : m_capacity(DefaultSize), m_access_ptr(m_small_data) {}
+  TrivialValueVector()
+    : m_capacity(DefaultSize), m_access_ptr(m_small_data) {}
   ~TrivialValueVector() {
     if (m_heap_allocated)
       delete[] m_access_ptr;

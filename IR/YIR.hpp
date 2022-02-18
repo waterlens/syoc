@@ -77,8 +77,8 @@ struct PredefinedType {
 };
 
 template <typename T> struct Edge : public TrivialValueListNode<Edge<T>> {
-  T *def;
-  T *use;
+  T *from;
+  T *to;
 };
 
 struct Value {
@@ -117,18 +117,20 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   struct InputProxy {
     Edge<Value> *edge;
     Value *user;
-    InputProxy &operator=(Value *v) {
+    InputProxy &operator=(Value * v) {
       assert(edge != nullptr);
-      if (edge->def != nullptr)
+      if (edge->from != nullptr)
         edge->extract();
-      edge->def = v;
-      edge->use = user;
+      edge->from = v;
+      edge->to = user;
       if (v != nullptr) {
         if (v->edges_begin().base() != nullptr) {
           v->edges_begin()->insert_before(edge);
           --v->edges_begin();
         } else {
           v->edges_begin() = edge;
+          assert(edge->next() == nullptr);
+          assert(edge->prev() == nullptr);
         }
       }
       return *this;
@@ -166,10 +168,10 @@ struct BasicBlock : public Value, public TrivialValueListNode<BasicBlock> {
   [[nodiscard]] auto end() { return insn.end(); }
   void linkByBranch(Value *cond, BasicBlock *true_bb, BasicBlock *false_bb) {
     Instruction::create(OP_Branch, PredefinedType::Void,
-                        {cond, this, true_bb, false_bb}, this);
+                        {cond, true_bb, false_bb}, this);
   }
   void linkByJump(BasicBlock *next_bb) {
-    Instruction::create(OP_Jump, PredefinedType::Void, {this, next_bb}, this);
+    Instruction::create(OP_Jump, PredefinedType::Void, {next_bb}, this);
   }
 };
 
