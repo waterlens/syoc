@@ -285,10 +285,6 @@ class Tree2SSA final {
   }
 
   void generateInitializer(ExprPtr init, const TypeDimensionValue &th) {
-    // target should be a pointer
-    // it is either an address to local/global scalar variable
-    // or a pointer to the array head element address
-
     auto ty = th.first;
     auto *target = th.second;
 
@@ -384,8 +380,8 @@ class Tree2SSA final {
     case ND_WhileStmt: {
       auto *while_stmt = stmt->as_unchecked<WhileStmt *>();
       auto *cur_bb = host->getInsertPoint();
-      auto *end_bb = BasicBlock::create();
       auto *cond_bb_begin = BasicBlock::create(current_function);
+      auto *end_bb = BasicBlock::create();
 
       host->setInsertPoint(cond_bb_begin);
       auto [cond_ty, cond] =
@@ -398,7 +394,7 @@ class Tree2SSA final {
       auto *body_bb = BasicBlock::create(current_function);
       host->setInsertPoint(body_bb);
       generateStatement(while_stmt->body);
-      body_bb->linkByJump(cond_bb_begin);
+      host->getInsertPoint()->linkByJump(cond_bb_begin);
 
       current_function->addBasicBlock(end_bb);
 
@@ -407,7 +403,6 @@ class Tree2SSA final {
 
       cur_bb->linkByJump(cond_bb_begin);
       cond_bb_end->linkByBranch(cond, body_bb, end_bb);
-
       host->setInsertPoint(end_bb);
 
       return;
@@ -441,7 +436,8 @@ class Tree2SSA final {
 
   void functionGeneration(FunctionDeclaration *decl) {
     auto ty = convertType(decl->return_type);
-    current_function = Function::create(ty.first, decl->name, host->getModule());
+    current_function =
+      Function::create(ty.first, decl->name, host->getModule());
     scopes.insert(decl->name, {ty, current_function});
 
     current_function->refExternal() = decl->body == nullptr;
@@ -495,13 +491,13 @@ class Tree2SSA final {
         if (!ty.second.empty()) {
           scopes.insert(arg->name, {ty, arg});
         } else {
-          auto *arg_local_addr = host->createInstruction(
+          auto *arg_local_addr = Instruction::create(
             OP_Allocate, PredefinedType::IntPtr,
             {ConstantInteger::create(
               calculateArrayTotalLength({PredefinedType::IntPtr, {}}))},
             current_alloca_bb);
           host->createInstruction(OP_Store, PredefinedType::Void,
-                                  {arg_local_addr, arg});
+                                  {arg_local_addr, arg}, current_entry_bb);
           scopes.insert(arg->name,
                         {{PredefinedType::IntPtr, {}}, arg_local_addr});
         }
@@ -512,7 +508,7 @@ class Tree2SSA final {
       generateStatement(decl->body);
       scopes.exit();
       current_function->addBasicBlock(return_bb);
-      
+
       current_alloca_bb->linkByJump(current_entry_bb);
       host->getInsertPoint()->linkByJump(return_bb);
     }
