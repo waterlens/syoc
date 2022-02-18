@@ -149,6 +149,7 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   InputProxy getLastInput() { return InputProxy{&input.back(), this}; }
   void addInput(Value *value) {
     input.push_back({});
+    input.back().extract();
     getLastInput() = value;
   }
 };
@@ -241,9 +242,7 @@ struct IRHost {
   BasicBlock *basic_block;
   IRHost() { root = new Module(); }
   [[nodiscard]] Module *getModule() const { return root; }
-  void setInsertPoint(BasicBlock *bb) {
-    basic_block = bb;
-  }
+  void setInsertPoint(BasicBlock *bb) { basic_block = bb; }
   [[nodiscard]] BasicBlock *getInsertPoint() const { return basic_block; }
   void insertInstruction(Instruction *insn) const {
     if (basic_block == nullptr)

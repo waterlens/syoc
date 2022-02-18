@@ -27,3 +27,10 @@ target_compile_options(syoc PRIVATE "$<$<CONFIG:Release>:${COMPILE_RELEASE_OPTIO
 if (WIN32)
     target_link_options(syoc PRIVATE "-Wl,--stack,8388608")
 endif()
+
+set(ASAN off)
+
+if (ASAN)
+    target_compile_options(syoc PRIVATE "-fsanitize=address")
+    target_link_options(syoc PRIVATE "-fsanitize=address")
+endif()

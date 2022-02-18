@@ -1,6 +1,5 @@
 #pragma once
 
-#include <corecrt.h>
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
