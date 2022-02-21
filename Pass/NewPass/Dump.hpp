@@ -4,7 +4,7 @@
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
 #include "Util/StringUtil.hpp"
-#include "Util/TrivialValueList.hpp"
+#include "Util/List.hpp"
 #include "fmt/core.h"
 
 #include <algorithm>

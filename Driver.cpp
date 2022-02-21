@@ -8,7 +8,6 @@
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
-#include "Util/TrivialValueList.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>

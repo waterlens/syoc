@@ -20,7 +20,7 @@
 
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
-#include "Util/TrivialValueList.hpp"
+#include "Util/List.hpp"
 #include "Util/TrivialValueVector.hpp"
 
 namespace YIR {
