@@ -55,7 +55,7 @@ class IRDump {
 
   static std::string dumpUser(Value *value) {
     return join(
-      value->getImmutableEdges(), TrivialValueListIterator<Edge<Value>>(),
+      value->getImmutableEdges(), ListIterator<UseEdge>(),
       [](auto edge) { return fmt::format("%{}", edge.to->getIdentity()); },
       " ");
   }

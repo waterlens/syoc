@@ -5,11 +5,11 @@
 #include <stdexcept>
 #include <type_traits>
 
-template <typename T> class TrivialValueListNode;
+template <typename T> class ListNode;
 
-template <typename T> class TrivialValueListIterator {
+template <typename T> class ListIterator {
 private:
-  TrivialValueListNode<T> *m_node;
+  ListNode<T> *m_node;
 
   T *cast_to_derived() {
     return static_cast<T *>(m_node);
@@ -21,39 +21,39 @@ public:
   using pointer = value_type *;
   using const_pointer = const value_type *;
 
-  TrivialValueListIterator() : m_node(nullptr){};
-  TrivialValueListIterator(TrivialValueListNode<T> *node) : m_node(node) {}
+  ListIterator() : m_node(nullptr){};
+  ListIterator(ListNode<T> *node) : m_node(node) {}
 
   auto *base() const { return m_node; }
   auto *base() { return m_node; }
 
-  TrivialValueListIterator &operator++() {
+  ListIterator &operator++() {
     m_node = m_node->m_next;
     return *this;
   }
 
-  TrivialValueListIterator operator++(int) {
-    TrivialValueListIterator tmp(*this);
+  ListIterator operator++(int) {
+    ListIterator tmp(*this);
     ++(*this);
     return tmp;
   }
 
-  TrivialValueListIterator &operator--() {
+  ListIterator &operator--() {
     m_node = m_node->m_prev;
     return *this;
   }
 
-  TrivialValueListIterator operator--(int) {
-    TrivialValueListIterator tmp(*this);
+  ListIterator operator--(int) {
+    ListIterator tmp(*this);
     --(*this);
     return tmp;
   }
 
-  bool operator==(const TrivialValueListIterator &rhs) const {
+  bool operator==(const ListIterator &rhs) const {
     return m_node == rhs.m_node;
   }
 
-  bool operator!=(const TrivialValueListIterator &rhs) const {
+  bool operator!=(const ListIterator &rhs) const {
     return m_node != rhs.m_node;
   }
 
@@ -63,21 +63,21 @@ public:
   pointer operator->() { return cast_to_derived(); }
 };
 
-template <typename T> class TrivialValueList {
+template <typename T> class List {
 public:
   using value_type = T;
   using reference = value_type &;
   using const_reference = const value_type &;
   using pointer = value_type *;
   using const_pointer = const value_type *;
-  using iterator = TrivialValueListIterator<T>;
-  using const_iterator = TrivialValueListIterator<T>;
+  using iterator = ListIterator<T>;
+  using const_iterator = ListIterator<T>;
 
 protected:
-  TrivialValueListNode<T> *head = nullptr;
-  TrivialValueListNode<T> *tail = nullptr;
+  ListNode<T> *head = nullptr;
+  ListNode<T> *tail = nullptr;
 
-  void addToEmptyList(TrivialValueListNode<T> *node) {
+  void addToEmptyList(ListNode<T> *node) {
     head = node;
     tail = node;
     head->m_prev = nullptr;
@@ -97,7 +97,7 @@ public:
   auto &front() const { return *const_iterator(head); }
   auto &back() const { return *const_iterator(tail); }
 
-  void push_front(TrivialValueListNode<T> *node) {
+  void push_front(ListNode<T> *node) {
     if (empty()) {
       addToEmptyList(node);
     } else {
@@ -109,7 +109,7 @@ public:
     }
   }
 
-  void push_back(TrivialValueListNode<T> *node) {
+  void push_back(ListNode<T> *node) {
     if (empty()) {
       assert(tail == nullptr);
       addToEmptyList(node);
@@ -125,17 +125,17 @@ public:
   [[nodiscard]] constexpr bool empty() const { return head == nullptr; }
 };
 
-template <typename T> class TrivialValueListNode {
+template <typename T> class ListNode {
 public:
   using value_type = T;
   using pointer = value_type *;
   using const_pointer = const value_type *;
 
 protected:
-  TrivialValueListNode *m_next;
-  TrivialValueListNode *m_prev;
-  friend TrivialValueListIterator<T>;
-  friend TrivialValueList<T>;
+  ListNode *m_next = nullptr;
+  ListNode *m_prev = nullptr;
+  friend ListIterator<T>;
+  friend List<T>;
 
   pointer cast_to_derived(auto *p) const {
     return static_cast<pointer>(p);

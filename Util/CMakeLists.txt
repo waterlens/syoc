@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE TrivialValueVector.hpp OptionParser.hpp GraphHelper.hpp Filter.hpp TrivialValueList.hpp)
+target_sources(syoc PRIVATE TrivialValueVector.hpp OptionParser.hpp GraphHelper.hpp Filter.hpp List.hpp)

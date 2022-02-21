@@ -76,14 +76,23 @@ struct PredefinedType {
   static inline const Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
 };
 
-template <typename T> struct Edge : public TrivialValueListNode<Edge<T>> {
-  T *from;
-  T *to;
+struct UseEdge : public ListNode<UseEdge> {
+  Value *from;
+  Value *to;
+  UseEdge(Value *from, Value *to);
+  ~UseEdge();
+};
+
+struct BasicBlockEdge : public ListNode<BasicBlockEdge> {
+  BasicBlock *from;
+  BasicBlock *to;
+  BasicBlockEdge(Value *from, Value *to) {}
+  ~BasicBlockEdge() {}
 };
 
 struct Value {
 protected:
-  TrivialValueListIterator<Edge<Value>> edge;
+  ListIterator<UseEdge> edge;
   Value *parent;
   ClassType class_type;
   unsigned identity = std::numeric_limits<unsigned>::max();
@@ -102,19 +111,17 @@ public:
   }
   template <typename T> T as() const { return as<T>(); }
   auto &getEdge() { return edge; }
-  void removeEdge(Edge<Value> *edge) {
+  void removeEdge(UseEdge *edge) {
     if (edge == getEdge().base())
       ++getEdge();
     edge->remove_from_list();
   }
-  void addEdge(Edge<Value> *edge) {
+  void addEdge(UseEdge *edge) {
     if (getEdge().base() != nullptr) {
       getEdge()->insert_before(edge);
       --getEdge();
-    }
-    else
+    } else
       getEdge() = edge;
-    assert(getEdge()->prev() == nullptr);
   }
   [[nodiscard]] auto getImmutableEdges() const { return edge; }
 };
@@ -122,11 +129,11 @@ public:
 #undef THIS
 #define THIS(x) constexpr inline static ClassType this_type = x
 
-struct Instruction : public Value, public TrivialValueListNode<Instruction> {
+struct Instruction : public Value, public ListNode<Instruction> {
   THIS(SV_Instruction);
   OpType op;
   Type type;
-  TrivialValueVector<Edge<Value>, 4> input;
+  std::vector<UseEdge> input;
   Instruction() : Value{this_type} {}
   static Instruction *create(OpType op, Type type,
                              std::initializer_list<Value *> inputs = {},
@@ -134,7 +141,7 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   [[nodiscard]] const auto &getInput() const { return input; }
   auto &getInput() { return input; }
   struct InputProxy {
-    Edge<Value> *edge;
+    UseEdge *edge;
     Value *user;
     InputProxy &operator=(Value *v) {
       assert(edge != nullptr);
@@ -154,25 +161,16 @@ struct Instruction : public Value, public TrivialValueListNode<Instruction> {
   }
   InputProxy getLastInput() { return InputProxy{&input.back(), this}; }
   void addInput(Value *value) {
-    input.push_back_with_hook(
-      {},
-      [](Edge<Value> &edge) {
-        if (edge.from != nullptr)
-          edge.from->removeEdge(&edge);
-      },
-      [](Edge<Value> &edge) {
-        if (edge.from != nullptr)
-          edge.from->addEdge(&edge);
-      });
+    input.emplace_back(nullptr, this);
     getLastInput() = value;
   }
 };
 
-struct BasicBlock : public Value, public TrivialValueListNode<BasicBlock> {
+struct BasicBlock : public Value, public ListNode<BasicBlock> {
   THIS(SV_BasicBlock);
-  TrivialValueList<Instruction> insn;
-  TrivialValueVector<Edge<BasicBlock>, 2> pred;
-  TrivialValueListIterator<Edge<BasicBlock>> succ;
+  List<Instruction> insn;
+  std::vector<BasicBlockEdge> pred;
+  ListIterator<BasicBlockEdge> succ;
   unsigned order;
   bool visited;
   BasicBlock() : Value{this_type} {}
@@ -221,7 +219,7 @@ struct Function : public Value {
   THIS(SV_Function);
   Type return_type;
   std::vector<Argument *> arg;
-  TrivialValueList<BasicBlock> block;
+  List<BasicBlock> block;
   std::string_view name;
   bool external;
   Function() : Value{this_type} {}

@@ -1,6 +1,19 @@
 #include "YIR.hpp"
 
 namespace YIR {
+
+UseEdge::UseEdge(Value *from, Value *to) {
+  this->from = from;
+  this->to = to;
+  if (from != nullptr)
+    from->addEdge(this);
+}
+
+UseEdge::~UseEdge() {
+  if (from != nullptr)
+    from->removeEdge(this);
+}
+
 Instruction *Instruction::create(OpType op, Type type,
                                  std::initializer_list<Value *> inputs,
                                  BasicBlock *bb) {
@@ -11,7 +24,7 @@ Instruction *Instruction::create(OpType op, Type type,
   p->m_next = nullptr;
   p->m_prev = nullptr;
   for (auto *input : inputs) {
-    p->input.push_back({});
+    p->input.emplace_back(nullptr, nullptr);
     p->getLastInput() = input;
   }
   if (bb != nullptr) {
