@@ -46,7 +46,7 @@ Instruction *Instruction::create(OpType op, Type type,
     p->getLastInput().associate(input);
   }
   if (bb != nullptr) {
-    bb->insn.push_back(p);
+    bb->getInstruction().push_back(p);
   }
   return p;
 }
@@ -60,6 +60,19 @@ BasicBlock *BasicBlock::create(Function *f) {
     f->block.push_back(p);
   }
   return p;
+}
+
+bool BasicBlock::isEntryBlock() const { assert(parent != nullptr);
+  auto *p = parent->as<Function *>();
+  if (p->refExternal() || p->block.empty())
+    return false;
+  return this == &p->block.front();
+}
+
+BasicBlock::~BasicBlock() {
+  for (auto iter = getSuccessor(); iter.base() != nullptr;)
+    iter.destroy_and_increase();
+  remove_from_list();
 }
 
 Argument *Argument::create(Type type, std::string_view name,

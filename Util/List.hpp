@@ -80,6 +80,8 @@ public:
     tmp.destory();
     return *this;
   }
+
+  static ListIterator end() { return ListIterator(nullptr); }
 };
 
 template <typename T> class List {
@@ -185,7 +187,7 @@ protected:
   friend List<T>;
 
   pointer cast_to_derived(auto *p) const { return static_cast<pointer>(p); }
-
+  virtual ~ListNode() = default;
 public:
   constexpr const_pointer next() const { return cast_to_derived(m_next); }
   constexpr pointer next() { return cast_to_derived(m_next); }

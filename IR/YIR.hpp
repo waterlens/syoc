@@ -76,23 +76,23 @@ struct PredefinedType {
   static inline const Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
 };
 
-struct UseEdge : public ListNode<UseEdge> {
+struct UseEdge final : public ListNode<UseEdge> {
   Value *from;
   Value *to;
   UseEdge() = delete;
   UseEdge(const UseEdge &edge) : UseEdge(edge.from, edge.to) {}
   UseEdge(Value *from, Value *to);
-  ~UseEdge();
+  ~UseEdge() final;
 };
 
-struct BasicBlockEdge : public ListNode<BasicBlockEdge> {
+struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
   BasicBlock *from;
   BasicBlock *to;
   BasicBlockEdge() = delete;
   BasicBlockEdge(const BasicBlockEdge &edge)
     : BasicBlockEdge(edge.from, edge.to) {}
   BasicBlockEdge(BasicBlock *from, BasicBlock *to);
-  ~BasicBlockEdge();
+  ~BasicBlockEdge() final;
 };
 
 struct Value {
@@ -195,20 +195,26 @@ struct Instruction : public Value, public ListNode<Instruction> {
   }
 };
 
-struct BasicBlock : public Value, public ListNode<BasicBlock> {
+struct BasicBlock final : public Value, public ListNode<BasicBlock> {
   THIS(SV_BasicBlock);
+
+private:
   List<Instruction> insn;
   std::vector<BasicBlockEdge> pred;
   ListIterator<BasicBlockEdge> succ;
   unsigned order;
   bool visited;
+
+public:
   BasicBlock() : Value{this_type} {}
+  ~BasicBlock() final;
   static BasicBlock *create(Function *f = nullptr);
   [[nodiscard]] auto begin() const { return insn.cbegin(); }
   [[nodiscard]] auto end() const { return insn.cend(); }
   [[nodiscard]] auto begin() { return insn.begin(); }
   [[nodiscard]] auto end() { return insn.end(); }
   auto &getInstruction() { return insn; }
+  auto &getPredecessor() { return pred; }
   auto &getSuccessor() { return succ; }
   void removeSuccessor(BasicBlockEdge *edge) {
     if (edge == getSuccessor().base())
@@ -250,6 +256,8 @@ struct BasicBlock : public Value, public ListNode<BasicBlock> {
   [[nodiscard]] bool isTerminatorBasicBlock() const {
     return insn.back().op == OP_Return;
   }
+
+  [[nodiscard]] bool isEntryBlock() const;
 
   void linkByBranch(Value *cond, BasicBlock *true_bb, BasicBlock *false_bb) {
     Instruction::create(OP_Branch, PredefinedType::Void,

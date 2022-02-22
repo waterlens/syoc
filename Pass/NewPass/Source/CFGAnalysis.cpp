@@ -5,11 +5,11 @@ namespace YIR {
 void CFGAnalysis::operator()(IRHost &host) {
   assignIdentity(host);
   for (auto *func : host.getModule()->func) {
-    for (auto &bb : func->block) bb.pred.clear();
+    for (auto &bb : func->block) bb.getPredecessor().clear();
     for (auto &bb : func->block) {
-      if (bb.insn.empty())
+      if (bb.getInstruction().empty())
         throw std::runtime_error("empty basic block");
-      auto &last = bb.insn.back();
+      auto &last = bb.getInstruction().back();
       if (!last.isControlInstruction())
         throw std::runtime_error(
           "not a control instruction at the end of basic block");

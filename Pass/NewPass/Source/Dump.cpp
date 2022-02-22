@@ -88,7 +88,7 @@ void IRDump::dumpFunction(Function *func) {
   else {
     buffer += " {\n";
     std::for_each(func->block.begin(), func->block.end(),
-                  [&](auto bb) { dumpBasicBlock(&bb); });
+                  [&](auto &bb) { dumpBasicBlock(&bb); });
     buffer += "}";
   }
   buffer += "\n\n";
@@ -108,8 +108,8 @@ void CFGDump::dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb) {
   static std::string small_str(16, 0);
   assert(bb != nullptr);
 
-  assert(!bb->insn.empty());
-  auto &last = bb->insn.back();
+  assert(!bb->getInstruction().empty());
+  auto &last = bb->getInstruction().back();
   assert(last.isControlInstruction());
 
   if (bb->isNormalBasicBlock())
@@ -117,7 +117,7 @@ void CFGDump::dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb) {
   if (bb->isTerminatorBasicBlock())
     cfg.addNode(bb->getIdentity(), fmt::format("L{} exit", bb->getIdentity()));
 
-  for (auto &pred : bb->pred)
+  for (auto &pred : bb->getPredecessor())
     cfg.addEdge(pred.from->getIdentity(), pred.to->getIdentity(), "");
 }
 
