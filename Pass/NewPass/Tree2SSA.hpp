@@ -158,10 +158,10 @@ class Tree2SSA final {
       if (func.second == nullptr)
         throw std::runtime_error("can't found function");
       auto *f = func.second->as<Function *>();
-      TrivialValueVector<Argument *, 3> args;
+      TrivialValueVector<Value *, 3> args;
       for (auto *arg : call->args) {
         auto [arg_ty, arg_gen] = generateArgumentValue(arg);
-        args.push_back(arg_gen->as<Argument *>());
+        args.push_back(arg_gen);
       }
       auto *call_insn = host->createInstruction(OP_Call, f->return_type, {f});
       for (auto *arg : args) call_insn->addInput(arg);

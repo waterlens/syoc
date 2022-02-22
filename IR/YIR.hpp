@@ -79,6 +79,8 @@ struct PredefinedType {
 struct UseEdge : public ListNode<UseEdge> {
   Value *from;
   Value *to;
+  UseEdge() = delete;
+  UseEdge(const UseEdge &edge) : UseEdge(edge.from, edge.to) {}
   UseEdge(Value *from, Value *to);
   ~UseEdge();
 };
@@ -86,8 +88,11 @@ struct UseEdge : public ListNode<UseEdge> {
 struct BasicBlockEdge : public ListNode<BasicBlockEdge> {
   BasicBlock *from;
   BasicBlock *to;
-  BasicBlockEdge(Value *from, Value *to) {}
-  ~BasicBlockEdge() {}
+  BasicBlockEdge() = delete;
+  BasicBlockEdge(const BasicBlockEdge &edge)
+    : BasicBlockEdge(edge.from, edge.to) {}
+  BasicBlockEdge(BasicBlock *from, BasicBlock *to);
+  ~BasicBlockEdge();
 };
 
 struct Value {
@@ -129,6 +134,25 @@ public:
 #undef THIS
 #define THIS(x) constexpr inline static ClassType this_type = x
 
+template <typename Edge, typename Node, typename Action>
+struct BidirectionalEdgeProxy {
+  Edge *edge;
+  Node *to;
+  Action action;
+  BidirectionalEdgeProxy() = delete;
+  BidirectionalEdgeProxy(Edge *edge, Node *to, Action action)
+    : edge(edge), to(to), action(std::move(action)) {}
+  void associate(Node *from) {
+    assert(edge != nullptr);
+    if (edge->from != nullptr)
+      edge->remove_from_list();
+    edge->from = from;
+    edge->to = to;
+    if (from != nullptr)
+      action(edge, from, to);
+  }
+};
+
 struct Instruction : public Value, public ListNode<Instruction> {
   THIS(SV_Instruction);
   OpType op;
@@ -140,29 +164,25 @@ struct Instruction : public Value, public ListNode<Instruction> {
                              BasicBlock *bb = nullptr);
   [[nodiscard]] const auto &getInput() const { return input; }
   auto &getInput() { return input; }
-  struct InputProxy {
-    UseEdge *edge;
-    Value *user;
-    InputProxy &operator=(Value *v) {
-      assert(edge != nullptr);
-      if (edge->from != nullptr)
-        edge->remove_from_list();
-      edge->from = v;
-      edge->to = user;
-      if (v != nullptr)
-        v->addEdge(edge);
-      return *this;
-    }
+
+  static inline auto addEdgeAction = [](UseEdge *edge, Value *from, Value *) {
+    from->addEdge(edge);
   };
+
+  using InputProxy =
+    BidirectionalEdgeProxy<UseEdge, Value, decltype(addEdgeAction)>;
+
   InputProxy operator[](size_t i) {
     if (i >= input.size())
       throw std::runtime_error("out of range");
-    return InputProxy{&input[i], this};
+    return InputProxy{&input[i], this, addEdgeAction};
   }
-  InputProxy getLastInput() { return InputProxy{&input.back(), this}; }
+  InputProxy getLastInput() {
+    return InputProxy{&input.back(), this, addEdgeAction};
+  }
   void addInput(Value *value) {
-    input.emplace_back(nullptr, this);
-    getLastInput() = value;
+    input.emplace_back(nullptr, nullptr);
+    getLastInput().associate(value);
   }
 };
 
@@ -175,15 +195,39 @@ struct BasicBlock : public Value, public ListNode<BasicBlock> {
   bool visited;
   BasicBlock() : Value{this_type} {}
   static BasicBlock *create(Function *f = nullptr);
-  [[nodiscard]] bool hasPredecessor() const { return !pred.empty(); }
-  [[nodiscard]] bool hasSuccessor() const { return succ.base() != nullptr; }
-  [[nodiscard]] auto &getPredecessor() { return pred; }
-  [[nodiscard]] auto &getSuccessorBegin() { return succ; }
-  [[nodiscard]] auto &getInstruction() { return insn; }
   [[nodiscard]] auto begin() const { return insn.cbegin(); }
   [[nodiscard]] auto end() const { return insn.cend(); }
   [[nodiscard]] auto begin() { return insn.begin(); }
   [[nodiscard]] auto end() { return insn.end(); }
+  auto &getInstruction() { return insn; }
+  auto &getSuccessor() { return succ; }
+  void removeSuccessor(BasicBlockEdge *edge) {
+    if (edge == getSuccessor().base())
+      ++getSuccessor();
+    edge->remove_from_list();
+  }
+  void addSuccessor(BasicBlockEdge *edge) {
+    if (getSuccessor().base() != nullptr) {
+      getSuccessor()->insert_before(edge);
+      --getEdge();
+    } else
+      getSuccessor() = edge;
+  }
+  
+  static std::function<void(BasicBlockEdge *, BasicBlock *, BasicBlock *)>
+    addPredecessorAction;
+  using PredecessorProxy =
+    BidirectionalEdgeProxy<BasicBlockEdge, BasicBlock, decltype(addPredecessorAction)>;
+
+  PredecessorProxy getLastPredecessor() {
+    return PredecessorProxy{&pred.back(), this, addPredecessorAction};
+  }
+  
+  void addPredecessor(BasicBlock *bb) {
+    pred.emplace_back(nullptr, nullptr);
+    getLastPredecessor().associate(bb);
+  }
+  
   void linkByBranch(Value *cond, BasicBlock *true_bb, BasicBlock *false_bb) {
     Instruction::create(OP_Branch, PredefinedType::Void,
                         {cond, true_bb, false_bb}, this);
