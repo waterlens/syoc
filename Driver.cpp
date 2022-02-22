@@ -1,7 +1,8 @@
 #include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
+#include "Pass/NewPass/Include/CFGAnalysis.hpp"
 #include "Pass/NewPass/Include/Dump.hpp"
-#include "Pass/NewPass/Include/Tree2SSA.hpp"
+#include "Pass/NewPass/Include/PassCollection.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimpleAllocationElimination.hpp"
 #include "Pass/UseAnalysis.hpp"
@@ -12,7 +13,6 @@
 #include <fmt/core.h>
 #include <fstream>
 #include <string_view>
-
 
 using namespace std;
 
@@ -55,8 +55,11 @@ void stoptime();
   Transformer transformer2(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<YIR::Tree2SSA>();
-  transformer.doSSATransformation<YIR::IRDump>();
-  //transformer2.doTree2SSATransformation<Tree2SSA>();
-  //transformer2.doSSATransformation<UseAnalysis, BBPredSuccAnalysis, IRDump, CFGDump>();
+  transformer
+    .doSSATransformation<YIR::IRDump, YIR::SimplifyCFG, YIR::CFGAnalysis,
+                         YIR::CFGDump, YIR::IRDump>();
+  // transformer2.doTree2SSATransformation<Tree2SSA>();
+  // transformer2.doSSATransformation<UseAnalysis, BBPredSuccAnalysis, IRDump,
+  // CFGDump>();
   return 0;
 }

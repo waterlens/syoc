@@ -136,12 +136,17 @@ public:
 
 template <typename Edge, typename Node, typename Action>
 struct BidirectionalEdgeProxy {
+protected:
   Edge *edge;
   Node *to;
   Action action;
+
+public:
   BidirectionalEdgeProxy() = delete;
   BidirectionalEdgeProxy(Edge *edge, Node *to, Action action)
     : edge(edge), to(to), action(std::move(action)) {}
+  Edge *getEdge() { return edge; }
+  Node *getTo() { return to; }
   void associate(Node *from) {
     assert(edge != nullptr);
     if (edge->from != nullptr)
@@ -184,6 +189,10 @@ struct Instruction : public Value, public ListNode<Instruction> {
     input.emplace_back(nullptr, nullptr);
     getLastInput().associate(value);
   }
+
+  [[nodiscard]] bool isControlInstruction() const {
+    return op == OP_Jump || op == OP_Branch || op == OP_Return;
+  }
 };
 
 struct BasicBlock : public Value, public ListNode<BasicBlock> {
@@ -209,25 +218,39 @@ struct BasicBlock : public Value, public ListNode<BasicBlock> {
   void addSuccessor(BasicBlockEdge *edge) {
     if (getSuccessor().base() != nullptr) {
       getSuccessor()->insert_before(edge);
-      --getEdge();
+      --getSuccessor();
     } else
       getSuccessor() = edge;
   }
-  
+
   static std::function<void(BasicBlockEdge *, BasicBlock *, BasicBlock *)>
     addPredecessorAction;
   using PredecessorProxy =
-    BidirectionalEdgeProxy<BasicBlockEdge, BasicBlock, decltype(addPredecessorAction)>;
+    BidirectionalEdgeProxy<BasicBlockEdge, BasicBlock,
+                           decltype(addPredecessorAction)>;
 
   PredecessorProxy getLastPredecessor() {
     return PredecessorProxy{&pred.back(), this, addPredecessorAction};
   }
-  
+
   void addPredecessor(BasicBlock *bb) {
     pred.emplace_back(nullptr, nullptr);
     getLastPredecessor().associate(bb);
   }
-  
+
+  void removePredecessor(BasicBlock *bb) {
+    pred.erase(std::remove_if(pred.begin(), pred.end(), // NOLINT
+                              [=](auto &elem) { return elem.from == bb; }));
+  }
+
+  [[nodiscard]] bool isNormalBasicBlock() const {
+    return insn.back().op == OP_Jump || insn.back().op == OP_Branch;
+  }
+
+  [[nodiscard]] bool isTerminatorBasicBlock() const {
+    return insn.back().op == OP_Return;
+  }
+
   void linkByBranch(Value *cond, BasicBlock *true_bb, BasicBlock *false_bb) {
     Instruction::create(OP_Branch, PredefinedType::Void,
                         {cond, true_bb, false_bb}, this);

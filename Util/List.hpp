@@ -11,9 +11,8 @@ template <typename T> class ListIterator {
 private:
   ListNode<T> *m_node;
 
-  T *cast_to_derived() {
-    return static_cast<T *>(m_node);
-  }
+  T *cast_to_derived() { return static_cast<T *>(m_node); }
+
 public:
   using value_type = T;
   using reference = value_type &;
@@ -61,6 +60,26 @@ public:
   const_pointer operator->() const { return m_node; }
   reference operator*() { return *cast_to_derived(); }
   pointer operator->() { return cast_to_derived(); }
+  void destory() {
+    m_node->remove_from_list();
+    if (m_node)
+      delete cast_to_derived();
+    m_node = nullptr;
+  }
+
+  ListIterator &destroy_and_increase() {
+    ListIterator tmp(*this);
+    ++(*this);
+    tmp.destory();
+    return *this;
+  }
+
+  ListIterator &destroy_and_decrease() {
+    ListIterator tmp(*this);
+    --(*this);
+    tmp.destory();
+    return *this;
+  }
 };
 
 template <typename T> class List {
@@ -109,6 +128,34 @@ public:
     }
   }
 
+  void pop_back() {
+    if (head != nullptr) {
+      if (head == tail) {
+        iterator(head).destory();
+        head = nullptr;
+        tail = nullptr;
+      } else {
+        auto iter = iterator(tail);
+        iter.destroy_and_decrease();
+        tail = iter.base();
+      }
+    }
+  }
+
+  void pop_front() {
+    if (head != nullptr) {
+      if (head == tail) {
+        iterator(head).destory();
+        head = nullptr;
+        tail = nullptr;
+      } else {
+        auto iter = iterator(head);
+        iter.destroy_and_increase();
+        head = iter.base();
+      }
+    }
+  }
+
   void push_back(ListNode<T> *node) {
     if (empty()) {
       assert(tail == nullptr);
@@ -137,9 +184,8 @@ protected:
   friend ListIterator<T>;
   friend List<T>;
 
-  pointer cast_to_derived(auto *p) const {
-    return static_cast<pointer>(p);
-  }
+  pointer cast_to_derived(auto *p) const { return static_cast<pointer>(p); }
+
 public:
   constexpr const_pointer next() const { return cast_to_derived(m_next); }
   constexpr pointer next() { return cast_to_derived(m_next); }

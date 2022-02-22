@@ -143,7 +143,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateArgumentValue(ExprPtr expr) {
   return generateRValue(expr);
 }
 void Tree2SSA::arrayZeroInitializer(const Tree2SSA::TypeDimensionValue &th) {
-  // targer should be the array head element pointer
+  // target should be the array head element pointer
   auto [ty, target] = th;
   assert(!ty.second.empty());
   auto len = calculateArrayTotalLength(ty);
@@ -313,13 +313,13 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
 
     host->setInsertPoint(then_bb);
     generateStatement(if_stmt->then_stmt);
-    then_bb->linkByJump(cont_bb);
+    host->getInsertPoint()->linkByJump(cont_bb);
 
     if (if_stmt->else_stmt != nullptr) {
       current_function->addBasicBlock(else_bb);
       host->setInsertPoint(else_bb);
       generateStatement(if_stmt->else_stmt);
-      else_bb->linkByJump(cont_bb);
+      host->getInsertPoint()->linkByJump(cont_bb);
     } else {
       delete else_bb;
       else_bb = nullptr;

@@ -1,4 +1,5 @@
 #include "../Include/Dump.hpp"
+#include "../Include/AssignIdentity.hpp"
 
 namespace YIR {\
 std::string IRDump::dumpType(const Type &ty) {
@@ -93,17 +94,6 @@ void IRDump::dumpFunction(Function *func) {
   buffer += "\n\n";
 }
 
-void IRDump::assignIdentity(IRHost &host) {
-  std::for_each(
-    host.getModule()->func.begin(), host.getModule()->func.end(), [&](auto &f) {
-      std::for_each(f->block.begin(), f->block.end(), [&](auto &bb) {
-        bb.getIdentity() = ++id;
-        std::for_each(bb.begin(), bb.end(),
-                      [&](auto &insn) { insn.getIdentity() = ++id; });
-      });
-    });
-}
-
 void IRDump::dumpIRText(IRHost &host) {
   assignIdentity(host);
   dumpAllGlobalVariable(host);
@@ -112,5 +102,39 @@ void IRDump::dumpIRText(IRHost &host) {
   static int ir_count = 0;
   auto out = fmt::output_file(fmt::format("dump.new-ir.{}.txt", ir_count++));
   out.print("{}", buffer);
+}
+
+void CFGDump::dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb) {
+  static std::string small_str(16, 0);
+  assert(bb != nullptr);
+
+  assert(!bb->insn.empty());
+  auto &last = bb->insn.back();
+  assert(last.isControlInstruction());
+
+  if (bb->isNormalBasicBlock())
+    cfg.addNode(bb->getIdentity(), fmt::format("L{}", bb->getIdentity()));
+  if (bb->isTerminatorBasicBlock())
+    cfg.addNode(bb->getIdentity(), fmt::format("L{} exit", bb->getIdentity()));
+
+  for (auto &pred : bb->pred)
+    cfg.addEdge(pred.from->getIdentity(), pred.to->getIdentity(), "");
+}
+
+void CFGDump::operator()(IRHost &host) {
+  GraphHelper cfg;
+  assignIdentity(host);
+
+  for (auto *func: host.getModule()->func) {
+    if (func->external)
+      continue;
+    cfg.addNode(-func->getIdentity(), fmt::format("Function {}", func->name));
+    cfg.addEdge(-func->getIdentity(), func->block.front().getIdentity(), "");
+    for (auto &bb : func->block)
+      dumpBasicBlock(cfg, &bb);
+  }
+
+  static int cfg_count = 0;
+  cfg.outputToFile(fmt::format("dump.cfg.{}.dot", cfg_count++), "CFG");
 }
 } // namespace YIR

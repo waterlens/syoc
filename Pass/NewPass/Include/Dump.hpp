@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IR/YIR.hpp"
+#include "Pass/NewPass/Include/AssignIdentity.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
 #include "Util/List.hpp"
@@ -19,7 +20,7 @@
 
 namespace YIR {
 class CFGDump {
-  static void dumpCFG(IRHost &host);
+  static void dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb);
 
 public:
   CFGDump() = default;
@@ -48,7 +49,6 @@ class IRDump {
   void dumpInstruction(Instruction *insn);
   void dumpBasicBlock(BasicBlock *bb);
   void dumpFunction(Function *func);
-  void assignIdentity(IRHost &host);
   void dumpIRText(IRHost &host);
 
 public:
