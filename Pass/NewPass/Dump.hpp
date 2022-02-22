@@ -3,8 +3,8 @@
 #include "IR/YIR.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
-#include "Util/StringUtil.hpp"
 #include "Util/List.hpp"
+#include "Util/StringUtil.hpp"
 #include "fmt/core.h"
 
 #include <algorithm>
@@ -54,10 +54,12 @@ class IRDump {
   }
 
   static std::string dumpUser(Value *value) {
-    return join(
-      value->getImmutableEdges(), ListIterator<UseEdge>(),
-      [](auto edge) { return fmt::format("%{}", edge.to->getIdentity()); },
-      " ");
+    return fmt::format(
+      "// {}",
+      join(
+        value->getImmutableEdges(), ListIterator<UseEdge>(),
+        [](auto edge) { return fmt::format("%{}", edge.to->getIdentity()); },
+        " "));
   }
 
   static std::string
@@ -65,7 +67,7 @@ class IRDump {
     return join(
       param.begin(), param.end(),
       [](auto arg) {
-        return fmt::format("#{}: {} /* {} */", arg->name, dumpType(arg->type),
+        return fmt::format("#{}: {} {}", arg->name, dumpType(arg->type),
                            dumpUser(arg));
       },
       ", ");
@@ -91,9 +93,10 @@ class IRDump {
 
   void dumpAllGlobalVariable(IRHost &host) {
     std::for_each(host.getModule()->global.begin(),
-                  host.getModule()->global.end(), [&](auto gv) {
-                    buffer += fmt::format("@{}.addr : {} /* {} */\n", gv->name,
-                                          dumpType(gv->type), dumpUser(gv));
+                  host.getModule()->global.end(), [&](GlobalVariable *gv) {
+                    buffer += fmt::format("@{}.addr : {}, region size {} {}\n",
+                                          gv->name, dumpType(gv->type),
+                                          gv->capacity, dumpUser(gv));
                   });
     buffer += "\n";
   }
@@ -104,7 +107,7 @@ class IRDump {
     buffer += join(
       insn->getInput().begin(), insn->getInput().end(),
       [this](auto v) { return dumpInstructionInput(v.from); }, ", ");
-    buffer += fmt::format(" /* {} */\n", dumpUser(insn));
+    buffer += fmt::format(" {}\n", dumpUser(insn));
   }
 
   void dumpBasicBlock(BasicBlock *bb) {

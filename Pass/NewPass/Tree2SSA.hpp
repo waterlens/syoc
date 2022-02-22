@@ -301,6 +301,7 @@ class Tree2SSA final {
     ty.first.reference();
     auto *g = GlobalVariable::create(ty.first, decl->name,
                                      calculateArrayTotalLength(ty));
+    host->getModule()->global.push_back(g);
     host->setInsertPoint(global_initializer_block);
     generateInitializer(decl->initializer, {ty, g});
     scopes.insert(decl->name, {ty, g});
