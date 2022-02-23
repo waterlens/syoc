@@ -267,9 +267,9 @@ public:
     Instruction::create(OP_Jump, PredefinedType::Void, {next_bb}, this);
   }
 
-  bool &refVisited() {
-    return visited;
-  }
+  bool &refVisited() { return visited; }
+
+  unsigned &refOrder() { return order; }
 };
 
 struct ConstantInteger : public Value {
