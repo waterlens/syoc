@@ -1,4 +1,4 @@
-#include "../Include/Tree2SSA.hpp"
+#include "Tree2SSA.hpp"
 
 namespace YIR {
 void Tree2SSA::setupGlobalInitializerFunction() {

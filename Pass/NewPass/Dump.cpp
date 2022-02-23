@@ -1,5 +1,5 @@
-#include "../Include/Dump.hpp"
-#include "../Include/AssignIdentityHelper.hpp"
+#include "Dump.hpp"
+#include "AssignIdentityHelper.hpp"
 
 namespace YIR {\
 std::string IRDump::dumpType(const Type &ty) {

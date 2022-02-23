@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IR/YIR.hpp"
-#include "Pass/NewPass/Include/CFGAnalysis.hpp"
+#include "CFGAnalysis.hpp"
 
 #include <algorithm>
 #include <unordered_map>

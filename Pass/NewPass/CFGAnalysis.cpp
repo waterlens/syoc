@@ -1,4 +1,4 @@
-#include "../Include/CFGAnalysis.hpp"
+#include "CFGAnalysis.hpp"
 
 namespace YIR {
 
