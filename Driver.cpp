@@ -10,6 +10,7 @@
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
+#include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>
@@ -18,6 +19,7 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {
+  RuntimeStack::set_max_size(RuntimeStack::hard_max_size());
   OptionParser optParser;
   optParser.add(Option<bool>("--help", "-h").setDefault("false"),
                 Option<bool>("--version", "-v").setDefault("false"),
