@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IR/YIR.hpp"
-#include "algorithm"
+#include <algorithm>
 
 namespace YIR {
 

@@ -3,6 +3,7 @@
 #include "Pass/NewPass/Include/CFGAnalysis.hpp"
 #include "Pass/NewPass/Include/Dump.hpp"
 #include "Pass/NewPass/Include/PassCollection.hpp"
+#include "Pass/NewPass/Include/TraversalHelper.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimpleAllocationElimination.hpp"
 #include "Pass/UseAnalysis.hpp"

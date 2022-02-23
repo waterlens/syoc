@@ -1,7 +1,6 @@
 #pragma once
 
 #include "IR/YIR.hpp"
-#include "Pass/NewPass/Include/AssignIdentity.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
 #include "Util/List.hpp"

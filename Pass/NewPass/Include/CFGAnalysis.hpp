@@ -3,7 +3,7 @@
 #include "IR/YIR.hpp"
 #include "Tree/Tree.hpp"
 
-#include "AssignIdentity.hpp"
+#include "AssignIdentityHelper.hpp"
 
 #include <cassert>
 #include <stdexcept>

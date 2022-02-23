@@ -266,6 +266,10 @@ public:
   void linkByJump(BasicBlock *next_bb) {
     Instruction::create(OP_Jump, PredefinedType::Void, {next_bb}, this);
   }
+
+  bool &refVisited() {
+    return visited;
+  }
 };
 
 struct ConstantInteger : public Value {
