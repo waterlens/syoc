@@ -11,11 +11,10 @@ inline void dfs(BasicBlock *bb, std::vector<BasicBlock *> &out) {
   bb->refVisited() = true;
   if constexpr (!Postfix)
     out.push_back(bb);
-  std::for_each(bb->getSuccessor(), bb->getSuccessor().end(), // NOLINT
-                [&](BasicBlockEdge &edge) {
-                  if (!edge.from->refVisited())
-                    dfs<Postfix>(edge.from, out);
-                });
+  for (auto iter = bb->getSuccessor(); iter != iter.end(); ++iter) { // NOLINT
+    if (!iter->to->refVisited())
+      dfs<Postfix>(iter->to, out);
+  }
   if constexpr (Postfix)
     out.push_back(bb);
 }

@@ -56,8 +56,8 @@ void stoptime();
   Transformer transformer2(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<YIR::Tree2SSA>();
-  transformer.doSSATransformation<YIR::IRDump, YIR::SimplifyCFG, YIR::CFGDump,
-                                  YIR::IRDump>();
+  transformer.doSSATransformation<YIR::IRDump, YIR::SimplifyCFG, YIR::IRDump,
+                                  YIR::CFGDump, YIR::IDominatorDump>();
   // transformer2.doTree2SSATransformation<Tree2SSA>();
   // transformer2.doSSATransformation<UseAnalysis, BBPredSuccAnalysis, IRDump,
   // CFGDump>();

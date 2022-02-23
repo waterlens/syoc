@@ -23,8 +23,8 @@ public:
   ListIterator() : m_node(nullptr){};
   ListIterator(ListNode<T> *node) : m_node(node) {}
 
-  auto *base() const { return m_node; }
-  auto *base() { return m_node; }
+  auto *base() const { return cast_to_derived(); }
+  auto *base() { return cast_to_derived(); }
 
   ListIterator &operator++() {
     m_node = m_node->m_next;
@@ -60,24 +60,25 @@ public:
   const_pointer operator->() const { return m_node; }
   reference operator*() { return *cast_to_derived(); }
   pointer operator->() { return cast_to_derived(); }
-  void destory() {
+
+  void release(bool free = false) {
     m_node->remove_from_list();
-    if (m_node)
-      delete cast_to_derived();
+    if (free)
+      delete m_node;
     m_node = nullptr;
   }
 
-  ListIterator &destroy_and_increase() {
+  ListIterator &release_and_increase(bool free = false) {
     ListIterator tmp(*this);
     ++(*this);
-    tmp.destory();
+    tmp.release(free);
     return *this;
   }
 
-  ListIterator &destroy_and_decrease() {
+  ListIterator &release_and_decrease(bool free = false) {
     ListIterator tmp(*this);
     --(*this);
-    tmp.destory();
+    tmp.release(free);
     return *this;
   }
 
@@ -133,12 +134,12 @@ public:
   void pop_back() {
     if (head != nullptr) {
       if (head == tail) {
-        iterator(head).destory();
+        iterator(head).release();
         head = nullptr;
         tail = nullptr;
       } else {
         auto iter = iterator(tail);
-        iter.destroy_and_decrease();
+        iter.release_and_decrease();
         tail = iter.base();
       }
     }
@@ -147,12 +148,12 @@ public:
   void pop_front() {
     if (head != nullptr) {
       if (head == tail) {
-        iterator(head).destory();
+        iterator(head).release();
         head = nullptr;
         tail = nullptr;
       } else {
         auto iter = iterator(head);
-        iter.destroy_and_increase();
+        iter.release_and_increase();
         head = iter.base();
       }
     }
@@ -188,6 +189,7 @@ protected:
 
   pointer cast_to_derived(auto *p) const { return static_cast<pointer>(p); }
   virtual ~ListNode() = default;
+
 public:
   constexpr const_pointer next() const { return cast_to_derived(m_next); }
   constexpr pointer next() { return cast_to_derived(m_next); }

@@ -1,15 +1,18 @@
 #pragma once
 
+#include "AssignIdentityHelper.hpp"
+#include "IDominatorAnalysis.hpp"
 #include "IR/YIR.hpp"
+#include "CFGAnalysis.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
 #include "Util/List.hpp"
 #include "Util/StringUtil.hpp"
-#include "fmt/core.h"
 
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/os.h>
 #include <stdexcept>
@@ -28,12 +31,35 @@ public:
 };
 
 class IDominatorDump {
-  static void dumpIDominator(IRHost &host);
-
 public:
   IDominatorDump() = default;
   [[nodiscard]] static std::string_view getName() { return "IDom Dump"; }
-  void operator()(IRHost &host);
+  void operator()(IRHost &host) {
+    IDominatorAnalysis ida;
+    GraphHelper idg;
+    ida(host);
+    assignIdentity(host);
+
+    std::unordered_set<BasicBlock *> visited;
+    const auto &idominated_map = ida.getIDominatorMap().first;
+    for (auto [idominated, idominator] : idominated_map) {
+      if (!visited.contains(idominated)) {
+        idg.addNode(idominated->getIdentity(),
+                    fmt::format("L{}", idominated->getIdentity()));
+        visited.insert(idominated);
+      }
+      if (!visited.contains(idominator)) {
+        idg.addNode(idominator->getIdentity(),
+                    fmt::format("L{}", idominator->getIdentity()));
+        visited.insert(idominator);
+      }
+      idg.addEdge(idominator->getIdentity(), idominated->getIdentity(), "");
+    }
+    visited.clear();
+
+    static int g_count = 0;
+    idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
+  }
 };
 
 class IRDump {

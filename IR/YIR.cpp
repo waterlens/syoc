@@ -62,7 +62,8 @@ BasicBlock *BasicBlock::create(Function *f) {
   return p;
 }
 
-bool BasicBlock::isEntryBlock() const { assert(parent != nullptr);
+bool BasicBlock::isEntryBlock() const {
+  assert(parent != nullptr);
   auto *p = parent->as<Function *>();
   if (p->refExternal() || p->block.empty())
     return false;
@@ -70,8 +71,11 @@ bool BasicBlock::isEntryBlock() const { assert(parent != nullptr);
 }
 
 BasicBlock::~BasicBlock() {
-  for (auto iter = getSuccessor(); iter.base() != nullptr;)
-    iter.destroy_and_increase();
+  for (; getSuccessor().base() != nullptr;) {
+    getSuccessor()->to->removePredecessor(this);
+    // then to node will destruct the edge
+    // which will call removeSuccessor of this
+  }
   remove_from_list();
 }
 
