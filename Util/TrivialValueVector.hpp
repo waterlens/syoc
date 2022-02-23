@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+#include <algorithm>
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
@@ -27,7 +29,7 @@ private:
   bool m_heap_allocated{};
 
   constexpr void grow() {
-    auto new_capacity = m_capacity + m_capacity / 2;
+    auto new_capacity = std::max(4U, m_capacity + m_capacity / 2);
     T *new_data = new T[new_capacity];
     for (unsigned i = 0; i < m_size; ++i) new_data[i] = m_access_ptr[i];
     if (m_heap_allocated)
@@ -96,6 +98,7 @@ public:
     return m_access_ptr[i];
   }
   constexpr void push_back(const_reference value) {
+    assert(m_size <= m_capacity);
     if (m_size == m_capacity)
       grow();
     m_access_ptr[m_size++] = value;
