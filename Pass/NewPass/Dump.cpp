@@ -137,4 +137,31 @@ void CFGDump::operator()(IRHost &host) {
   static int cfg_count = 0;
   cfg.outputToFile(fmt::format("dump.cfg.{}.dot", cfg_count++), "CFG");
 }
+
+void IDominatorDump::operator()(IRHost &host) {
+    IDominatorAnalysis ida;
+    GraphHelper idg;
+    ida(host);
+    assignIdentity(host);
+
+    std::unordered_set<BasicBlock *> visited;
+    const auto &idominated_map = ida.getIDominatorMap().first;
+    for (auto [idominated, idominator] : idominated_map) {
+        if (!visited.contains(idominated)) {
+            idg.addNode(idominated->getIdentity(),
+                        fmt::format("L{}", idominated->getIdentity()));
+            visited.insert(idominated);
+        }
+        if (!visited.contains(idominator)) {
+            idg.addNode(idominator->getIdentity(),
+                        fmt::format("L{}", idominator->getIdentity()));
+            visited.insert(idominator);
+        }
+        idg.addEdge(idominator->getIdentity(), idominated->getIdentity(), "");
+    }
+    visited.clear();
+
+    static int g_count = 0;
+    idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
+}
 } // namespace YIR
