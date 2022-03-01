@@ -12,6 +12,7 @@ private:
   ListNode<T> *m_node;
 
   T *cast_to_derived() { return static_cast<T *>(m_node); }
+  T *cast_to_derived() const { return static_cast<T *>(m_node); }
 
 public:
   using value_type = T;
@@ -69,7 +70,8 @@ public:
 
   ListIterator &release_and_decrease(bool free = false);
 
-  static ListIterator end() { return ListIterator(); }
+  [[nodiscard]] bool reach_end() const { return *this == null_end(); }
+  static ListIterator null_end() { return ListIterator(); }
 };
 
 template <typename T> class List {
@@ -96,6 +98,8 @@ public:
     dummyHead()->m_next = dummyTail();
     dummyTail()->m_prev = dummyHead();
   }
+  List(const List &) = delete;
+  List &operator=(const List &) = delete;
   constexpr const_iterator cbegin() const {
     return const_iterator(dummyHead()->m_next);
   }

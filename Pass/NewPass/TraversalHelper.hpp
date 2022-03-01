@@ -11,7 +11,7 @@ inline void dfs(BasicBlock *bb, std::vector<BasicBlock *> &out) {
   bb->refVisited() = true;
   if constexpr (!Postfix)
     out.push_back(bb);
-  for (auto iter = bb->getSuccessor(); iter != iter.end(); ++iter) { // NOLINT
+  for (auto iter = bb->getSuccessor(); !iter.reach_end(); ++iter) { // NOLINT
     if (!iter->to->refVisited())
       dfs<Postfix>(iter->to, out);
   }

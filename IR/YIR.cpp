@@ -14,6 +14,19 @@ UseEdge::~UseEdge() {
     from->removeEdge(this);
 }
 
+void UseEdge::associate(Value *from) {
+  if (this->from != nullptr)
+    this->from->removeEdge(this);
+  this->from = from;
+  if (from != nullptr)
+    from->addEdge(this);
+}
+
+UseEdge &UseEdge::operator=(Value *from) {
+  associate(from);
+  return *this;
+}
+
 BasicBlockEdge::BasicBlockEdge(BasicBlock *from, BasicBlock *to) {
   this->from = from;
   this->to = to;
@@ -25,12 +38,18 @@ BasicBlockEdge::~BasicBlockEdge() {
   if (from != nullptr)
     from->removeSuccessor(this);
 }
+void BasicBlockEdge::associate(BasicBlock *from) {
+  if (this->from != nullptr)
+    this->from->removeSuccessor(this);
+  this->from = from;
+  if (from != nullptr)
+    from->addSuccessor(this);
+}
 
-std::function<void(BasicBlockEdge *, BasicBlock *, BasicBlock *)>
-  BasicBlock::addPredecessorAction =
-    [](BasicBlockEdge *edge, BasicBlock *from, BasicBlock *) {
-      from->addSuccessor(edge);
-    };
+BasicBlockEdge &BasicBlockEdge::operator=(BasicBlock *from) {
+  associate(from);
+  return *this;
+}
 
 Instruction *Instruction::create(OpType op, Type type,
                                  std::initializer_list<Value *> inputs,
@@ -42,8 +61,8 @@ Instruction *Instruction::create(OpType op, Type type,
   p->m_next = nullptr;
   p->m_prev = nullptr;
   for (auto *input : inputs) {
-    p->input.emplace_back(nullptr, nullptr);
-    p->getLastInput().associate(input);
+    p->input.emplace_back(nullptr, p);
+    p->input.back() = input;
   }
   if (bb != nullptr) {
     bb->getInstruction().push_back(p);

@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -83,6 +84,8 @@ struct UseEdge final : public ListNode<UseEdge> {
   UseEdge(const UseEdge &edge) : UseEdge(edge.from, edge.to) {}
   UseEdge(Value *from, Value *to);
   ~UseEdge() final;
+  void associate(Value *from);
+  UseEdge &operator=(Value *from);
 };
 
 struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
@@ -93,6 +96,8 @@ struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
     : BasicBlockEdge(edge.from, edge.to) {}
   BasicBlockEdge(BasicBlock *from, BasicBlock *to);
   ~BasicBlockEdge() final;
+  void associate(BasicBlock *from);
+  BasicBlockEdge &operator=(BasicBlock *from);
 };
 
 struct Value {
@@ -115,6 +120,7 @@ public:
     return nullptr;
   }
   template <typename T> T as() const { return as<T>(); }
+  [[nodiscard]] bool hasNoEdge() const { return edge.base() == nullptr; }
   auto &getEdge() { return edge; }
   void removeEdge(UseEdge *edge) {
     if (edge == getEdge().base())
@@ -122,41 +128,30 @@ public:
     edge->remove_from_list();
   }
   void addEdge(UseEdge *edge) {
-    if (getEdge().base() != nullptr) {
+    if (!hasNoEdge()) {
       getEdge()->insert_before(edge);
       --getEdge();
     } else
       getEdge() = edge;
   }
   [[nodiscard]] auto getImmutableEdges() const { return edge; }
+  [[nodiscard]] size_t getNumOfEdges() const {
+    size_t n = 0;
+    for (auto iter = getImmutableEdges(); !iter.reach_end(); ++iter)
+      ++n;
+    return n;
+  }
+  void replaceAllUsesWith(Value *new_value) const {
+    static std::vector<decltype(edge)> uses;
+    uses.clear();
+    for (auto use_iter = getImmutableEdges(); !use_iter.reach_end(); ++use_iter)
+      uses.push_back(use_iter);
+    for (auto &use : uses) use->associate(new_value);
+  }
 };
 
 #undef THIS
 #define THIS(x) constexpr inline static ClassType this_type = x
-
-template <typename Edge, typename Node, typename Action>
-struct BidirectionalEdgeProxy {
-protected:
-  Edge *edge;
-  Node *to;
-  Action action;
-
-public:
-  BidirectionalEdgeProxy() = delete;
-  BidirectionalEdgeProxy(Edge *edge, Node *to, Action action)
-    : edge(edge), to(to), action(std::move(action)) {}
-  Edge *getEdge() { return edge; }
-  Node *getTo() { return to; }
-  void associate(Node *from) {
-    assert(edge != nullptr);
-    if (edge->from != nullptr)
-      edge->remove_from_list();
-    edge->from = from;
-    edge->to = to;
-    if (from != nullptr)
-      action(edge, from, to);
-  }
-};
 
 struct Instruction : public Value, public ListNode<Instruction> {
   THIS(SV_Instruction);
@@ -174,20 +169,9 @@ struct Instruction : public Value, public ListNode<Instruction> {
     from->addEdge(edge);
   };
 
-  using InputProxy =
-    BidirectionalEdgeProxy<UseEdge, Value, decltype(addEdgeAction)>;
-
-  InputProxy operator[](size_t i) {
-    if (i >= input.size())
-      throw std::runtime_error("out of range");
-    return InputProxy{&input[i], this, addEdgeAction};
-  }
-  InputProxy getLastInput() {
-    return InputProxy{&input.back(), this, addEdgeAction};
-  }
   void addInput(Value *value) {
-    input.emplace_back(nullptr, nullptr);
-    getLastInput().associate(value);
+    input.emplace_back(nullptr, this);
+    input.back() = value;
   }
 
   [[nodiscard]] bool isControlInstruction() const {
@@ -229,19 +213,9 @@ public:
       getSuccessor() = edge;
   }
 
-  static std::function<void(BasicBlockEdge *, BasicBlock *, BasicBlock *)>
-    addPredecessorAction;
-  using PredecessorProxy =
-    BidirectionalEdgeProxy<BasicBlockEdge, BasicBlock,
-                           decltype(addPredecessorAction)>;
-
-  PredecessorProxy getLastPredecessor() {
-    return PredecessorProxy{&pred.back(), this, addPredecessorAction};
-  }
-
   void addPredecessor(BasicBlock *bb) {
-    pred.emplace_back(nullptr, nullptr);
-    getLastPredecessor().associate(bb);
+    pred.emplace_back(nullptr, this);
+    pred.back() = bb;
   }
 
   void removePredecessor(BasicBlock *bb) {
