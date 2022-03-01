@@ -4,6 +4,7 @@
 #include <cassert>
 #include <stdexcept>
 
+namespace SyOC {
 class TypeCheck final {
 private:
   NodePtr root;
@@ -286,3 +287,4 @@ public:
     tree = root;
   }
 };
+} // namespace SyOC

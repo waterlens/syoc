@@ -23,6 +23,7 @@
 
 #include "Tree/Tree.hpp"
 
+namespace SyOC {
 enum class TokenType {
   IntegerConstant,
   Keyword,
@@ -609,3 +610,4 @@ struct Parser {
   Parser(const std::string &input)
     : input(input), input_view(input), index(0), token_index(0) {}
 };
+} // namespace SyOC

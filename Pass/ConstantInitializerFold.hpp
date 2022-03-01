@@ -8,6 +8,7 @@
 #include <string_view>
 #include <unordered_set>
 
+namespace SyOC {
 class ConstantInitializerFold final {
 private:
   NodePtr root;
@@ -176,3 +177,4 @@ public:
     tree = root;
   }
 };
+} // namespace SyOC

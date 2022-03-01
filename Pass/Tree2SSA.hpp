@@ -29,7 +29,7 @@ class Tree2SSA final {
   std::vector<BasicBlock *> bb_break, bb_continue;
 
   void setupGlobalInitializerFunction();
-  static TypeDimension convertType(const ::TreeType &ty) {
+  static TypeDimension convertType(const TreeType &ty) {
     TypeDimension ty_dim;
     if (ty.spec == TS_Int)
       ty_dim.first = PredefinedType::Int32;

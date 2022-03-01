@@ -263,7 +263,7 @@ void Tree2SSA::generateGlobalVariable(TreeGlobalDeclaration *decl) {
 
 void Tree2SSA::globalGeneration() {
   setupGlobalInitializerFunction();
-  auto *module = root->as<::TreeModule *>();
+  auto *module = root->as<TreeModule *>();
   scopes.enter();
   for (auto *decl : module->decls) {
     if (decl->is<TreeGlobalDeclaration *>()) {

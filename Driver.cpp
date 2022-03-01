@@ -44,13 +44,15 @@ void starttime();
 void stoptime();
 )" + fileContent;
 
-  Parser parser(fileContent);
+  SyOC::Parser parser(fileContent);
   parser.tokenize();
   auto *tree = parser.parse();
   SyOC::Transformer transformer(tree);
-  transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
+  transformer
+    .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  transformer.doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+  transformer
+    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination, SyOC::IRDump,
                          SyOC::CFGDump, SyOC::IDominatorDump>();
   return 0;

@@ -17,6 +17,7 @@
 #include <variant>
 #include <vector>
 
+namespace SyOC {
 #define OpcodeDefine(x, n) x,
 enum OpType {
 #include "Common/Common.def"
@@ -271,3 +272,4 @@ inline bool isExpression(NodePtr node) {
          node->is<TreeRefExpr *>();
   ;
 }
+} // namespace SyOC
