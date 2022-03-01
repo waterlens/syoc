@@ -1,11 +1,11 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
 
-namespace YIR {
+namespace SyOC {
 class SimpleAllocationElimination {
 private:
   static void eliminateDeadAllocation(IRHost &host);
@@ -25,4 +25,4 @@ public:
     eliminateDeadAllocation(host);
   }
 };
-} // namespace YIR
+} // namespace SyOC

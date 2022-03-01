@@ -1,6 +1,6 @@
 #include "CFGAnalysis.hpp"
 
-namespace YIR {
+namespace SyOC {
 
 void CFGAnalysis::operator()(IRHost &host) {
   assignIdentity(host);
@@ -36,4 +36,4 @@ void CFGAnalysis::operator()(IRHost &host) {
     }
   }
 }
-} // namespace YIR
+} // namespace SyOC

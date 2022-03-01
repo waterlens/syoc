@@ -1,12 +1,12 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "CFGAnalysis.hpp"
 
 #include <algorithm>
 #include <unordered_map>
 
-namespace YIR {
+namespace SyOC {
 class SimplifyCFG final {
   static void clearExtraJump(BasicBlock *bb);
   static void removeDanglingBB(Function *f);
@@ -17,4 +17,4 @@ public:
   void operator()(IRHost &host);
 };
 
-} // namespace YIR
+} // namespace SyOC

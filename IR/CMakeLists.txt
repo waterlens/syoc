@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE IR.hpp YIR.hpp YIR.cpp)
+target_sources(syoc PRIVATE IR.hpp IR.hpp IR.cpp)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "TraversalHelper.hpp"
 
 #include <algorithm>
@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace YIR {
+namespace SyOC {
 
 // http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.14.3249
 class IDominatorAnalysis final {
@@ -35,4 +35,4 @@ public:
   void operator()(IRHost &host);
 };
 
-} // namespace YIR
+} // namespace SyOC

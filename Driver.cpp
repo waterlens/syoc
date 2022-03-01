@@ -47,11 +47,11 @@ void stoptime();
   Parser parser(fileContent);
   parser.tokenize();
   auto *tree = parser.parse();
-  YIR::Transformer transformer(tree);
+  SyOC::Transformer transformer(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
-  transformer.doTree2SSATransformation<YIR::Tree2SSA>();
-  transformer.doSSATransformation<YIR::IRDump, YIR::SimplifyCFG, YIR::IRDump,
-                                  YIR::SimpleAllocationElimination, YIR::IRDump,
-                                  YIR::CFGDump, YIR::IDominatorDump>();
+  transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
+  transformer.doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+                         SyOC::SimpleAllocationElimination, SyOC::IRDump,
+                         SyOC::CFGDump, SyOC::IDominatorDump>();
   return 0;
 }

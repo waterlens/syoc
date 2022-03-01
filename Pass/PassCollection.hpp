@@ -1,6 +1,6 @@
 #pragma once
 
-namespace YIR {
+namespace SyOC {
 class Tree2SSA;
 class IRDump;
 class SimplifyCFG;

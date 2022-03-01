@@ -11,11 +11,11 @@
 #include <utility>
 #include <vector>
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "Pass/Tree2SSA.hpp"
 #include "Tree/Tree.hpp"
 
-namespace YIR {
+namespace SyOC {
 class Transformer {
 private:
   NodePtr tree;
@@ -63,4 +63,4 @@ public:
     doTree2SSATransformation<T2, Tail...>();
   }
 };
-} // namespace YIR
+} // namespace SyOC

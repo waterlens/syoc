@@ -1,6 +1,6 @@
 #include "Tree2SSA.hpp"
 
-namespace YIR {
+namespace SyOC {
 void Tree2SSA::setupGlobalInitializerFunction() {
   auto *init =
     Function::create(PredefinedType::Void, "__syoc@init", host->getModule());
@@ -468,4 +468,4 @@ void Tree2SSA::functionGeneration(TreeFunctionDeclaration *decl) {
   }
   scopes.exit();
 }
-} // namespace YIR
+} // namespace SyOC

@@ -1,7 +1,7 @@
 #include "Dump.hpp"
 #include "AssignIdentityHelper.hpp"
 
-namespace YIR {\
+namespace SyOC {\
 std::string IRDump::dumpType(const Type &ty) {
   std::string buffer;
   switch (ty.primitive_type) {
@@ -164,4 +164,4 @@ void IDominatorDump::operator()(IRHost &host) {
     static int g_count = 0;
     idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
 }
-} // namespace YIR
+} // namespace SyOC

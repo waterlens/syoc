@@ -1,6 +1,6 @@
-#include "YIR.hpp"
+#include "IR.hpp"
 
-namespace YIR {
+namespace SyOC {
 
 UseEdge::UseEdge(Value *from, Value *to) {
   this->from = from;
@@ -131,4 +131,4 @@ GlobalVariable *GlobalVariable::create(Type type, std::string_view name,
   return p;
 }
 
-} // namespace YIR
+} // namespace SyOC

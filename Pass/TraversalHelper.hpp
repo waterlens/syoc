@@ -1,10 +1,10 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include <algorithm>
 #include <cassert>
 
-namespace YIR {
+namespace SyOC {
 
 template <bool Postfix>
 inline void dfs(BasicBlock *bb, std::vector<BasicBlock *> &out) {
@@ -34,4 +34,4 @@ inline std::vector<BasicBlock *> traversal(Function *f) {
   return ret;
 }
 
-} // namespace YIR
+} // namespace SyOC

@@ -1,13 +1,13 @@
 #include "SimpleAllocationElimination.hpp"
 #include "IDominatorAnalysis.hpp"
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <cassert>
 #include <unordered_set>
 
-namespace YIR {
+namespace SyOC {
 void SimpleAllocationElimination::eliminateDeadAllocation(IRHost &host) {
   for (auto *func : host.getModule()->func) {
     if (func->refExternal())
@@ -151,4 +151,4 @@ void SimpleAllocationElimination::eliminateLocalLoad(IRHost &host) {
     }
   }
 }
-} // namespace YIR
+} // namespace SyOC

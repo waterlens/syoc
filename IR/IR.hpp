@@ -24,7 +24,7 @@
 #include "Util/List.hpp"
 #include "Util/TrivialValueVector.hpp"
 
-namespace YIR {
+namespace SyOC {
 
 #define SSAValueTypeDefine(x) x,
 enum ClassType {
@@ -325,4 +325,4 @@ struct IRHost {
   }
 };
 
-} // namespace YIR
+} // namespace SyOC

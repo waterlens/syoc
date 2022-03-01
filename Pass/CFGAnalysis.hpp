@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
 
 #include "AssignIdentityHelper.hpp"
@@ -8,7 +8,7 @@
 #include <cassert>
 #include <stdexcept>
 
-namespace YIR {
+namespace SyOC {
 
 class CFGAnalysis final {
 public:
@@ -17,4 +17,4 @@ public:
   void operator()(IRHost &host);
 };
 
-} // namespace YIR
+} // namespace SyOC

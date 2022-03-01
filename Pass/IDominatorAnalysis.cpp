@@ -1,6 +1,6 @@
 #include "IDominatorAnalysis.hpp"
 
-namespace YIR {
+namespace SyOC {
 
 int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
                                   int now) {
@@ -106,4 +106,4 @@ void IDominatorAnalysis::operator()(IRHost &host) {
     calculateImmediateDominator(func);
   }
 }
-} // namespace YIR
+} // namespace SyOC

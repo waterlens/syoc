@@ -1,9 +1,9 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include <algorithm>
 
-namespace YIR {
+namespace SyOC {
 
 inline void assignIdentity(IRHost &host) {
   unsigned long long id = 0;
@@ -19,4 +19,4 @@ inline void assignIdentity(IRHost &host) {
     });
 }
 
-} // namespace YIR
+} // namespace SyOC

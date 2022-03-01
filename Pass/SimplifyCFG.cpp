@@ -1,6 +1,6 @@
 #include "SimplifyCFG.hpp"
 
-namespace YIR {
+namespace SyOC {
 
 void SimplifyCFG::clearExtraJump(BasicBlock *bb) {
   for (auto iter = bb->begin(); iter != bb->end(); ++iter)

@@ -2,7 +2,7 @@
 
 #include "AssignIdentityHelper.hpp"
 #include "IDominatorAnalysis.hpp"
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "CFGAnalysis.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/GraphHelper.hpp"
@@ -20,7 +20,7 @@
 #include <string_view>
 #include <unordered_set>
 
-namespace YIR {
+namespace SyOC {
 class CFGDump {
   static void dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb);
 
@@ -60,4 +60,4 @@ public:
     dumpIRText(host);
   }
 };
-} // namespace YIR
+} // namespace SyOC

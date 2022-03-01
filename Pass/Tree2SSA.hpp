@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IR/YIR.hpp"
+#include "IR/IR.hpp"
 #include "Util/TrivialValueVector.hpp"
 
 #include <algorithm>
@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace YIR {
+namespace SyOC {
 class Tree2SSA final {
   using Dimension = TrivialValueVector<unsigned>;
   using TypeDimension = std::pair<Type, Dimension>;
@@ -72,4 +72,4 @@ public:
     out = host;
   }
 };
-} // namespace YIR
+} // namespace SyOC
