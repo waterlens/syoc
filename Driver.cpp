@@ -1,12 +1,9 @@
-#include "IR/IR.hpp"
 #include "Parser/Parser.hpp"
-#include "Pass/LocalCopyPropagation.hpp"
 #include "Pass/PassCollection.hpp"
-#include "Pass/SimpleAllocationElimination.hpp"
-#include "Pass/UseAnalysis.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
+#include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <fmt/core.h>
 #include <fstream>
@@ -15,6 +12,7 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {
+  RuntimeStack::set_max_size(RuntimeStack::hard_max_size());
   OptionParser optParser;
   optParser.add(Option<bool>("--help", "-h").setDefault("false"),
                 Option<bool>("--version", "-v").setDefault("false"),
@@ -46,14 +44,16 @@ void starttime();
 void stoptime();
 )" + fileContent;
 
-  Parser parser(fileContent);
+  SyOC::Parser parser(fileContent);
   parser.tokenize();
   auto *tree = parser.parse();
-  Transformer transformer(tree);
-  transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
-  transformer.doTree2SSATransformation<Tree2SSA>();
-  transformer.doSSATransformation<
-    BBPredSuccAnalysis, SimplifyCFG, UseAnalysis, SimpleAllocationElimination,
-    LocalCopyPropagation, CFGDump, IRDump, IDominatorDump>();
+  SyOC::Transformer transformer(tree);
+  transformer
+    .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
+  transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
+  transformer
+    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+                         SyOC::SimpleAllocationElimination, SyOC::IRDump,
+                         SyOC::CFGDump, SyOC::IDominatorDump>();
   return 0;
 }

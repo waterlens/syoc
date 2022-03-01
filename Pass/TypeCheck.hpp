@@ -1,16 +1,16 @@
 #pragma once
 
-#include "PassBase.hpp"
 #include "Tree/Tree.hpp"
 #include <cassert>
 #include <stdexcept>
 
-class TypeCheck final : public TreeTransformation<TypeCheck> {
+namespace SyOC {
+class TypeCheck final {
 private:
   NodePtr root;
-  FunctionDeclaration *current_function;
+  TreeFunctionDeclaration *current_function;
 
-  static bool isArrayType(const Type &type) { return !type.dim.empty(); }
+  static bool isArrayType(const TreeType &type) { return !type.dim.empty(); }
 
   static bool isPointerLogicOp(OpType op) {
     return op == OP_Land || op == OP_Lor;
@@ -25,50 +25,50 @@ private:
     return op == OP_Add || op == OP_Sub;
   }
 
-  static void checkInitializerCompatible(ExprPtr expr, const Type &type) {
-    if (isArrayType(type) && !expr->is<InitListExpr *>())
+  static void checkInitializerCompatible(ExprPtr expr, const TreeType &type) {
+    if (isArrayType(type) && !expr->is<TreeInitListExpr *>())
       throw std::runtime_error("initializer list required");
     for (auto *dim : type.dim) {
-      if (!dim->is<IntegerLiteral *>())
+      if (!dim->is<TreeIntegerLiteral *>())
         throw std::runtime_error(
           "array dimension must be non-negative integer");
     }
   }
 
-  static Type combine(OpType op, const Type &lhs, const Type &rhs) {
+  static TreeType combine(OpType op, const TreeType &lhs, const TreeType &rhs) {
     if (!isArrayType(lhs) && !isArrayType(rhs))
-      return Type{TS_Int, TQ_None, {}};
+      return TreeType{TS_Int, TQ_None, {}};
     throw std::runtime_error("pointer arithmetic not allowed");
     // support pointer arithmetic if required
     {
       if (isArrayType(lhs) && !isArrayType(rhs)) {
         if (isPointerArithmeticOp(op))
-          return Type{TS_Int, TQ_None, lhs.dim};
+          return TreeType{TS_Int, TQ_None, lhs.dim};
         if (isPointerComparasionOp(op) || isPointerLogicOp(op))
-          return Type{TS_Int, TQ_None, {}};
+          return TreeType{TS_Int, TQ_None, {}};
         throw std::runtime_error("incompatible types when lhs is an array");
       }
       if (!isArrayType(lhs) && isArrayType(rhs)) {
         if (op == OP_Add)
-          return Type{TS_Int, TQ_None, rhs.dim};
+          return TreeType{TS_Int, TQ_None, rhs.dim};
         if (isPointerComparasionOp(op) || isPointerLogicOp(op))
-          return Type{TS_Int, TQ_None, {}};
+          return TreeType{TS_Int, TQ_None, {}};
         throw std::runtime_error("incompatible types when rhs is an array");
       }
       // isArrayType(lhs) && isArrayType(rhs)
       if (isPointerComparasionOp(op) || isPointerLogicOp(op))
-        return Type{TS_Int, TQ_None, {}};
+        return TreeType{TS_Int, TQ_None, {}};
       if (op == OP_Sub) {
         if (lhs.dim.size() != rhs.dim.size())
           throw std::runtime_error("incompatible array dimensions");
-        return Type{TS_Int, TQ_None, lhs.dim};
+        return TreeType{TS_Int, TQ_None, lhs.dim};
       }
       throw std::runtime_error(
         "unable to apply such an operator on both array types");
     }
   }
 
-  static void checkArrayDimensionViolation(VariableDeclaration *decl) {
+  static void checkArrayDimensionViolation(TreeVariableDeclaration *decl) {
     if (decl->type.qual == TQ_Const && decl->initializer == nullptr)
       throw std::runtime_error(
         fmt::format("const variable {} must be initialized", decl->name));
@@ -77,29 +77,30 @@ private:
   }
 
   void checkStatement(NodePtr stmt) {
-    if (stmt->is<CompoundStmt *>())
+    if (stmt->is<TreeCompoundStmt *>())
       checkCompoundStmt(stmt);
     if (isVariableDeclaration(stmt))
-      checkArrayDimensionViolation(stmt->as_unchecked<VariableDeclaration *>());
+      checkArrayDimensionViolation(
+        stmt->as_unchecked<TreeVariableDeclaration *>());
     if (isExpression(stmt))
       checkExpr(stmt->as_unchecked<ExprPtr>());
-    if (stmt->is<IfStmt *>())
+    if (stmt->is<TreeIfStmt *>())
       checkIfStmt(stmt);
-    if (stmt->is<WhileStmt *>())
+    if (stmt->is<TreeWhileStmt *>())
       checkWhileStmt(stmt);
-    if (stmt->is<ReturnStmt *>())
+    if (stmt->is<TreeReturnStmt *>())
       checkReturnStmt(stmt);
   }
 
   void checkCompoundStmt(NodePtr stmt) {
-    assert(stmt->is<CompoundStmt *>());
-    for (auto *child : stmt->as_unchecked<CompoundStmt *>()->stmts)
+    assert(stmt->is<TreeCompoundStmt *>());
+    for (auto *child : stmt->as_unchecked<TreeCompoundStmt *>()->stmts)
       checkStatement(child);
   }
 
   void checkIfStmt(NodePtr stmt) {
-    assert(stmt->is<IfStmt *>());
-    auto *if_stmt = stmt->as_unchecked<IfStmt *>();
+    assert(stmt->is<TreeIfStmt *>());
+    auto *if_stmt = stmt->as_unchecked<TreeIfStmt *>();
     assert(isExpression(if_stmt->condition));
     auto cond_type = checkExpr(if_stmt->condition->as_unchecked<ExprPtr>());
     checkStatement(if_stmt->then_stmt);
@@ -108,17 +109,17 @@ private:
   }
 
   void checkWhileStmt(NodePtr stmt) {
-    assert(stmt->is<WhileStmt *>());
-    auto *while_stmt = stmt->as_unchecked<WhileStmt *>();
+    assert(stmt->is<TreeWhileStmt *>());
+    auto *while_stmt = stmt->as_unchecked<TreeWhileStmt *>();
     assert(isExpression(while_stmt->condition));
     auto cond_type = checkExpr(while_stmt->condition->as_unchecked<ExprPtr>());
     checkStatement(while_stmt->body);
   }
 
   void checkReturnStmt(NodePtr stmt) {
-    assert(stmt->is<ReturnStmt *>());
+    assert(stmt->is<TreeReturnStmt *>());
     assert(current_function);
-    auto *ret = stmt->as_unchecked<ReturnStmt *>();
+    auto *ret = stmt->as_unchecked<TreeReturnStmt *>();
     if (current_function->return_type.spec == TS_Void && ret->value != nullptr)
       throw std::runtime_error("void function cannot return a value");
     if (current_function->return_type.spec == TS_Void && ret->value == nullptr)
@@ -131,10 +132,10 @@ private:
       throw std::runtime_error("return type mismatch");
   }
 
-  Type checkExpr(ExprPtr expr) {
+  TreeType checkExpr(ExprPtr expr) {
     switch (expr->node_type) {
     case ND_IntegerLiteral:
-      return Type{TS_Int, TQ_None, {}};
+      return TreeType{TS_Int, TQ_None, {}};
     case ND_ArraySubscriptExpr:
       return checkArraySubscriptExpr(expr);
     case ND_UnaryExpr:
@@ -152,9 +153,9 @@ private:
     }
   }
 
-  Type checkArraySubscriptExpr(ExprPtr expr) {
-    assert(expr->is<ArraySubscriptExpr *>());
-    auto *array_subscript = expr->as_unchecked<ArraySubscriptExpr *>();
+  TreeType checkArraySubscriptExpr(ExprPtr expr) {
+    assert(expr->is<TreeArraySubscriptExpr *>());
+    auto *array_subscript = expr->as_unchecked<TreeArraySubscriptExpr *>();
     auto *array = array_subscript->array;
     auto *subscript = array_subscript->subscript;
     auto array_type = checkExpr(array);
@@ -168,21 +169,21 @@ private:
     std::vector<ExprPtr> new_dim;
     for (size_t i = 1; i < array_type.dim.size(); i++)
       new_dim.push_back(array_type.dim[i]);
-    return Type{array_type.spec, array_type.qual, new_dim};
+    return TreeType{array_type.spec, array_type.qual, new_dim};
   }
 
-  Type checkUnaryExpr(ExprPtr expr) {
-    assert(expr->is<UnaryExpr *>());
-    auto *unary = expr->as_unchecked<UnaryExpr *>();
+  TreeType checkUnaryExpr(ExprPtr expr) {
+    assert(expr->is<TreeUnaryExpr *>());
+    auto *unary = expr->as_unchecked<TreeUnaryExpr *>();
     auto unary_type = checkExpr(unary->operand);
     if (unary_type.spec == TS_Void)
       throw std::runtime_error("cannot apply unary operator to void");
-    return Type{TS_Int, TQ_None, {}};
+    return TreeType{TS_Int, TQ_None, {}};
   }
 
-  Type checkBinaryExpr(ExprPtr expr) {
-    assert(expr->is<BinaryExpr *>());
-    auto *binary = expr->as_unchecked<BinaryExpr *>();
+  TreeType checkBinaryExpr(ExprPtr expr) {
+    assert(expr->is<TreeBinaryExpr *>());
+    auto *binary = expr->as_unchecked<TreeBinaryExpr *>();
     auto lhs_type = checkExpr(binary->lhs);
     auto rhs_type = checkExpr(binary->rhs);
     if (lhs_type.spec == TS_Void || rhs_type.spec == TS_Void)
@@ -190,21 +191,21 @@ private:
     return combine(binary->op, lhs_type, rhs_type);
   }
 
-  static bool isCompatible(const Type &a, const Type &b) {
+  static bool isCompatible(const TreeType &a, const TreeType &b) {
     return a.spec == b.spec && a.dim.size() == b.dim.size();
   }
 
-  Type checkCallExpr(ExprPtr expr) {
-    assert(expr->is<CallExpr *>());
-    auto *call = expr->as_unchecked<CallExpr *>();
+  TreeType checkCallExpr(ExprPtr expr) {
+    assert(expr->is<TreeCallExpr *>());
+    auto *call = expr->as_unchecked<TreeCallExpr *>();
     auto *func = call->func;
-    if (!func->is<RefExpr *>())
+    if (!func->is<TreeRefExpr *>())
       throw std::runtime_error(
         "cannot call non-function (function pointer is not supported)");
-    auto *decl = func->as_unchecked<RefExpr *>()->decl;
-    if (!decl->is<FunctionDeclaration *>())
+    auto *decl = func->as_unchecked<TreeRefExpr *>()->decl;
+    if (!decl->is<TreeFunctionDeclaration *>())
       throw std::runtime_error("cannot call non-function");
-    auto *func_decl = decl->as_unchecked<FunctionDeclaration *>();
+    auto *func_decl = decl->as_unchecked<TreeFunctionDeclaration *>();
     auto &args = call->args;
     if (args.size() != func_decl->parameters.size())
       throw std::runtime_error(
@@ -219,15 +220,15 @@ private:
     return func_decl->return_type;
   }
 
-  static Type checkRefExpr(ExprPtr expr) {
-    assert(expr->is<RefExpr *>());
-    auto *ref = expr->as_unchecked<RefExpr *>();
+  static TreeType checkRefExpr(ExprPtr expr) {
+    assert(expr->is<TreeRefExpr *>());
+    auto *ref = expr->as_unchecked<TreeRefExpr *>();
     auto *decl = ref->decl;
     if (isVariableDeclaration(decl)) {
-      return decl->as_unchecked<VariableDeclaration *>()->type;
+      return decl->as_unchecked<TreeVariableDeclaration *>()->type;
     }
-    if (decl->is<FunctionDeclaration *>()) {
-      auto *func = decl->as_unchecked<FunctionDeclaration *>();
+    if (decl->is<TreeFunctionDeclaration *>()) {
+      auto *func = decl->as_unchecked<TreeFunctionDeclaration *>();
       if (ref->name == func->name)
         throw std::runtime_error("cannot take address of function (function "
                                  "pointer is not supported)");
@@ -239,9 +240,9 @@ private:
     throw std::runtime_error("not a valid name reference");
   }
 
-  Type checkAssignExpr(ExprPtr expr) {
-    assert(expr->is<AssignExpr *>());
-    auto *assign = expr->as_unchecked<AssignExpr *>();
+  TreeType checkAssignExpr(ExprPtr expr) {
+    assert(expr->is<TreeAssignExpr *>());
+    auto *assign = expr->as_unchecked<TreeAssignExpr *>();
     auto lhs_type = checkExpr(assign->lhs);
     auto rhs_type = checkExpr(assign->rhs);
     if (lhs_type.spec == TS_Void || rhs_type.spec == TS_Void)
@@ -253,23 +254,23 @@ private:
     return lhs_type;
   }
 
-  void functionIteration(FunctionDeclaration *func) {
+  void functionIteration(TreeFunctionDeclaration *func) {
     if (func->body == nullptr)
       return;
-    auto *body = func->body->as<CompoundStmt *>();
+    auto *body = func->body->as<TreeCompoundStmt *>();
     current_function = func;
     checkCompoundStmt(body);
     current_function = nullptr;
   }
 
   void globalIteration() {
-    auto *module = root->as<Module *>();
+    auto *module = root->as<TreeModule *>();
     for (auto *decl : module->decls) {
-      if (decl->is<GlobalDeclaration *>()) {
-        auto *p = decl->as_unchecked<GlobalDeclaration *>();
+      if (decl->is<TreeGlobalDeclaration *>()) {
+        auto *p = decl->as_unchecked<TreeGlobalDeclaration *>();
         checkArrayDimensionViolation(p);
       } else if (isFunctionDeclaration(decl)) {
-        auto *f = decl->as_unchecked<FunctionDeclaration *>();
+        auto *f = decl->as_unchecked<TreeFunctionDeclaration *>();
         functionIteration(f);
       } else {
         throw std::runtime_error("unknown node in the top level of module");
@@ -279,12 +280,11 @@ private:
 
 public:
   TypeCheck() = default;
-  [[nodiscard]] static std::string_view getName()  {
-    return "Type Check";
-  }
+  [[nodiscard]] static std::string_view getName() { return "Type Check"; }
   void operator()(NodePtr &tree) {
     root = tree;
     globalIteration();
     tree = root;
   }
 };
+} // namespace SyOC

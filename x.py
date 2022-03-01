@@ -223,6 +223,8 @@ def main():
 
     args = parser.parse_args()
 
+    os.environ['ASAN_OPTIONS'] = 'detect_leaks=0'
+
     if args.command == 'compile':
         compile(args)
     elif args.command == 'check':

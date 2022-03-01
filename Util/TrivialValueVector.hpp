@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+#include <algorithm>
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
@@ -20,14 +22,14 @@ public:
   using difference_type = std::ptrdiff_t;
 
 private:
-  unsigned m_capacity;
-  unsigned m_size{};
+  size_type m_capacity;
+  size_type m_size{};
   T *m_access_ptr;
   T m_small_data[DefaultSize];
   bool m_heap_allocated{};
 
   constexpr void grow() {
-    auto new_capacity = m_capacity + m_capacity / 2;
+    auto new_capacity = std::max(4U, m_capacity + m_capacity / 2);
     T *new_data = new T[new_capacity];
     for (unsigned i = 0; i < m_size; ++i) new_data[i] = m_access_ptr[i];
     if (m_heap_allocated)
@@ -83,21 +85,31 @@ public:
     auto p = m_access_ptr;
     for (auto &&elem : l) *p++ = elem;
   }
-  const T &operator[](unsigned i) const { return m_access_ptr[i]; }
-  const T &at(unsigned i) const {
+  const_reference operator[](size_type i) const { return m_access_ptr[i]; }
+  const_reference at(size_type i) const {
     if (i >= m_size)
       throw std::out_of_range("TrivialValueVector::at");
     return m_access_ptr[i];
   }
-  T &operator[](unsigned i) { return m_access_ptr[i]; }
-  T &at(unsigned i) {
+  reference operator[](size_type i) { return m_access_ptr[i]; }
+  reference &at(size_type i) {
     if (i >= m_size)
       throw std::out_of_range("TrivialValueVector::at");
     return m_access_ptr[i];
   }
-  constexpr void push_back(const T &value) {
+  constexpr void push_back(const_reference value) {
+    assert(m_size <= m_capacity);
     if (m_size == m_capacity)
       grow();
+    m_access_ptr[m_size++] = value;
+  }
+  template <typename Hook1, typename Hook2>
+  constexpr void push_back_with_hook(const_reference value, Hook1 pre_hook, Hook2 post_hook) {
+    if (m_size == m_capacity) {
+      for (size_t i = 0; i < m_size; ++i) pre_hook(m_access_ptr[i]);
+      grow();
+      for (size_t i = 0; i < m_size; ++i) post_hook(m_access_ptr[i]);
+    }
     m_access_ptr[m_size++] = value;
   }
   constexpr void pop_back() {
@@ -112,7 +124,7 @@ public:
     }
   }
   [[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
-  [[nodiscard]] constexpr unsigned size() const noexcept { return m_size; }
+  [[nodiscard]] constexpr size_type size() const noexcept { return m_size; }
   constexpr iterator begin() noexcept { return m_access_ptr; }
   constexpr iterator end() noexcept { return m_access_ptr + m_size; }
   constexpr const_iterator begin() const noexcept { return m_access_ptr; }

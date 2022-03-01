@@ -23,6 +23,7 @@
 
 #include "Tree/Tree.hpp"
 
+namespace SyOC {
 enum class TokenType {
   IntegerConstant,
   Keyword,
@@ -119,7 +120,7 @@ struct Parser {
   void skipBlockComment() {
     index += 2;
     const auto *begin = input.c_str() + index;
-    auto *closed = strstr(begin, "*/");
+    const auto *closed = strstr(begin, "*/");
     if (closed == nullptr)
       throw std::runtime_error("block comment doesn't have a close tag");
     index += closed - begin;
@@ -224,7 +225,7 @@ struct Parser {
     if (consume("="))
       rhs = assignmentExpression();
     if (rhs != nullptr)
-      return new AssignExpr{lhs, rhs};
+      return new TreeAssignExpr{lhs, rhs};
     return lhs;
   }
 
@@ -255,7 +256,7 @@ struct Parser {
       if (bin_op_code.count(tok.text) == 0U)
         throw std::runtime_error(
           fmt::format("unknown binary operator {}", tok.text));
-      lhs = new BinaryExpr{bin_op_code.find(tok.text)->second, lhs, rhs};
+      lhs = new TreeBinaryExpr{bin_op_code.find(tok.text)->second, lhs, rhs};
     }
     return lhs;
   }
@@ -273,7 +274,7 @@ struct Parser {
       OpType op = next_tok.text == "-"   ? OP_Neg
                   : next_tok.text == "!" ? OP_Lnot
                                          : OP_End;
-      return new UnaryExpr{op, unaryExpression()};
+      return new TreeUnaryExpr{op, unaryExpression()};
     }
     return postfixExpression();
   }
@@ -284,10 +285,10 @@ struct Parser {
       if (consume("[")) {
         auto *dim = expression();
         expect("]");
-        expr = new ArraySubscriptExpr{expr, dim};
+        expr = new TreeArraySubscriptExpr{expr, dim};
       } else if (peek("(")) {
         auto args = argumentExpressionList();
-        expr = new CallExpr{expr, args};
+        expr = new TreeCallExpr{expr, args};
       }
     return expr;
   }
@@ -314,14 +315,14 @@ struct Parser {
     skip();
     if (tok.token_type == TokenType::IntegerConstant) {
       convert_buffer = tok.text;
-      return new IntegerLiteral{
+      return new TreeIntegerLiteral{
         std::strtoll(convert_buffer.c_str(), nullptr, 0)};
     }
     if (tok.token_type == TokenType::Identifier) {
       auto *node = scope.find(tok.text);
       if (node == nullptr)
         throw std::runtime_error(fmt::format("undefined symbol {}", tok.text));
-      return new RefExpr{tok.text, node};
+      return new TreeRefExpr{tok.text, node};
     }
     throw std::runtime_error(fmt::format("unexpected token {}", tok.text));
   }
@@ -339,7 +340,7 @@ struct Parser {
       else_stmt = statement();
     else
       else_stmt = nullptr;
-    return new IfStmt{cond, then_stmt, else_stmt};
+    return new TreeIfStmt{cond, then_stmt, else_stmt};
   }
 
   NodePtr iterationStatement() {
@@ -351,20 +352,20 @@ struct Parser {
     expect(")");
     body_stmt = statement();
 
-    return new WhileStmt{cond, body_stmt};
+    return new TreeWhileStmt{cond, body_stmt};
   }
 
   NodePtr jumpStatement() {
     NodePtr stmt;
     if (consume("continue"))
-      stmt = new ContinueStmt{nullptr};
+      stmt = new TreeContinueStmt{nullptr};
     else if (consume("break"))
-      stmt = new BreakStmt{nullptr};
+      stmt = new TreeBreakStmt{nullptr};
     else if (consume("return")) {
       ExprPtr expr = nullptr;
       if (!peek(";"))
         expr = expression();
-      stmt = new ReturnStmt{expr};
+      stmt = new TreeReturnStmt{expr};
     }
     expect(";");
     return stmt;
@@ -376,7 +377,7 @@ struct Parser {
       expr = expression();
     }
     expect(";");
-    return expr != nullptr ? expr : new CompoundStmt{{}};
+    return expr != nullptr ? expr : new TreeCompoundStmt{{}};
   }
 
   NodePtr statement() {
@@ -410,7 +411,7 @@ struct Parser {
 
   NodePtr compoundStatement() {
     scope.enter();
-    auto *stmt = new CompoundStmt{{}};
+    auto *stmt = new TreeCompoundStmt{{}};
     expect("{");
     while (!peek("}")) blockItem(stmt->stmts);
     expect("}");
@@ -432,7 +433,7 @@ struct Parser {
       auto initList = initializerList();
       consume(",");
       expect("}");
-      return new InitListExpr{initList};
+      return new TreeInitListExpr{initList};
     }
     auto *expr = assignmentExpression();
     return expr;
@@ -444,7 +445,8 @@ struct Parser {
     std::vector<NodePtr> all_decls;
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0) {
-      auto *func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      auto *func =
+        new TreeFunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
       all_decls.emplace_back(func);
       if (peek("{")) { // function definition
@@ -462,10 +464,10 @@ struct Parser {
     } else {
       if (consume("="))
         init = initializer();
-      auto ty = Type{declspec.spec, declspec.qual,
-                     index == 1 ? dimensions : std::vector<ExprPtr>{}};
+      auto ty = TreeType{declspec.spec, declspec.qual,
+                         index == 1 ? dimensions : std::vector<ExprPtr>{}};
 
-      all_decls.emplace_back(new GlobalDeclaration{ty, name, init});
+      all_decls.emplace_back(new TreeGlobalDeclaration{ty, name, init});
       scope.insert(name, all_decls.back());
 
       while (consume(",")) {
@@ -476,14 +478,15 @@ struct Parser {
     return all_decls;
   }
 
-  NodePtr initDeclarator(const Type &declspec, bool is_global) {
+  NodePtr initDeclarator(const TreeType &declspec, bool is_global) {
     auto [name, index, param_list, dimensions] = declarator();
     ExprPtr init = nullptr;
     if (consume("="))
       init = initializer();
 
     if (index == 0) {
-      auto *func = new FunctionDeclaration{declspec, name, param_list, nullptr};
+      auto *func =
+        new TreeFunctionDeclaration{declspec, name, param_list, nullptr};
       scope.insert(name, func);
       scope.enter();
       for (auto &param : param_list) scope.insert(param.first, func);
@@ -491,29 +494,29 @@ struct Parser {
       return func;
     }
 
-    auto ty = Type{declspec.spec, declspec.qual,
-                   index == 1 ? dimensions : std::vector<ExprPtr>{}};
-    auto *decl = is_global ? (new GlobalDeclaration{ty, name, init})
-                               ->as_unchecked<VariableDeclaration *>()
-                           : (new LocalDeclaration{ty, name, init})
-                               ->as_unchecked<VariableDeclaration *>();
+    auto ty = TreeType{declspec.spec, declspec.qual,
+                       index == 1 ? dimensions : std::vector<ExprPtr>{}};
+    auto *decl = is_global ? (new TreeGlobalDeclaration{ty, name, init})
+                               ->as_unchecked<TreeVariableDeclaration *>()
+                           : (new TreeLocalDeclaration{ty, name, init})
+                               ->as_unchecked<TreeVariableDeclaration *>();
     scope.insert(name, decl);
     return decl;
   }
 
-  std::pair<std::string_view, Type> parameterDeclaration() {
-    Type declspec = declarationSpecifiers();
+  std::pair<std::string_view, TreeType> parameterDeclaration() {
+    TreeType declspec = declarationSpecifiers();
     auto [name, index, param_list, dimensions] = declarator();
     if (index == 0)
       throw std::runtime_error(
         "can't use function declarator in a parameter list");
-    auto ty = Type{declspec.spec, declspec.qual,
-                   index == 1 ? dimensions : std::vector<ExprPtr>{}};
+    auto ty = TreeType{declspec.spec, declspec.qual,
+                       index == 1 ? dimensions : std::vector<ExprPtr>{}};
     return {name, ty};
   }
 
-  std::vector<std::pair<std::string_view, Type>> parameterTypeList() {
-    std::vector<std::pair<std::string_view, Type>> param;
+  std::vector<std::pair<std::string_view, TreeType>> parameterTypeList() {
+    std::vector<std::pair<std::string_view, TreeType>> param;
     expect("(");
     if (!peek(")")) {
       param.emplace_back(parameterDeclaration());
@@ -537,7 +540,7 @@ struct Parser {
       skip();
       if (peek("]"))
         dimensions.emplace_back(
-          new IntegerLiteral{std::numeric_limits<int64_t>::max()});
+          new TreeIntegerLiteral{std::numeric_limits<int64_t>::max()});
       else
         dimensions.push_back(assignmentExpression());
 
@@ -547,11 +550,11 @@ struct Parser {
   }
 
   std::tuple<std::string_view, size_t,
-             std::vector<std::pair<std::string_view, Type>>,
+             std::vector<std::pair<std::string_view, TreeType>>,
              std::vector<ExprPtr>>
   declarator() {
     Token name = expectIdentifier();
-    std::vector<std::pair<std::string_view, Type>> param_list;
+    std::vector<std::pair<std::string_view, TreeType>> param_list;
     std::vector<ExprPtr> dimensions;
     size_t index;
     if (peek("(")) {
@@ -567,7 +570,7 @@ struct Parser {
     return {name.text, index, param_list, dimensions};
   }
 
-  Type declarationSpecifiers() {
+  TreeType declarationSpecifiers() {
     TypeQualifier qual = TQ_None;
     TypeSpecifier spec = TS_None;
 
@@ -585,7 +588,7 @@ struct Parser {
     if (spec == TS_None)
       throw std::runtime_error("expect type specifier");
 
-    return Type{spec, qual, std::vector<ExprPtr>{}};
+    return TreeType{spec, qual, std::vector<ExprPtr>{}};
   }
 
   NodePtr translationUnit() {
@@ -599,7 +602,7 @@ struct Parser {
       for (auto &e : decl) decls.emplace_back(e);
     }
     scope.exit();
-    return new Module{decls};
+    return new TreeModule{decls};
   }
 
   NodePtr parse() { return translationUnit(); }
@@ -607,3 +610,4 @@ struct Parser {
   Parser(const std::string &input)
     : input(input), input_view(input), index(0), token_index(0) {}
 };
+} // namespace SyOC

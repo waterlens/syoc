@@ -1,27 +1,19 @@
 #pragma once
 
-class BBPredSuccAnalysis;
-class BasicBlockTraversalAnalysis;
-class ConstantInitializerFold;
-class IDominatorAnalysis;
-class IRDump;
-class CFGDump;
-class IDominatorDump;
-class SimplifyCFG;
+namespace SyOC {
 class Tree2SSA;
+class IRDump;
+class SimplifyCFG;
+class CFGAnalysis;
+class SimpleAllocationElimination;
 class TypeCheck;
-class UseAnalysis;
+class ConstantInitializerFold;
+}
 
-#include "BBPredSuccAnalysis.hpp"
-#include "BasicBlockTraversalAnalysis.hpp"
 #include "ConstantInitializerFold.hpp"
-#include "IDominatorAnalysis.hpp"
+#include "TypeCheck.hpp"
+#include "Tree2SSA.hpp"
 #include "Dump.hpp"
 #include "SimplifyCFG.hpp"
-#include "Tree2SSA.hpp"
-#include "TypeCheck.hpp"
-#include "UseAnalysis.hpp"
-#include "ValuePoolCompact.hpp"
+#include "CFGAnalysis.hpp"
 #include "SimpleAllocationElimination.hpp"
-#include "LocalCopyPropagation.hpp"
-#include "PromoteMemToReg.hpp"

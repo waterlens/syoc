@@ -1,25 +1,16 @@
 #pragma once
 
 #include "IR/IR.hpp"
-#include "Pass/Dump.hpp"
-#include "Pass/IDominatorAnalysis.hpp"
-#include "Pass/UseAnalysis.hpp"
-#include "PassBase.hpp"
-#include "Tree/Tree.hpp"
-#include "Util/Filter.hpp"
-#include "Util/TrivialValueVector.hpp"
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
 
-class SimpleAllocationElimination
-  : public SSATransformation<SimpleAllocationElimination> {
+namespace SyOC {
+class SimpleAllocationElimination {
 private:
   static void eliminateDeadAllocation(IRHost &host);
-
   static void eliminateSingleDefinitionAllocation(IRHost &host);
-
-  static void eliminateSingleBlockAllocation(IRHost &host);
+  static void eliminateLocalLoad(IRHost &host);
 
 public:
   SimpleAllocationElimination() = default;
@@ -29,7 +20,9 @@ public:
   void operator()(IRHost &host) {
     eliminateDeadAllocation(host);
     eliminateSingleDefinitionAllocation(host);
-    eliminateSingleBlockAllocation(host);
+    eliminateDeadAllocation(host);
+    eliminateLocalLoad(host);
     eliminateDeadAllocation(host);
   }
 };
+} // namespace SyOC

@@ -1,0 +1,24 @@
+int loopCount = 100;
+
+int f() {
+  int sum = 1;
+  int i = 2;
+  loopCount = getint();
+  while(i<loopCount)
+  {
+    int tmp = 3;
+    int j = 4;
+    while(j<300)
+    {
+      tmp = tmp + 5;
+      j = j + 6;
+    }
+    tmp = tmp / 7;
+    sum = sum + tmp;
+    sum = sum % 8;
+    i = i + 9;
+  }
+  putint(sum);
+  putch(10);
+  return 0;
+}

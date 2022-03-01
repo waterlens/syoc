@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -18,21 +19,20 @@
 #include <variant>
 #include <vector>
 
-#include "IR/IR.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/Filter.hpp"
+#include "Util/List.hpp"
 #include "Util/TrivialValueVector.hpp"
 
+namespace SyOC {
+
 #define SSAValueTypeDefine(x) x,
-enum SSAValueType {
+enum ClassType {
 #include "Common/Common.def"
 };
 
-struct SSAValueHandle;
-struct SSAType;
-struct SSAValue;
-struct SSAValue;
-
+struct Type;
+struct Value;
 struct Module;
 struct BasicBlock;
 struct Instruction;
@@ -41,323 +41,288 @@ struct GlobalVariable;
 struct Function;
 struct Argument;
 
-struct IRHost;
-
-struct SSAValueHandle {
-  unsigned id;
-  operator unsigned() const { return id; }
-  [[nodiscard]] bool isValid() const {
-    return id != std::numeric_limits<unsigned>::max();
-  }
-  static SSAValueHandle InvalidValueHandle() {
-    return SSAValueHandle{std::numeric_limits<unsigned>::max()};
-  }
-};
-
-template <> struct std::hash<SSAValueHandle> {
-  std::size_t operator()(const SSAValueHandle &h) const noexcept {
-    return std::hash<unsigned>{}(h.id);
-  }
-};
-
-constexpr auto handleIsValid = [](const SSAValueHandle &handle) {
-  return handle.isValid();
-};
-
-struct SSAType {
+struct Type {
   enum class PrimitiveType : uint16_t {
     Void,
     Integer,
   } primitive_type;
   uint8_t width;
   uint8_t pointer;
-  TrivialValueVector<unsigned, 2> dim;
-  SSAType &reference(uint8_t n = 1) {
+  Type &reference(uint8_t n = 1) {
     pointer += n;
     return *this;
   }
-  [[nodiscard]] SSAType createReference(uint8_t n = 1) const {
-    SSAType ty = *this;
+  [[nodiscard]] Type createReference(uint8_t n = 1) const {
+    Type ty = *this;
     ty.reference(n);
     return ty;
   }
-  SSAType &dereference() {
+  Type &dereference() {
     if (pointer != 0U)
       pointer--;
     else
       throw std::runtime_error("can't deref this");
     return *this;
   }
-  [[nodiscard]] SSAType createDereference() const {
-    SSAType ty = *this;
+  [[nodiscard]] Type createDereference() const {
+    Type ty = *this;
     ty.dereference();
     return ty;
   }
 };
 
-static inline const SSAType VoidType = {SSAType::PrimitiveType::Void, 0, 0, {}};
-static inline const SSAType IntType = {
-  SSAType::PrimitiveType::Integer, 32, 0, {}};
-static inline const SSAType PointerType = {
-  SSAType::PrimitiveType::Integer, 32, 1, {}};
+struct PredefinedType {
+  static inline const Type Void = {Type::PrimitiveType::Void, 0, 0};
+  static inline const Type Int32 = {Type::PrimitiveType::Integer, 32, 0};
+  static inline const Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
+};
 
-struct SSAValue {
-  SSAValueType value_type;
-  SSAValueHandle parent;
-  SSAValueHandle identity;
-  TrivialValueVector<SSAValueHandle, 4> user;
+struct UseEdge final : public ListNode<UseEdge> {
+  Value *from;
+  Value *to;
+  UseEdge() = delete;
+  UseEdge(const UseEdge &edge) : UseEdge(edge.from, edge.to) {}
+  UseEdge(Value *from, Value *to);
+  ~UseEdge() final;
+  void associate(Value *from);
+  UseEdge &operator=(Value *from);
+};
+
+struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
+  BasicBlock *from;
+  BasicBlock *to;
+  BasicBlockEdge() = delete;
+  BasicBlockEdge(const BasicBlockEdge &edge)
+    : BasicBlockEdge(edge.from, edge.to) {}
+  BasicBlockEdge(BasicBlock *from, BasicBlock *to);
+  ~BasicBlockEdge() final;
+  void associate(BasicBlock *from);
+  BasicBlockEdge &operator=(BasicBlock *from);
+};
+
+struct Value {
+protected:
+  ListIterator<UseEdge> edge;
+  Value *parent;
+  ClassType class_type;
+  unsigned identity = std::numeric_limits<unsigned>::max();
+
+public:
+  unsigned &getIdentity() { return identity; }
+  Value *&getParent() { return parent; }
+  Value(ClassType t) : class_type(t) {}
   template <typename T> bool is() {
-    return value_type == std::remove_pointer_t<T>::this_type;
+    return class_type == std::remove_pointer_t<T>::this_type;
   }
   template <typename T> T as() {
     if (is<T>())
       return static_cast<T>(this);
     return nullptr;
   }
-  template <typename T> T as_unchecked() { return static_cast<T>(this); }
-  template <typename T> T as() const {
-    if (is<T>())
-      return static_cast<T>(this);
-    return nullptr;
+  template <typename T> T as() const { return as<T>(); }
+  [[nodiscard]] bool hasNoEdge() const { return edge.base() == nullptr; }
+  auto &getEdge() { return edge; }
+  void removeEdge(UseEdge *edge) {
+    if (edge == getEdge().base())
+      ++getEdge();
+    edge->remove_from_list();
   }
-  template <typename T> T as_unchecked() const { return static_cast<T>(this); }
-  operator SSAValueHandle() const { return identity; }
-  [[nodiscard]] auto getValidUser() { return filter(user, handleIsValid); }
-  void removeUser(SSAValueHandle target) {
-    for (auto &user : getValidUser())
-      if (user == target)
-        user = SSAValueHandle::InvalidValueHandle();
+  void addEdge(UseEdge *edge) {
+    if (!hasNoEdge()) {
+      getEdge()->insert_before(edge);
+      --getEdge();
+    } else
+      getEdge() = edge;
   }
-
-  void removeUser(const std::unordered_set<SSAValueHandle> &set) {
-    for (auto &user : getValidUser())
-      if (set.contains(user))
-        user = SSAValueHandle::InvalidValueHandle();
+  [[nodiscard]] auto getImmutableEdges() const { return edge; }
+  [[nodiscard]] size_t getNumOfEdges() const {
+    size_t n = 0;
+    for (auto iter = getImmutableEdges(); !iter.reach_end(); ++iter)
+      ++n;
+    return n;
+  }
+  void replaceAllUsesWith(Value *new_value) const {
+    static std::vector<decltype(edge)> uses;
+    uses.clear();
+    for (auto use_iter = getImmutableEdges(); !use_iter.reach_end(); ++use_iter)
+      uses.push_back(use_iter);
+    for (auto &use : uses) use->associate(new_value);
   }
 };
 
 #undef THIS
-#define THIS(x) constexpr inline static SSAValueType this_type = x
+#define THIS(x) constexpr inline static ClassType this_type = x
 
-struct Instruction : public SSAValue {
+struct Instruction : public Value, public ListNode<Instruction> {
   THIS(SV_Instruction);
   OpType op;
-  SSAType type;
-  TrivialValueVector<SSAValueHandle, 3> args;
-  Instruction() : SSAValue{this_type} {}
+  Type type;
+  std::vector<UseEdge> input;
+  Instruction() : Value{this_type} {}
+  static Instruction *create(OpType op, Type type,
+                             std::initializer_list<Value *> inputs = {},
+                             BasicBlock *bb = nullptr);
+  [[nodiscard]] const auto &getInput() const { return input; }
+  auto &getInput() { return input; }
+
+  static inline auto addEdgeAction = [](UseEdge *edge, Value *from, Value *) {
+    from->addEdge(edge);
+  };
+
+  void addInput(Value *value) {
+    input.emplace_back(nullptr, this);
+    input.back() = value;
+  }
+
+  [[nodiscard]] bool isControlInstruction() const {
+    return op == OP_Jump || op == OP_Branch || op == OP_Return;
+  }
 };
 
-struct BasicBlock : public SSAValue {
+struct BasicBlock final : public Value, public ListNode<BasicBlock> {
   THIS(SV_BasicBlock);
-  std::vector<SSAValueHandle> insn;
-  TrivialValueVector<SSAValueHandle, 2> pred;
-  TrivialValueVector<SSAValueHandle, 2> succ;
-  unsigned extra_id;
+
+private:
+  List<Instruction> insn;
+  std::vector<BasicBlockEdge> pred;
+  ListIterator<BasicBlockEdge> succ;
+  unsigned order;
   bool visited;
-  std::unordered_set<SSAValueHandle> remove_cache;
-  BasicBlock() : SSAValue{this_type} {}
-  [[nodiscard]] auto getValidInstruction() {
-    return filter(insn, handleIsValid);
+
+public:
+  BasicBlock() : Value{this_type} {}
+  ~BasicBlock() final;
+  static BasicBlock *create(Function *f = nullptr);
+  [[nodiscard]] auto begin() const { return insn.cbegin(); }
+  [[nodiscard]] auto end() const { return insn.cend(); }
+  [[nodiscard]] auto begin() { return insn.begin(); }
+  [[nodiscard]] auto end() { return insn.end(); }
+  auto &getInstruction() { return insn; }
+  auto &getPredecessor() { return pred; }
+  auto &getSuccessor() { return succ; }
+  void removeSuccessor(BasicBlockEdge *edge) {
+    if (edge == getSuccessor().base())
+      ++getSuccessor();
+    edge->remove_from_list();
   }
-  [[nodiscard]] auto getValidPredecessor() {
-    return filter(pred, handleIsValid);
-  }
-  [[nodiscard]] auto getValidSuccessor() { return filter(succ, handleIsValid); }
-  [[nodiscard]] auto getValidInstructionFront() {
-    return filter(insn, handleIsValid).front();
-  }
-  [[nodiscard]] auto getValidInstructionBack() {
-    return reverse_filter(insn, handleIsValid).front();
+  void addSuccessor(BasicBlockEdge *edge) {
+    if (getSuccessor().base() != nullptr) {
+      getSuccessor()->insert_before(edge);
+      --getSuccessor();
+    } else
+      getSuccessor() = edge;
   }
 
-  void removeInstructionInFuture(SSAValueHandle handle) {
-    remove_cache.insert(handle);
+  void addPredecessor(BasicBlock *bb) {
+    pred.emplace_back(nullptr, this);
+    pred.back() = bb;
   }
 
-  void removeInstruction() {
-    if (remove_cache.empty())
-      return;
-    for (auto &&insn : insn) {
-      if (remove_cache.count(insn) != 0)
-        insn = SSAValueHandle::InvalidValueHandle();
-    }
-    remove_cache.clear();
+  void removePredecessor(BasicBlock *bb) {
+    pred.erase(std::remove_if(pred.begin(), pred.end(), // NOLINT
+                              [=](auto &elem) { return elem.from == bb; }));
   }
+
+  [[nodiscard]] bool isNormalBasicBlock() const {
+    return insn.back().op == OP_Jump || insn.back().op == OP_Branch;
+  }
+
+  [[nodiscard]] bool isTerminatorBasicBlock() const {
+    return insn.back().op == OP_Return;
+  }
+
+  [[nodiscard]] bool isEntryBlock() const;
+
+  void linkByBranch(Value *cond, BasicBlock *true_bb, BasicBlock *false_bb) {
+    Instruction::create(OP_Branch, PredefinedType::Void,
+                        {cond, true_bb, false_bb}, this);
+  }
+  void linkByJump(BasicBlock *next_bb) {
+    Instruction::create(OP_Jump, PredefinedType::Void, {next_bb}, this);
+  }
+
+  bool &refVisited() { return visited; }
+
+  unsigned &refOrder() { return order; }
 };
 
-struct ConstantInteger : public SSAValue {
+struct ConstantInteger : public Value {
   THIS(SV_ConstantInteger);
   uint64_t value;
-  ConstantInteger() : SSAValue{this_type} {}
-};
-
-struct Argument : public SSAValue {
-  THIS(SV_Argument);
-  SSAType type;
-  std::string_view name;
-  Argument() : SSAValue{this_type} {}
-};
-
-struct Function : public SSAValue {
-  THIS(SV_Function);
-  SSAType return_type;
-  std::vector<SSAValueHandle> args;
-  std::vector<SSAValueHandle> basic_block;
-  std::string_view name;
-  bool external;
-  Function() : SSAValue{this_type} {}
-  [[nodiscard]] auto getValidBasicBlock() {
-    return filter(basic_block, handleIsValid);
-  }
-  [[nodiscard]] auto getValidBasicBlockFront() {
-    return filter(basic_block, handleIsValid).front();
-  }
-};
-
-struct GlobalVariable : public SSAValue {
-  THIS(SV_GlobalVariable);
-  SSAType type;
-  std::string_view name;
-  GlobalVariable() : SSAValue{this_type} {}
-};
-
-struct SSAValuePool {
-  std::vector<SSAValue *> values;
-  SSAValuePool() { values.emplace_back(nullptr); }
-  [[nodiscard]] SSAValue **getRealSlotAddress(SSAValueHandle n) const {
-    TrivialValueVector<SSAValueHandle *, 8> ptrs;
-    const auto *p = values[static_cast<unsigned>(n)];
-    bool is_ref = p >= (SSAValue *)values.data() &&
-                  p < (SSAValue *)(values.data() + values.size());
-    while (is_ref) {
-      ptrs.push_back((SSAValueHandle *)p);
-      p = *(SSAValue **)p;
-      is_ref = p >= (SSAValue *)values.data() &&
-               p < (SSAValue *)(values.data() + values.size());
-    }
-    if (ptrs.empty())
-      return (SSAValue **)&values[static_cast<unsigned>(n)];
-    return (SSAValue **)ptrs.back();
-  }
-  SSAValue *operator[](SSAValueHandle n) {
-    return const_cast<SSAValue *>(static_cast<const SSAValuePool &>(*this)[n]);
-  }
-  const SSAValue *operator[](SSAValueHandle n) const {
-    const auto *p = values[static_cast<unsigned>(n)];
-    bool is_ref = p >= (SSAValue *)values.data() &&
-                  p < (SSAValue *)(values.data() + values.size());
-    while (is_ref) {
-      p = *(SSAValue **)p;
-      is_ref = p >= (SSAValue *)values.data() &&
-               p < (SSAValue *)(values.data() + values.size());
-    }
+  ConstantInteger() : Value{this_type} {}
+  static ConstantInteger *create(uint64_t value) {
+    auto *p = new ConstantInteger();
+    p->value = value;
+    p->parent = nullptr;
     return p;
   }
-  inline static SSAValueHandle top_level{0};
+};
+
+struct Argument : public Value {
+  THIS(SV_Argument);
+  Type type;
+  std::string_view name;
+  Argument() : Value{this_type} {}
+  static Argument *create(Type type, std::string_view name, Function *f);
+  auto &getType() { return type; }
+  [[nodiscard]] auto getName() const { return name; }
+};
+
+struct Function : public Value {
+  THIS(SV_Function);
+  Type return_type;
+  std::vector<Argument *> arg;
+  List<BasicBlock> block;
+  std::string_view name;
+  bool external;
+  Function() : Value{this_type} {}
+  bool &refExternal() { return external; }
+  static Function *create(Type type, std::string_view name,
+                          Module *m = nullptr);
+  void addBasicBlock(BasicBlock *bb) {
+    block.push_back(bb);
+    bb->getParent() = this;
+  }
+};
+
+struct GlobalVariable : public Value {
+  THIS(SV_GlobalVariable);
+  Type type;
+  std::string_view name;
+  unsigned capacity;
+  GlobalVariable() : Value{this_type} {}
+  static GlobalVariable *create(Type type, std::string_view name,
+                                unsigned capacity, Module *m = nullptr);
+};
+
+struct Module : public Value {
+  THIS(SV_Module);
+  std::vector<Function *> func;
+  std::vector<GlobalVariable *> global;
+  Module() : Value{this_type} {}
 };
 
 struct IRHost {
-  SSAValuePool pool;
-  std::vector<SSAValueHandle> function_table;
-  std::vector<SSAValueHandle> global_value_table;
-  Function *function{};
-  BasicBlock *basic_block{};
-  GlobalVariable *global_variable{};
-  Instruction *instruction{};
-
-  template <typename T>
-  void init_parent_and_identity(
-    SSAValue *value,
-    SSAValueHandle parent = SSAValueHandle::InvalidValueHandle()) {
-    value->parent = parent == SSAValueHandle::InvalidValueHandle()
-                      ? SSAValuePool::top_level
-                      : parent;
-    value->identity = SSAValueHandle{(unsigned)pool.values.size()};
-    pool.values.emplace_back(value);
+  Module *root;
+  BasicBlock *basic_block;
+  IRHost() { root = new Module(); }
+  [[nodiscard]] Module *getModule() const { return root; }
+  void setInsertPoint(BasicBlock *bb) { basic_block = bb; }
+  [[nodiscard]] BasicBlock *getInsertPoint() const { return basic_block; }
+  void insertInstruction(Instruction *insn) const {
+    if (basic_block == nullptr)
+      throw std::runtime_error("basic block is not specified");
+    basic_block->getInstruction().push_back(insn);
   }
-
-  void checkBasicBlock() const {
-    if (basic_block == nullptr) {
-      throw std::runtime_error("BasicBlock is empty");
-    }
-  }
-
-public:
-  void setInsertPoint(BasicBlock *pos) { basic_block = pos; }
-
-  void replace(SSAValueHandle old_val, SSAValueHandle new_val) {
-    auto &o = (*this)[old_val];
-    auto &n = (*this)[new_val];
-    for (auto &user : o.getValidUser()) n.user.push_back(user);
-    pool.values[static_cast<unsigned>(old_val)] =
-      (SSAValue *)pool.getRealSlotAddress(new_val);
-  }
-
-  [[nodiscard]] auto getInsertPoint() const { return basic_block; }
-
-  Instruction *
-  createInstruction(OpType op, SSAType type,
-                    std::initializer_list<SSAValueHandle> args = {},
-                    BasicBlock *bb = nullptr) {
-    if (bb == nullptr)
-      checkBasicBlock();
-    auto *target_bb = bb != nullptr ? bb : basic_block;
-    auto *insn = new Instruction();
-    init_parent_and_identity<Instruction *>(insn, target_bb->identity);
-    insn->op = op;
-    insn->type = std::move(type);
-    insn->args = args;
-    target_bb->insn.push_back(insn->identity);
-    return insn;
-  }
-
-  Function *createFunction() {
-    auto *function = new Function();
-    init_parent_and_identity<Function *>(function);
-    function_table.emplace_back(function->identity);
-    return function;
-  }
-
-  BasicBlock *createBasicBlock(SSAValueHandle parent) {
-    auto *basic_block = new BasicBlock();
-    init_parent_and_identity<BasicBlock *>(basic_block, parent);
-    return basic_block;
-  }
-
-  GlobalVariable *createGlobalVariable() {
-    auto *global_variable = new GlobalVariable();
-    init_parent_and_identity<GlobalVariable *>(global_variable);
-    global_value_table.emplace_back(global_variable->identity);
-    return global_variable;
-  }
-
-  ConstantInteger *createConstantInteger(uint64_t value) {
-    auto *const_int = new ConstantInteger();
-    init_parent_and_identity<ConstantInteger *>(const_int);
-    const_int->value = value;
-    return const_int;
-  }
-
-  Argument *createArgument(SSAValueHandle parent) {
-    auto *arg = new Argument();
-    init_parent_and_identity<Argument *>(arg, parent);
-    return arg;
-  }
-
-  SSAValue &operator[](SSAValueHandle n) {
-    if (n.isValid() && n.id < pool.values.size()) {
-      return *pool[n];
-    }
-    throw std::runtime_error("SSAValueHandle is invalid");
-  }
-
-  SSAValueHandle Zero = *createConstantInteger(0);
-
-  [[nodiscard]] auto getValidFunction() {
-    return filter(function_table, handleIsValid);
-  }
-
-  [[nodiscard]] auto getValidGlobalVariable() {
-    return filter(global_value_table, handleIsValid);
+  auto *createInstruction(OpType op, Type type,
+                          std::initializer_list<Value *> inputs = {},
+                          BasicBlock *bb = nullptr) const {
+    if (bb != nullptr)
+      return Instruction::create(op, type, inputs, bb);
+    if (basic_block == nullptr)
+      throw std::runtime_error("basic block is not specified");
+    return Instruction::create(op, type, inputs, basic_block);
   }
 };
+
+} // namespace SyOC
