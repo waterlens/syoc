@@ -5,6 +5,7 @@
 #include "Util/Filter.hpp"
 #include "Util/TrivialValueVector.hpp"
 #include <cassert>
+#include <unordered_set>
 
 namespace YIR {
 void SimpleAllocationElimination::eliminateDeadAllocation(IRHost &host) {
@@ -76,7 +77,7 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
 
       auto use_n = iter->getNumOfEdges() - 1; // except the store
       auto replace_n = 0;
-      
+
       for (auto use_iter = iter->getImmutableEdges(); !use_iter.reach_end();) {
         bool inc = false;
         if (auto *load = use_iter->to->as<Instruction *>()) {
@@ -109,6 +110,45 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
 }
 
 void SimpleAllocationElimination::eliminateLocalLoad(IRHost &host) {
-  
+  std::unordered_map<Value *, Value *> latest_store;
+  std::vector<Instruction *> load_to_be_removed;
+
+  auto erase_helper = [&](Instruction &insn, unsigned idx) {
+    latest_store.erase(insn.getInput()[idx].from);
+  };
+
+  for (auto *func : host.getModule()->func) {
+    if (func->refExternal())
+      continue;
+
+    for (auto &bb : func->block) {
+      latest_store.clear();
+      load_to_be_removed.clear();
+
+      for (auto &insn : bb.getInstruction()) {
+        if (insn.op == OP_Store) {
+          if (insn.getInput()[0].from->is<GlobalVariable *>())
+            continue;
+          // record the latest value of store
+          latest_store[insn.getInput()[0].from] = insn.getInput()[1].from;
+        } else if (insn.op == OP_Offset || insn.op == OP_Memset0 ||
+                   insn.op == OP_Call) {
+          // these instructions might have side effects
+          if (insn.op != OP_Call)
+            erase_helper(insn, 0);
+          else
+            for (int i = 1; i < insn.getInput().size(); ++i)
+              erase_helper(insn, i);
+        } else if (insn.op == OP_Load) {
+          if (latest_store.contains(insn.getInput()[0].from)) {
+            insn.replaceAllUsesWith(latest_store.at(insn.getInput()[0].from));
+            load_to_be_removed.push_back(&insn);
+          }
+        }
+      }
+
+      for (auto *insn : load_to_be_removed) insn->release(true);
+    }
+  }
 }
 } // namespace YIR
