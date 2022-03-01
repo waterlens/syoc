@@ -1,11 +1,10 @@
 #pragma once
 
-#include "PassBase.hpp"
 #include "Tree/Tree.hpp"
 #include <cassert>
 #include <stdexcept>
 
-class TypeCheck final : public TreeTransformation<TypeCheck> {
+class TypeCheck final {
 private:
   NodePtr root;
   FunctionDeclaration *current_function;
@@ -279,9 +278,7 @@ private:
 
 public:
   TypeCheck() = default;
-  [[nodiscard]] static std::string_view getName()  {
-    return "Type Check";
-  }
+  [[nodiscard]] static std::string_view getName() { return "Type Check"; }
   void operator()(NodePtr &tree) {
     root = tree;
     globalIteration();

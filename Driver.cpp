@@ -1,13 +1,6 @@
 #include "IR/IR.hpp"
-#include "Parser/Parser.hpp"
-#include "Pass/NewPass/CFGAnalysis.hpp"
-#include "Pass/NewPass/Dump.hpp"
-#include "Pass/NewPass/PassCollection.hpp"
-#include "Pass/NewPass/SimpleAllocationElimination.hpp"
-#include "Pass/NewPass/TraversalHelper.hpp"
 #include "Pass/PassCollection.hpp"
-#include "Pass/SimpleAllocationElimination.hpp"
-#include "Pass/UseAnalysis.hpp"
+#include "Parser/Parser.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -56,14 +49,10 @@ void stoptime();
   parser.tokenize();
   auto *tree = parser.parse();
   YIR::Transformer transformer(tree);
-  Transformer transformer2(tree);
   transformer.doTreeTransformation<ConstantInitializerFold, TypeCheck>();
   transformer.doTree2SSATransformation<YIR::Tree2SSA>();
   transformer.doSSATransformation<YIR::IRDump, YIR::SimplifyCFG, YIR::IRDump,
                                   YIR::SimpleAllocationElimination, YIR::IRDump,
                                   YIR::CFGDump, YIR::IDominatorDump>();
-  // transformer2.doTree2SSATransformation<Tree2SSA>();
-  // transformer2.doSSATransformation<UseAnalysis, BBPredSuccAnalysis, IRDump,
-  // CFGDump>();
   return 0;
 }

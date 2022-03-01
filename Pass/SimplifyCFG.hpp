@@ -1,16 +1,20 @@
 #pragma once
 
-#include "PassBase.hpp"
-#include "PassCollection.hpp"
+#include "IR/YIR.hpp"
+#include "CFGAnalysis.hpp"
 
+#include <algorithm>
 #include <unordered_map>
 
-class SimplifyCFG : public SSATransformation<SimplifyCFG> {
-  static void clearExtraJump(IRHost &host, BasicBlock *bb);
-  static void removeDanglingBB(IRHost &host);
+namespace YIR {
+class SimplifyCFG final {
+  static void clearExtraJump(BasicBlock *bb);
+  static void removeDanglingBB(Function *f);
 
 public:
   SimplifyCFG() = default;
   [[nodiscard]] static std::string_view getName() { return "Simplify CFG"; }
   void operator()(IRHost &host);
 };
+
+} // namespace YIR

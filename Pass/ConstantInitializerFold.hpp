@@ -1,7 +1,6 @@
 #pragma once
 
-#include "PassBase.hpp"
-
+#include "Tree/Tree.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -9,8 +8,7 @@
 #include <string_view>
 #include <unordered_set>
 
-class ConstantInitializerFold final
-  : public TreeTransformation<ConstantInitializerFold> {
+class ConstantInitializerFold final {
 private:
   NodePtr root;
 
@@ -168,7 +166,7 @@ private:
 
 public:
   ConstantInitializerFold() = default;
-  [[nodiscard]] static std::string_view getName()  {
+  [[nodiscard]] static std::string_view getName() {
     return "Constant Initializer Fold";
   }
   void operator()(NodePtr &tree) {
