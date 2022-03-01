@@ -22,6 +22,8 @@ public:
 
   ListIterator() : m_node(nullptr){};
   ListIterator(ListNode<T> *node) : m_node(node) {}
+  ListIterator(const ListNode<T> *node)
+    : m_node(const_cast<ListNode<T> *>(node)) {}
 
   auto *base() const { return cast_to_derived(); }
   auto *base() { return cast_to_derived(); }
@@ -61,28 +63,13 @@ public:
   reference operator*() { return *cast_to_derived(); }
   pointer operator->() { return cast_to_derived(); }
 
-  void release(bool free = false) {
-    m_node->remove_from_list();
-    if (free)
-      delete m_node;
-    m_node = nullptr;
-  }
+  void release(bool free = false);
 
-  ListIterator &release_and_increase(bool free = false) {
-    ListIterator tmp(*this);
-    ++(*this);
-    tmp.release(free);
-    return *this;
-  }
+  ListIterator &release_and_increase(bool free = false);
 
-  ListIterator &release_and_decrease(bool free = false) {
-    ListIterator tmp(*this);
-    --(*this);
-    tmp.release(free);
-    return *this;
-  }
+  ListIterator &release_and_decrease(bool free = false);
 
-  static ListIterator end() { return ListIterator(nullptr); }
+  static ListIterator end() { return ListIterator(); }
 };
 
 template <typename T> class List {
@@ -96,83 +83,46 @@ public:
   using const_iterator = ListIterator<T>;
 
 protected:
-  ListNode<T> *head = nullptr;
-  ListNode<T> *tail = nullptr;
+  ListNode<T> head;
+  ListNode<T> tail;
 
-  void addToEmptyList(ListNode<T> *node) {
-    head = node;
-    tail = node;
-    head->m_prev = nullptr;
-    tail->m_next = nullptr;
-  }
+  ListNode<T> *dummyHead() { return &head; }
+  ListNode<T> *dummyTail() { return &tail; }
+  const ListNode<T> *dummyHead() const { return &head; }
+  const ListNode<T> *dummyTail() const { return &tail; }
 
 public:
-  constexpr const_iterator cbegin() const { return const_iterator(head); }
-  constexpr const_iterator cend() const { return const_iterator(); }
+  List() {
+    dummyHead()->m_next = dummyTail();
+    dummyTail()->m_prev = dummyHead();
+  }
+  constexpr const_iterator cbegin() const {
+    return const_iterator(dummyHead()->m_next);
+  }
+  constexpr const_iterator cend() const { return const_iterator(dummyTail()); }
   constexpr const_iterator begin() const { return cbegin(); }
   constexpr const_iterator end() const { return cend(); }
-  constexpr iterator begin() { return iterator(head); }
-  constexpr iterator end() { return iterator(); }
+  constexpr iterator begin() { return iterator(dummyHead()->m_next); }
+  constexpr iterator end() { return iterator(dummyTail()); }
 
-  auto &front() { return *iterator(head); }
-  auto &back() { return *iterator(tail); }
-  auto &front() const { return *const_iterator(head); }
-  auto &back() const { return *const_iterator(tail); }
+  auto &front() { return *begin(); }
+  auto &back() { return *--end(); }
+  auto &front() const { return *cbegin(); }
+  auto &back() const { return *--cend(); }
 
-  void push_front(ListNode<T> *node) {
-    if (empty()) {
-      addToEmptyList(node);
-    } else {
-      assert(node->m_prev == nullptr);
-      assert(node->m_next == nullptr);
-      node->m_next = head;
-      head->m_prev = node;
-      head = node;
-    }
+  void push_front(ListNode<T> *node);
+  void pop_back();
+  void pop_front();
+  void push_back(ListNode<T> *node);
+
+  [[nodiscard]] constexpr bool empty() const {
+    return dummyHead()->m_next == dummyTail();
   }
-
-  void pop_back() {
-    if (head != nullptr) {
-      if (head == tail) {
-        iterator(head).release();
-        head = nullptr;
-        tail = nullptr;
-      } else {
-        auto iter = iterator(tail);
-        iter.release_and_decrease();
-        tail = iter.base();
-      }
-    }
+  [[nodiscard]] constexpr size_t size() const {
+    size_t ret = 0;
+    for (auto iter = cbegin(); iter != cend(); ++iter) ++ret;
+    return ret;
   }
-
-  void pop_front() {
-    if (head != nullptr) {
-      if (head == tail) {
-        iterator(head).release();
-        head = nullptr;
-        tail = nullptr;
-      } else {
-        auto iter = iterator(head);
-        iter.release_and_increase();
-        head = iter.base();
-      }
-    }
-  }
-
-  void push_back(ListNode<T> *node) {
-    if (empty()) {
-      assert(tail == nullptr);
-      addToEmptyList(node);
-    } else {
-      assert(node->m_prev == nullptr);
-      assert(node->m_next == nullptr);
-      node->m_prev = tail;
-      tail->m_next = node;
-      tail = node;
-    }
-  }
-
-  [[nodiscard]] constexpr bool empty() const { return head == nullptr; }
 };
 
 template <typename T> class ListNode {
@@ -187,7 +137,12 @@ protected:
   friend ListIterator<T>;
   friend List<T>;
 
-  pointer cast_to_derived(auto *p) const { return static_cast<pointer>(p); }
+  const_pointer cast_to_derived(auto *p) const {
+    return static_cast<const_pointer>(p);
+  }
+  const_pointer cast_to_derived() const { return cast_to_derived(this); }
+  pointer cast_to_derived(auto *p) { return static_cast<pointer>(p); }
+  pointer cast_to_derived() { return cast_to_derived(this); }
   virtual ~ListNode() = default;
 
 public:
@@ -223,4 +178,51 @@ public:
     m_prev = nullptr;
     m_next = nullptr;
   }
+
+  void release(bool free = false) {
+    remove_from_list();
+    if (free)
+      delete this;
+  }
 };
+
+template <typename T> void List<T>::push_front(ListNode<T> *node) {
+  dummyHead()->insert_after(node->cast_to_derived());
+}
+
+template <typename T> void List<T>::push_back(ListNode<T> *node) {
+  dummyTail()->insert_before(node->cast_to_derived());
+}
+
+template <typename T> void List<T>::pop_back() {
+  if (empty())
+    throw std::runtime_error("pop_back() on empty list");
+  back().release(true);
+}
+
+template <typename T> void List<T>::pop_front() {
+  if (empty())
+    throw std::runtime_error("pop_front() on empty list");
+  front().release(true);
+}
+
+template <typename T> void ListIterator<T>::release(bool free) {
+  m_node->release(free);
+  m_node = nullptr;
+}
+
+template <typename T>
+ListIterator<T> &ListIterator<T>::release_and_increase(bool free) {
+  ListIterator tmp(*this);
+  ++(*this);
+  tmp.release(free);
+  return *this;
+}
+
+template <typename T>
+ListIterator<T> &ListIterator<T>::release_and_decrease(bool free) {
+  ListIterator tmp(*this);
+  --(*this);
+  tmp.release(free);
+  return *this;
+}
