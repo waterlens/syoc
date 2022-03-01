@@ -35,6 +35,7 @@ build/
 Misc/
 .cache/
 .vscode/
+.idea/
 current.txt
 Binary/
 Output/
