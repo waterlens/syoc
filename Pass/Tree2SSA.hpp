@@ -29,14 +29,14 @@ class Tree2SSA final {
   std::vector<BasicBlock *> bb_break, bb_continue;
 
   void setupGlobalInitializerFunction();
-  static TypeDimension convertType(const ::Type &ty) {
+  static TypeDimension convertType(const ::TreeType &ty) {
     TypeDimension ty_dim;
     if (ty.spec == TS_Int)
       ty_dim.first = PredefinedType::Int32;
     else if (ty.spec == TS_Void)
       ty_dim.first = PredefinedType::Void;
     for (auto *dim : ty.dim)
-      ty_dim.second.push_back(dim->as<IntegerLiteral *>()->value);
+      ty_dim.second.push_back(dim->as<TreeIntegerLiteral *>()->value);
     return ty_dim;
   }
   static size_t calculateArrayTotalLength(const TypeDimension &td) {
@@ -48,19 +48,19 @@ class Tree2SSA final {
   }
   TypeDimensionValue findInScope(std::string_view name);
   TypeDimensionValue generateLValue(ExprPtr expr);
-  TypeDimensionValue generateShortCircuit(BinaryExpr *binary);
+  TypeDimensionValue generateShortCircuit(TreeBinaryExpr *binary);
   TypeDimensionValue generateRValue(ExprPtr expr);
   TypeDimensionValue generateArgumentValue(ExprPtr expr);
   void arrayZeroInitializer(const TypeDimensionValue &th);
   void generateStore(ExprPtr expr, Value *target);
   TypeDimensionValue generateLoad(const TypeDimension &td, Value *target);
-  void generateListInitializer(InitListExpr *init,
+  void generateListInitializer(TreeInitListExpr *init,
                                const TypeDimensionValue &th);
   void generateInitializer(ExprPtr init, const TypeDimensionValue &th);
-  void generateGlobalVariable(GlobalDeclaration *decl);
+  void generateGlobalVariable(TreeGlobalDeclaration *decl);
   void globalGeneration();
   void generateStatement(NodePtr stmt);
-  void functionGeneration(FunctionDeclaration *decl);
+  void functionGeneration(TreeFunctionDeclaration *decl);
 
 public:
   Tree2SSA() = default;

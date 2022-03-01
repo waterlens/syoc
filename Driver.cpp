@@ -1,6 +1,5 @@
-#include "IR/IR.hpp"
-#include "Pass/PassCollection.hpp"
 #include "Parser/Parser.hpp"
+#include "Pass/PassCollection.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"

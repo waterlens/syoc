@@ -54,17 +54,17 @@ enum NodeType {
 
 struct Node;
 using NodePtr = Node *;
-struct Expr;
-using ExprPtr = Expr *;
-struct Type;
+struct TreeExpr;
+using ExprPtr = TreeExpr *;
+struct TreeType;
 
-struct Type {
+struct TreeType {
   TypeSpecifier spec;
   TypeQualifier qual;
   std::vector<ExprPtr> dim;
   std::string toString();
   std::string dump();
-  Type(TypeSpecifier spec, TypeQualifier qual, std::vector<ExprPtr> dim)
+  TreeType(TypeSpecifier spec, TypeQualifier qual, std::vector<ExprPtr> dim)
     : spec(spec), qual(qual), dim(std::move(dim)) {}
 };
 
@@ -85,150 +85,153 @@ struct Node {
 #undef THIS
 #define THIS(x) constexpr inline static NodeType this_type = x
 
-struct Module : public Node {
+struct TreeModule : public Node {
   THIS(ND_Module);
   std::vector<NodePtr> decls;
-  Module(std::vector<NodePtr> decls)
+  TreeModule(std::vector<NodePtr> decls)
     : Node(this_type), decls(std::move(decls)) {}
 };
 
-struct FunctionDeclaration : public Node {
+struct TreeFunctionDeclaration : public Node {
   THIS(ND_FunctionDeclaration);
-  Type return_type;
+  TreeType return_type;
   std::string_view name;
-  std::vector<std::pair<std::string_view, Type>> parameters;
+  std::vector<std::pair<std::string_view, TreeType>> parameters;
   NodePtr body;
-  FunctionDeclaration(Type return_type, std::string_view name,
-                      std::vector<std::pair<std::string_view, Type>> parameters,
-                      NodePtr body)
+  TreeFunctionDeclaration(
+    TreeType return_type, std::string_view name,
+    std::vector<std::pair<std::string_view, TreeType>> parameters, NodePtr body)
     : Node(this_type), return_type(std::move(return_type)), name(name),
       parameters(std::move(parameters)), body(body) {}
 };
 
-struct VariableDeclaration : public Node {
-  Type type;
+struct TreeVariableDeclaration : public Node {
+  TreeType type;
   std::string_view name;
   ExprPtr initializer;
-  VariableDeclaration(NodeType this_type, Type type, std::string_view name,
-                      ExprPtr initializer)
+  TreeVariableDeclaration(NodeType this_type, TreeType type,
+                          std::string_view name, ExprPtr initializer)
     : Node(this_type), type(std::move(type)), name(name),
       initializer(initializer) {}
 };
 
-struct GlobalDeclaration : public VariableDeclaration {
+struct TreeGlobalDeclaration : public TreeVariableDeclaration {
   THIS(ND_GlobalDeclaration);
-  GlobalDeclaration(Type type, std::string_view name, ExprPtr initializer)
-    : VariableDeclaration(this_type, std::move(type), name, initializer) {}
+  TreeGlobalDeclaration(TreeType type, std::string_view name,
+                        ExprPtr initializer)
+    : TreeVariableDeclaration(this_type, std::move(type), name, initializer) {}
 };
 
-struct LocalDeclaration : public VariableDeclaration {
+struct TreeLocalDeclaration : public TreeVariableDeclaration {
   THIS(ND_LocalDeclaration);
-  LocalDeclaration(Type type, std::string_view name, ExprPtr initializer)
-    : VariableDeclaration(this_type, std::move(type), name, initializer) {}
+  TreeLocalDeclaration(TreeType type, std::string_view name,
+                       ExprPtr initializer)
+    : TreeVariableDeclaration(this_type, std::move(type), name, initializer) {}
 };
 
-struct CompoundStmt : public Node {
+struct TreeCompoundStmt : public Node {
   THIS(ND_CompoundStmt);
   std::vector<NodePtr> stmts;
-  CompoundStmt(std::vector<NodePtr> stmts)
+  TreeCompoundStmt(std::vector<NodePtr> stmts)
     : Node(this_type), stmts(std::move(stmts)) {}
 };
 
-struct IfStmt : public Node {
+struct TreeIfStmt : public Node {
   THIS(ND_IfStmt);
   NodePtr condition;
   NodePtr then_stmt;
   NodePtr else_stmt;
-  IfStmt(NodePtr condition, NodePtr then_stmt, NodePtr else_stmt)
+  TreeIfStmt(NodePtr condition, NodePtr then_stmt, NodePtr else_stmt)
     : Node(this_type), condition(condition), then_stmt(then_stmt),
       else_stmt(else_stmt) {}
 };
 
-struct WhileStmt : public Node {
+struct TreeWhileStmt : public Node {
   THIS(ND_WhileStmt);
   NodePtr condition;
   NodePtr body;
-  WhileStmt(NodePtr condition, NodePtr body)
+  TreeWhileStmt(NodePtr condition, NodePtr body)
     : Node(this_type), condition(condition), body(body) {}
 };
 
-struct Expr : public Node {
-  Expr(NodeType type) : Node(type) {}
+struct TreeExpr : public Node {
+  TreeExpr(NodeType type) : Node(type) {}
 };
 
-struct InitListExpr : public Expr {
+struct TreeInitListExpr : public TreeExpr {
   THIS(ND_InitListExpr);
   std::vector<ExprPtr> values;
-  InitListExpr(std::vector<ExprPtr> values)
-    : Expr(this_type), values(std::move(values)) {}
+  TreeInitListExpr(std::vector<ExprPtr> values)
+    : TreeExpr(this_type), values(std::move(values)) {}
 };
 
-struct ArraySubscriptExpr : public Expr {
+struct TreeArraySubscriptExpr : public TreeExpr {
   THIS(ND_ArraySubscriptExpr);
   ExprPtr array;
   ExprPtr subscript;
-  ArraySubscriptExpr(ExprPtr array, ExprPtr subscript)
-    : Expr(this_type), array(array), subscript(subscript) {}
+  TreeArraySubscriptExpr(ExprPtr array, ExprPtr subscript)
+    : TreeExpr(this_type), array(array), subscript(subscript) {}
 };
 
-struct CallExpr : public Expr {
+struct TreeCallExpr : public TreeExpr {
   THIS(ND_CallExpr);
   ExprPtr func;
   std::vector<ExprPtr> args;
-  CallExpr(ExprPtr name, std::vector<ExprPtr> args)
-    : Expr(this_type), func(name), args(std::move(args)) {}
+  TreeCallExpr(ExprPtr name, std::vector<ExprPtr> args)
+    : TreeExpr(this_type), func(name), args(std::move(args)) {}
 };
 
-struct AssignExpr : public Expr {
+struct TreeAssignExpr : public TreeExpr {
   THIS(ND_AssignExpr);
   ExprPtr lhs, rhs;
-  AssignExpr(ExprPtr lhs, ExprPtr rhs) : Expr(this_type), lhs(lhs), rhs(rhs) {}
+  TreeAssignExpr(ExprPtr lhs, ExprPtr rhs)
+    : TreeExpr(this_type), lhs(lhs), rhs(rhs) {}
 };
 
-struct BinaryExpr : public Expr {
+struct TreeBinaryExpr : public TreeExpr {
   THIS(ND_BinaryExpr);
   OpType op;
   ExprPtr lhs, rhs;
-  BinaryExpr(OpType op, ExprPtr lhs, ExprPtr rhs)
-    : Expr(this_type), op(op), lhs(lhs), rhs(rhs) {}
+  TreeBinaryExpr(OpType op, ExprPtr lhs, ExprPtr rhs)
+    : TreeExpr(this_type), op(op), lhs(lhs), rhs(rhs) {}
 };
 
-struct UnaryExpr : public Expr {
+struct TreeUnaryExpr : public TreeExpr {
   THIS(ND_UnaryExpr);
   OpType op;
   ExprPtr operand;
-  UnaryExpr(OpType op, ExprPtr operand)
-    : Expr(this_type), op(op), operand(operand) {}
+  TreeUnaryExpr(OpType op, ExprPtr operand)
+    : TreeExpr(this_type), op(op), operand(operand) {}
 };
 
-struct IntegerLiteral : public Expr {
+struct TreeIntegerLiteral : public TreeExpr {
   THIS(ND_IntegerLiteral);
   int64_t value;
-  IntegerLiteral(int64_t value) : Expr(this_type), value(value) {}
+  TreeIntegerLiteral(int64_t value) : TreeExpr(this_type), value(value) {}
 };
 
-struct RefExpr : public Expr {
+struct TreeRefExpr : public TreeExpr {
   THIS(ND_RefExpr);
   std::string_view name;
   NodePtr decl;
-  RefExpr(std::string_view name, NodePtr decl)
-    : Expr(this_type), name(name), decl(decl) {}
+  TreeRefExpr(std::string_view name, NodePtr decl)
+    : TreeExpr(this_type), name(name), decl(decl) {}
 };
 
-struct ContinueStmt : public Node {
+struct TreeContinueStmt : public Node {
   THIS(ND_ContinueStmt);
-  ContinueStmt(NodePtr  /*parent*/) : Node(this_type) {}
+  TreeContinueStmt(NodePtr /*parent*/) : Node(this_type) {}
 };
 
-struct BreakStmt : public Node {
+struct TreeBreakStmt : public Node {
   THIS(ND_BreakStmt);
-  BreakStmt(NodePtr  /*parent*/) : Node(this_type) {}
+  TreeBreakStmt(NodePtr /*parent*/) : Node(this_type) {}
 };
 
-struct ReturnStmt : public Node {
+struct TreeReturnStmt : public Node {
   THIS(ND_ReturnStmt);
   ExprPtr value;
-  ReturnStmt(ExprPtr value) : Node(this_type), value(value) {}
+  TreeReturnStmt(ExprPtr value) : Node(this_type), value(value) {}
 };
 
 template <typename T> class Scope {
@@ -252,17 +255,19 @@ public:
 };
 
 inline bool isVariableDeclaration(NodePtr node) {
-  return node->is<GlobalDeclaration *>() || node->is<LocalDeclaration *>();
+  return node->is<TreeGlobalDeclaration *>() ||
+         node->is<TreeLocalDeclaration *>();
 }
 
 inline bool isFunctionDeclaration(NodePtr node) {
-  return node->is<FunctionDeclaration *>();
+  return node->is<TreeFunctionDeclaration *>();
 }
 
 inline bool isExpression(NodePtr node) {
-  return node->is<InitListExpr *>() || node->is<ArraySubscriptExpr *>() ||
-         node->is<CallExpr *>() || node->is<AssignExpr *>() ||
-         node->is<BinaryExpr *>() || node->is<UnaryExpr *>() ||
-         node->is<IntegerLiteral *>() || node->is<RefExpr *>();
+  return node->is<TreeInitListExpr *>() ||
+         node->is<TreeArraySubscriptExpr *>() || node->is<TreeCallExpr *>() ||
+         node->is<TreeAssignExpr *>() || node->is<TreeBinaryExpr *>() ||
+         node->is<TreeUnaryExpr *>() || node->is<TreeIntegerLiteral *>() ||
+         node->is<TreeRefExpr *>();
   ;
 }

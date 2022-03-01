@@ -18,7 +18,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::findInScope(std::string_view name) {
 }
 
 Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
-  if (auto *arr_sub = expr->as<ArraySubscriptExpr *>()) {
+  if (auto *arr_sub = expr->as<TreeArraySubscriptExpr *>()) {
     auto [arr_ty, arr] = generateLValue(arr_sub->array);
     auto [idx_ty, idx] = generateRValue(arr_sub->subscript);
     auto bound = arr_ty.second.front();
@@ -30,10 +30,10 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
                                ConstantInteger::create(offset_unit_size)});
     return {{PredefinedType::IntPtr, {}}, elem};
   }
-  if (auto *ref = expr->as<RefExpr *>()) {
+  if (auto *ref = expr->as<TreeRefExpr *>()) {
     return findInScope(ref->name);
   }
-  if (auto *assign = expr->as<AssignExpr *>()) {
+  if (auto *assign = expr->as<TreeAssignExpr *>()) {
     auto [lhs_ty, lhs] = generateLValue(assign->lhs);
     auto [rhs_ty, rhs] = generateRValue(assign->rhs);
 
@@ -44,7 +44,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
 }
 
 Tree2SSA::TypeDimensionValue
-Tree2SSA::generateShortCircuit(BinaryExpr *binary) {
+Tree2SSA::generateShortCircuit(TreeBinaryExpr *binary) {
   auto [lhs_ty, lhs] = generateRValue(binary->lhs);
   lhs_ty.first.pointer++;
 
@@ -77,12 +77,12 @@ Tree2SSA::generateShortCircuit(BinaryExpr *binary) {
 Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
   switch (expr->node_type) {
   case ND_IntegerLiteral: {
-    auto *lit =
-      ConstantInteger::create(expr->as_unchecked<IntegerLiteral *>()->value);
+    auto *lit = ConstantInteger::create(
+      expr->as_unchecked<TreeIntegerLiteral *>()->value);
     return {{PredefinedType::Int32, {}}, lit};
   }
   case ND_UnaryExpr: {
-    auto *unary = expr->as_unchecked<UnaryExpr *>();
+    auto *unary = expr->as_unchecked<TreeUnaryExpr *>();
     auto [operand_ty, operand] = generateRValue(unary->operand);
     if (unary->op == OP_Neg) {
       return {operand_ty,
@@ -96,7 +96,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
     throw std::runtime_error("not a supported unary operator");
   }
   case ND_BinaryExpr: {
-    auto *binary = expr->as_unchecked<BinaryExpr *>();
+    auto *binary = expr->as_unchecked<TreeBinaryExpr *>();
     if (binary->op == OP_Land || binary->op == OP_Lor) {
       return generateShortCircuit(binary);
     }
@@ -107,8 +107,8 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
             host->createInstruction(binary->op, lhs_ty.first, {lhs, rhs})};
   }
   case ND_CallExpr: {
-    auto *call = expr->as_unchecked<CallExpr *>();
-    auto name = call->func->as_unchecked<RefExpr *>()->name;
+    auto *call = expr->as_unchecked<TreeCallExpr *>();
+    auto name = call->func->as_unchecked<TreeRefExpr *>()->name;
     auto func = scopes.find(name);
     if (func.second == nullptr)
       throw std::runtime_error("can't found function");
@@ -134,7 +134,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
 }
 
 Tree2SSA::TypeDimensionValue Tree2SSA::generateArgumentValue(ExprPtr expr) {
-  if (auto *ref = expr->as<RefExpr *>()) {
+  if (auto *ref = expr->as<TreeRefExpr *>()) {
     auto th = findInScope(ref->name);
     // if it's an array, we don't load it
     if (!th.first.second.empty())
@@ -166,7 +166,7 @@ Tree2SSA::generateLoad(const Tree2SSA::TypeDimension &td, Value *target) {
     host->createInstruction(OP_Load, td.first.createDereference(), {target})};
 }
 
-void Tree2SSA::generateListInitializer(InitListExpr *init,
+void Tree2SSA::generateListInitializer(TreeInitListExpr *init,
                                        const Tree2SSA::TypeDimensionValue &th) {
   const auto &ty = th.first.first;
   const auto &dim = th.first.second;
@@ -208,7 +208,7 @@ void Tree2SSA::generateListInitializer(InitListExpr *init,
         if (array_idx.begin() + level2 <= array_idx.end())
           std::fill(array_idx.begin() + level2, array_idx.end(), 0);
       }
-    } else if (auto *init = expr->as<InitListExpr *>()) {
+    } else if (auto *init = expr->as<TreeInitListExpr *>()) {
       stack.emplace_back(nullptr, level >= 1 ? array_idx[level - 1] : 0);
       stack.emplace_back(nullptr, level);
       stack.emplace_back(nullptr, BRACE_END);
@@ -243,14 +243,14 @@ void Tree2SSA::generateInitializer(ExprPtr init,
   auto *target = th.second;
 
   if (init != nullptr) {
-    if (auto *l = init->as<InitListExpr *>())
+    if (auto *l = init->as<TreeInitListExpr *>())
       generateListInitializer(l, {ty, target});
     else
       generateStore(init, target);
   }
 }
 
-void Tree2SSA::generateGlobalVariable(GlobalDeclaration *decl) {
+void Tree2SSA::generateGlobalVariable(TreeGlobalDeclaration *decl) {
   auto ty = convertType(decl->type);
   ty.first.reference();
   auto *g =
@@ -263,14 +263,14 @@ void Tree2SSA::generateGlobalVariable(GlobalDeclaration *decl) {
 
 void Tree2SSA::globalGeneration() {
   setupGlobalInitializerFunction();
-  auto *module = root->as<::Module *>();
+  auto *module = root->as<::TreeModule *>();
   scopes.enter();
   for (auto *decl : module->decls) {
-    if (decl->is<GlobalDeclaration *>()) {
-      auto *p = decl->as_unchecked<GlobalDeclaration *>();
+    if (decl->is<TreeGlobalDeclaration *>()) {
+      auto *p = decl->as_unchecked<TreeGlobalDeclaration *>();
       generateGlobalVariable(p);
     } else if (isFunctionDeclaration(decl)) {
-      auto *f = decl->as_unchecked<FunctionDeclaration *>();
+      auto *f = decl->as_unchecked<TreeFunctionDeclaration *>();
       functionGeneration(f);
     } else
       throw std::runtime_error("not a supported declaration");
@@ -283,7 +283,7 @@ void Tree2SSA::globalGeneration() {
 void Tree2SSA::generateStatement(NodePtr stmt) {
   switch (stmt->node_type) {
   case ND_LocalDeclaration: {
-    auto *decl = stmt->as_unchecked<LocalDeclaration *>();
+    auto *decl = stmt->as_unchecked<TreeLocalDeclaration *>();
     auto addr_ty = convertType(decl->type);
     addr_ty.first.reference();
     auto *var = host->createInstruction(
@@ -297,15 +297,15 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
   }
   case ND_CompoundStmt: {
     scopes.enter();
-    for (auto &&stmt : stmt->as_unchecked<CompoundStmt *>()->stmts)
+    for (auto &&stmt : stmt->as_unchecked<TreeCompoundStmt *>()->stmts)
       generateStatement(stmt);
     scopes.exit();
     return;
   }
   case ND_IfStmt: {
-    auto *if_stmt = stmt->as_unchecked<IfStmt *>();
+    auto *if_stmt = stmt->as_unchecked<TreeIfStmt *>();
     auto [cond_ty, cond] =
-      generateRValue(if_stmt->condition->as_unchecked<Expr *>());
+      generateRValue(if_stmt->condition->as_unchecked<TreeExpr *>());
     auto *cur_bb = host->getInsertPoint();
     auto *then_bb = BasicBlock::create(current_function);
     auto *cont_bb = BasicBlock::create();
@@ -333,14 +333,14 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
     return;
   }
   case ND_WhileStmt: {
-    auto *while_stmt = stmt->as_unchecked<WhileStmt *>();
+    auto *while_stmt = stmt->as_unchecked<TreeWhileStmt *>();
     auto *cur_bb = host->getInsertPoint();
     auto *cond_bb_begin = BasicBlock::create(current_function);
     auto *end_bb = BasicBlock::create();
 
     host->setInsertPoint(cond_bb_begin);
     auto [cond_ty, cond] =
-      generateRValue(while_stmt->condition->as_unchecked<Expr *>());
+      generateRValue(while_stmt->condition->as_unchecked<TreeExpr *>());
     auto *cond_bb_end = host->getInsertPoint();
 
     bb_break.push_back(end_bb);
@@ -375,7 +375,7 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
     return;
   }
   case ND_ReturnStmt: {
-    auto *ret_stmt = stmt->as_unchecked<ReturnStmt *>();
+    auto *ret_stmt = stmt->as_unchecked<TreeReturnStmt *>();
     if (ret_stmt->value != nullptr) {
       auto [ret_ty, ret] = generateRValue(ret_stmt->value);
       host->createInstruction(OP_Store, PredefinedType::Void,
@@ -385,11 +385,11 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
     return;
   }
   default:
-    generateRValue(stmt->as_unchecked<Expr *>());
+    generateRValue(stmt->as_unchecked<TreeExpr *>());
   }
 }
 
-void Tree2SSA::functionGeneration(FunctionDeclaration *decl) {
+void Tree2SSA::functionGeneration(TreeFunctionDeclaration *decl) {
   auto ty = convertType(decl->return_type);
   current_function = Function::create(ty.first, decl->name, host->getModule());
   scopes.insert(decl->name, {ty, current_function});
