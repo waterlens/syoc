@@ -133,8 +133,7 @@ public:
   [[nodiscard]] auto getImmutableEdges() const { return edge; }
   [[nodiscard]] size_t getNumOfEdges() const {
     size_t n = 0;
-    for (auto iter = getImmutableEdges(); !iter.reach_end(); ++iter)
-      ++n;
+    for (auto iter = getImmutableEdges(); !iter.reach_end(); ++iter) ++n;
     return n;
   }
   void replaceAllUsesWith(Value *new_value) const {
@@ -195,18 +194,18 @@ public:
   [[nodiscard]] auto end() { return insn.end(); }
   auto &getInstruction() { return insn; }
   auto &getPredecessor() { return pred; }
-  auto &getSuccessor() { return succ; }
+  auto &getSuccessorHead() { return succ; }
   void removeSuccessor(BasicBlockEdge *edge) {
-    if (edge == getSuccessor().base())
-      ++getSuccessor();
+    if (edge == getSuccessorHead().base())
+      ++getSuccessorHead();
     edge->remove_from_list();
   }
   void addSuccessor(BasicBlockEdge *edge) {
-    if (getSuccessor().base() != nullptr) {
-      getSuccessor()->insert_before(edge);
-      --getSuccessor();
+    if (getSuccessorHead().base() != nullptr) {
+      getSuccessorHead()->insert_before(edge);
+      --getSuccessorHead();
     } else
-      getSuccessor() = edge;
+      getSuccessorHead() = edge;
   }
 
   void addPredecessor(BasicBlock *bb) {
@@ -218,6 +217,16 @@ public:
     pred.erase(std::remove_if(pred.begin(), pred.end(), // NOLINT
                               [=](auto &elem) { return elem.from == bb; }));
   }
+
+  struct SuccessorView {
+    const ListIterator<BasicBlockEdge> &succ_head;
+    ListIterator<BasicBlockEdge> begin() { return succ_head; }
+    ListIterator<BasicBlockEdge> end() {
+      return succ_head.null_end(); // NOLINT
+    }
+  };
+
+  SuccessorView getSuccessor() { return SuccessorView{getSuccessorHead()}; }
 
   [[nodiscard]] bool isNormalBasicBlock() const {
     return insn.back().op == OP_Jump || insn.back().op == OP_Branch;

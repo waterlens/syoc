@@ -90,8 +90,8 @@ bool BasicBlock::isEntryBlock() const {
 }
 
 BasicBlock::~BasicBlock() {
-  for (; getSuccessor().base() != nullptr;) {
-    getSuccessor()->to->removePredecessor(this);
+  for (; getSuccessorHead().base() != nullptr;) {
+    getSuccessorHead()->to->removePredecessor(this);
     // then to node will destruct the edge
     // which will call removeSuccessor of this
   }

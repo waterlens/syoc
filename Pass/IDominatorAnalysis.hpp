@@ -25,8 +25,10 @@ public:
   [[nodiscard]] static std::string_view getName() {
     return "Immediate Dominator Analysis";
   }
-  auto getIDominatorMap() const {
-    return std::make_pair(immediate_dominated_map, immediate_dominating_map);
+  std::pair<const std::unordered_map<BasicBlock *, BasicBlock *> &,
+            const std::unordered_multimap<BasicBlock *, BasicBlock *> &>
+  getIDominatorMap() const {
+    return {immediate_dominated_map, immediate_dominating_map};
   }
   std::unordered_set<BasicBlock *>
   findAllDominatedSet(BasicBlock *dominator) const;
