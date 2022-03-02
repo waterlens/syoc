@@ -6,12 +6,16 @@
 
 namespace SyOC {
 
+inline void clearVisited(Function *f) {
+  for (auto &bb : f->block) bb.refVisited() = false;
+}
+
 template <bool Postfix>
 inline void dfs(BasicBlock *bb, std::vector<BasicBlock *> &out) {
   bb->refVisited() = true;
   if constexpr (!Postfix)
     out.push_back(bb);
-  for (auto &e : bb->getSuccessor()) { // NOLINT
+  for (auto &e : bb->getSuccessor()) {
     if (!e.to->refVisited())
       dfs<Postfix>(e.to, out);
   }
@@ -25,12 +29,12 @@ inline std::vector<BasicBlock *> traversal(Function *f) {
     return {};
   auto &block = f->block;
   assert(!block.empty());
-  std::for_each(block.begin(), block.end(),
-                [](BasicBlock &bb) { bb.refVisited() = false; });
+  clearVisited(f);
   std::vector<BasicBlock *> ret;
   dfs<Postfix>(&block.front(), ret);
   if constexpr (Reverse)
     std::reverse(ret.begin(), ret.end());
+  clearVisited(f);
   return ret;
 }
 

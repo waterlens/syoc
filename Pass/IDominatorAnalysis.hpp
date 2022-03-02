@@ -20,6 +20,18 @@ class IDominatorAnalysis final {
   void calculateImmediateDominator(Function *f);
   static void invalidateAllOrder(Function *f);
 
+  template <bool Postfix>
+  inline void domTreeDFS(BasicBlock *bb, std::vector<BasicBlock *> &out) const {
+    if constexpr (!Postfix)
+      out.push_back(bb);
+    auto range = immediate_dominating_map.equal_range(bb);
+    for (auto iter = range.first; iter != range.second; ++iter) {
+      domTreeDFS<Postfix>(iter->second, out);
+    }
+    if constexpr (Postfix)
+      out.push_back(bb);
+  }
+
 public:
   IDominatorAnalysis() = default;
   [[nodiscard]] static std::string_view getName() {
@@ -33,8 +45,16 @@ public:
   std::unordered_set<BasicBlock *>
   findAllDominatedSet(BasicBlock *dominator) const;
   std::vector<BasicBlock *> findAllDominated(BasicBlock *dominator) const;
-
   void operator()(IRHost &host);
+
+  template <bool Postfix, bool Reverse>
+  std::vector<BasicBlock *> dominanceTreeTraversal(BasicBlock *b) const {
+    std::vector<BasicBlock *> ret;
+    dfs<Postfix>(b, ret);
+    if constexpr (Reverse)
+      std::reverse(ret.begin(), ret.end());
+    return ret;
+  }
 };
 
 } // namespace SyOC
