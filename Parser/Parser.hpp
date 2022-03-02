@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "Tree/Tree.hpp"
+#include "Util/Scope.hpp"
 
 namespace SyOC {
 enum class TokenType {

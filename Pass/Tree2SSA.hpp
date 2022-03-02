@@ -2,6 +2,7 @@
 
 #include "IR/IR.hpp"
 #include "Util/TrivialValueVector.hpp"
+#include "Util/Scope.hpp"
 
 #include <algorithm>
 #include <cassert>

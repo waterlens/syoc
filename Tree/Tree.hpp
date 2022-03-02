@@ -235,26 +235,6 @@ struct TreeReturnStmt : public Node {
   TreeReturnStmt(ExprPtr value) : Node(this_type), value(value) {}
 };
 
-template <typename T> class Scope {
-private:
-  std::vector<std::unordered_map<std::string_view, T>> scope;
-
-public:
-  T find(std::string_view name) {
-    for (auto iter = scope.rbegin(); iter != scope.rend(); ++iter) {
-      auto result = iter->find(name);
-      if (result != iter->end())
-        return result->second;
-    }
-    return T{};
-  }
-  void enter() { scope.emplace_back(); }
-  void exit() { scope.pop_back(); }
-  void insert(std::string_view name, const T &value) {
-    scope.back().emplace(name, value);
-  }
-};
-
 inline bool isVariableDeclaration(NodePtr node) {
   return node->is<TreeGlobalDeclaration *>() ||
          node->is<TreeLocalDeclaration *>();
