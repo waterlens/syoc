@@ -54,6 +54,6 @@ void stoptime();
   transformer
     .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination, SyOC::IRDump,
-                         SyOC::CFGDump, SyOC::IDominatorDump>();
+                         SyOC::CFGDump, SyOC::IDominatorDump, SyOC::IDFDump>();
   return 0;
 }

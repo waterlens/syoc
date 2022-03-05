@@ -25,6 +25,8 @@ public:
   ListIterator(ListNode<T> *node) : m_node(node) {}
   ListIterator(const ListNode<T> *node)
     : m_node(const_cast<ListNode<T> *>(node)) {}
+  ListIterator(const ListIterator &iter)
+    : m_node(iter.m_node) {}
 
   auto *base() const { return cast_to_derived(); }
   auto *base() { return cast_to_derived(); }

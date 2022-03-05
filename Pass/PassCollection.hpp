@@ -1,8 +1,12 @@
 #pragma once
 
+#include "Pass/Dump.hpp"
 namespace SyOC {
 class Tree2SSA;
 class IRDump;
+class CFGDump;
+class IDominatorDump;
+class IDFDump;
 class SimplifyCFG;
 class CFGAnalysis;
 class SimpleAllocationElimination;

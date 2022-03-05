@@ -12,6 +12,8 @@ UseEdge::UseEdge(Value *from, Value *to) {
 UseEdge::UseEdge(UseEdge &&edge) noexcept {
   from = edge.from;
   to = edge.to;
+  edge.from = nullptr;
+  edge.to = nullptr;
   from->removeEdge(&edge);
   from->addEdge(this);
 }
@@ -40,6 +42,8 @@ UseEdge &UseEdge::operator=(UseEdge &&edge) noexcept {
       from->removeEdge(this);
     from = edge.from;
     to = edge.to;
+    edge.from = nullptr;
+    edge.to = nullptr;
     from->removeEdge(&edge);
     from->addEdge(this);
   }
@@ -56,6 +60,8 @@ BasicBlockEdge::BasicBlockEdge(BasicBlock *from, BasicBlock *to) {
 BasicBlockEdge::BasicBlockEdge(BasicBlockEdge &&edge) noexcept {
   from = edge.from;
   to = edge.to;
+  edge.from = nullptr;
+  edge.to = nullptr;
   from->removeSuccessor(&edge);
   from->addSuccessor(this);
 }
@@ -78,12 +84,14 @@ BasicBlockEdge &BasicBlockEdge::operator=(BasicBlock *from) {
   return *this;
 }
 
-BasicBlockEdge &BasicBlockEdge::operator=(BasicBlockEdge &&edge)  noexcept {
+BasicBlockEdge &BasicBlockEdge::operator=(BasicBlockEdge &&edge) noexcept {
   if (this != &edge) {
     if (from != nullptr)
       from->removeSuccessor(this);
     from = edge.from;
     to = edge.to;
+    edge.from = nullptr;
+    edge.to = nullptr;
     from->removeSuccessor(&edge);
     from->addSuccessor(this);
   }

@@ -91,12 +91,12 @@ struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
   BasicBlock *to;
   BasicBlockEdge() = delete;
   BasicBlockEdge(const BasicBlockEdge &edge) = delete;
-  BasicBlockEdge(BasicBlockEdge &&edge) noexcept ;
+  BasicBlockEdge(BasicBlockEdge &&edge) noexcept;
   BasicBlockEdge(BasicBlock *from, BasicBlock *to);
   ~BasicBlockEdge() final;
   void associate(BasicBlock *from);
   BasicBlockEdge &operator=(BasicBlock *from);
-  BasicBlockEdge &operator=(BasicBlockEdge &&edge) noexcept ;
+  BasicBlockEdge &operator=(BasicBlockEdge &&edge) noexcept;
 };
 
 struct Value {
@@ -143,12 +143,12 @@ public:
     }
   };
 
-  [[nodiscard]] UserView getUser() const { return UserView{getEdgeHead()}; }
   [[nodiscard]] size_t getNumOfEdges() const {
     size_t n = 0;
-    for (auto &_ : getUser()) ++n;
+    for (auto use_iter = getEdgeHead(); !use_iter.reach_end(); ++use_iter) ++n;
     return n;
   }
+  
   void replaceAllUsesWith(Value *new_value) const {
     static std::vector<decltype(edge)> uses;
     uses.clear();
@@ -185,6 +185,8 @@ struct Instruction : public Value, public ListNode<Instruction> {
   [[nodiscard]] bool isControlInstruction() const {
     return op == OP_Jump || op == OP_Branch || op == OP_Return;
   }
+
+  [[nodiscard]] bool isDefinitionInstruction() const { return op == OP_Store; }
 };
 
 struct BasicBlock final : public Value, public ListNode<BasicBlock> {

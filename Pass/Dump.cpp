@@ -1,7 +1,7 @@
 #include "Dump.hpp"
 #include "AssignIdentityHelper.hpp"
 
-namespace SyOC {\
+namespace SyOC {
 std::string IRDump::dumpType(const Type &ty) {
   std::string buffer;
   switch (ty.primitive_type) {

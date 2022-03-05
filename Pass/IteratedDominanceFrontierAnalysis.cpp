@@ -1,58 +1,64 @@
 #include "IteratedDominanceFrontierAnalysis.hpp"
 
+#include <cassert>
 #include <stdexcept>
 #include <unordered_set>
 
 namespace SyOC {
 void IteratedDominanceFrontierAnalysis::computeDFLocal(
-  const IDominatorAnalysis &ida, BasicBlock *x) {
+  const IDominatorAnalysis &ida, BasicBlock *x,
+  std::unordered_set<BasicBlock *> &res) {
   auto [idom, _] = ida.getIDominatorMap();
   for (auto &y : x->getSuccessor()) {
     if (!idom.contains(y.to))
       throw std::runtime_error("Successor has no dominator");
     if (idom.at(y.to) != x) {
-      dominance_frontier.emplace(x, y.to);
-      dominance_frontier_set.insert(y.to);
+      dominance_frontier[x].emplace(y.to);
+      res.insert(y.to);
     }
   }
 }
 
 void IteratedDominanceFrontierAnalysis::computeDFUp(
-  const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z) {
+  const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z,
+  std::unordered_set<BasicBlock *> &res) {
   auto [idom, _] = ida.getIDominatorMap();
-  auto range = dominance_frontier.equal_range(z);
-  for (auto y_iter = range.first; y_iter != range.second; ++y_iter) {
-    if (!idom.contains(y_iter->second) || !idom.contains(z))
+  for (auto *y : dominance_frontier[z]) {
+    assert(y != nullptr);
+    if (!idom.contains(y) || !idom.contains(z))
       throw std::runtime_error("y has no dominator");
-    if (idom.at(y_iter->second) != x && idom.at(z) == x /* redundancy */) {
-      dominance_frontier.emplace(x, y_iter->second);
-      dominance_frontier_set.insert(y_iter->second);
+    if (idom.at(y) != x && idom.at(z) == x /* redundancy */) {
+      dominance_frontier[x].emplace(y);
+      res.insert(y);
     }
   }
 }
 
 void IteratedDominanceFrontierAnalysis::computeDominanceFrontier(
-  const IDominatorAnalysis &ida, BasicBlock *x) {
+  const IDominatorAnalysis &ida, BasicBlock *x,
+  std::unordered_set<BasicBlock *> &res) {
   auto po = ida.dominanceTreeTraversal<true, false>(x);
   for (auto *bb : po) {
-    computeDFLocal(ida, bb);
+    computeDFLocal(ida, bb, res);
     auto idominated = ida.findAllDominated(bb);
-    for (auto *z : idominated) computeDFUp(ida, bb, z);
+    for (auto *z : idominated) computeDFUp(ida, bb, z, res);
   }
 }
 
-void IteratedDominanceFrontierAnalysis::computeDominanceFrontierSet(
+std::unordered_set<BasicBlock *>
+IteratedDominanceFrontierAnalysis::computeDominanceFrontierSet(
   const IDominatorAnalysis &ida, const std::unordered_set<BasicBlock *> &set) {
-  for (auto *bb : set) computeDominanceFrontier(ida, bb);
+  std::unordered_set<BasicBlock *> res;
+  for (auto *bb : set) computeDominanceFrontier(ida, bb, res);
+  return res;
 }
 
 const std::unordered_set<BasicBlock *> &
 IteratedDominanceFrontierAnalysis::computeIteratedDominanceFrontierSet(
   const IDominatorAnalysis &ida, std::unordered_set<BasicBlock *> &set) {
-  dominance_frontier_set.clear();
   dominance_frontier.clear();
 
-  dominance_frontier_set.merge(set);
+  dominance_frontier_set = computeDominanceFrontierSet(ida, set);
 
   bool changed = true;
   auto dfp_size = dominance_frontier_set.size();
@@ -60,7 +66,9 @@ IteratedDominanceFrontierAnalysis::computeIteratedDominanceFrontierSet(
   while (changed) {
     changed = false;
 
-    computeDominanceFrontierSet(ida, dominance_frontier_set);
+    for (auto *bb : set) dominance_frontier_set.insert(bb);
+    dominance_frontier_set =
+      computeDominanceFrontierSet(ida, dominance_frontier_set);
     auto dfp_size_new = dominance_frontier_set.size();
 
     if (dfp_size != dfp_size_new) {
@@ -68,6 +76,7 @@ IteratedDominanceFrontierAnalysis::computeIteratedDominanceFrontierSet(
       dfp_size = dfp_size_new;
     }
   }
+
   return dominance_frontier_set;
 }
 
