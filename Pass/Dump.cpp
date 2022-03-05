@@ -20,7 +20,7 @@ std::string IRDump::dumpUser(Value *value) {
   return fmt::format(
     "// {}",
     join(
-      value->getImmutableEdges(), ListIterator<UseEdge>(),
+      value->getEdgeHead(), ListIterator<UseEdge>(),
       [](auto edge) { return fmt::format("%{}", edge.to->getIdentity()); },
       " "));
 }

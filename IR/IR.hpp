@@ -130,16 +130,26 @@ public:
     } else
       getEdge() = edge;
   }
-  [[nodiscard]] auto getImmutableEdges() const { return edge; }
+  [[nodiscard]] auto getEdgeHead() const { return edge; }
+  
+  struct UserView {
+    const ListIterator<UseEdge> &edge_head;
+    ListIterator<UseEdge> begin() { return edge_head; }
+    ListIterator<UseEdge> end() {
+      return edge_head.null_end(); // NOLINT
+    }
+  };
+
+  [[nodiscard]] UserView getUser() const { return UserView{getEdgeHead()}; }
   [[nodiscard]] size_t getNumOfEdges() const {
     size_t n = 0;
-    for (auto iter = getImmutableEdges(); !iter.reach_end(); ++iter) ++n;
+    for (auto _ : getUser()) ++n;
     return n;
   }
   void replaceAllUsesWith(Value *new_value) const {
     static std::vector<decltype(edge)> uses;
     uses.clear();
-    for (auto use_iter = getImmutableEdges(); !use_iter.reach_end(); ++use_iter)
+    for (auto use_iter = getEdgeHead(); !use_iter.reach_end(); ++use_iter)
       uses.push_back(use_iter);
     for (auto &use : uses) use->associate(new_value);
   }

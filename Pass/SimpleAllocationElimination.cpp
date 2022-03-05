@@ -48,7 +48,7 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
 
       TrivialValueVector<Instruction *, 8> defs;
       bool skip = false;
-      for (auto use_iter = iter->getImmutableEdges(); !use_iter.reach_end();
+      for (auto use_iter = iter->getEdgeHead(); !use_iter.reach_end();
            ++use_iter) {
         auto *insn = use_iter->to->as<Instruction *>();
         if (insn->op == OP_Store || insn->op == OP_Memset0)
@@ -78,7 +78,7 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
       auto use_n = iter->getNumOfEdges() - 1; // except the store
       auto replace_n = 0;
 
-      for (auto use_iter = iter->getImmutableEdges(); !use_iter.reach_end();) {
+      for (auto use_iter = iter->getEdgeHead(); !use_iter.reach_end();) {
         bool inc = false;
         if (auto *load = use_iter->to->as<Instruction *>()) {
           if (load->op == OP_Load) {
