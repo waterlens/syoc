@@ -77,23 +77,26 @@ struct UseEdge final : public ListNode<UseEdge> {
   Value *from;
   Value *to;
   UseEdge() = delete;
-  UseEdge(const UseEdge &edge) : UseEdge(edge.from, edge.to) {}
+  UseEdge(const UseEdge &edge) = delete;
+  UseEdge(UseEdge &&edge) noexcept;
   UseEdge(Value *from, Value *to);
   ~UseEdge() final;
   void associate(Value *from);
   UseEdge &operator=(Value *from);
+  UseEdge &operator=(UseEdge &&edge) noexcept;
 };
 
 struct BasicBlockEdge final : public ListNode<BasicBlockEdge> {
   BasicBlock *from;
   BasicBlock *to;
   BasicBlockEdge() = delete;
-  BasicBlockEdge(const BasicBlockEdge &edge)
-    : BasicBlockEdge(edge.from, edge.to) {}
+  BasicBlockEdge(const BasicBlockEdge &edge) = delete;
+  BasicBlockEdge(BasicBlockEdge &&edge) noexcept ;
   BasicBlockEdge(BasicBlock *from, BasicBlock *to);
   ~BasicBlockEdge() final;
   void associate(BasicBlock *from);
   BasicBlockEdge &operator=(BasicBlock *from);
+  BasicBlockEdge &operator=(BasicBlockEdge &&edge) noexcept ;
 };
 
 struct Value {
@@ -131,7 +134,7 @@ public:
       getEdge() = edge;
   }
   [[nodiscard]] auto getEdgeHead() const { return edge; }
-  
+
   struct UserView {
     const ListIterator<UseEdge> &edge_head;
     ListIterator<UseEdge> begin() { return edge_head; }
@@ -143,7 +146,7 @@ public:
   [[nodiscard]] UserView getUser() const { return UserView{getEdgeHead()}; }
   [[nodiscard]] size_t getNumOfEdges() const {
     size_t n = 0;
-    for (auto _ : getUser()) ++n;
+    for (auto &_ : getUser()) ++n;
     return n;
   }
   void replaceAllUsesWith(Value *new_value) const {

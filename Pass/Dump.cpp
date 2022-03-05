@@ -21,7 +21,7 @@ std::string IRDump::dumpUser(Value *value) {
     "// {}",
     join(
       value->getEdgeHead(), ListIterator<UseEdge>(),
-      [](auto edge) { return fmt::format("%{}", edge.to->getIdentity()); },
+      [](auto &edge) { return fmt::format("%{}", edge.to->getIdentity()); },
       " "));
 }
 
@@ -69,14 +69,14 @@ void IRDump::dumpInstruction(Instruction *insn) {
                         insn->getIdentity(), op_name[insn->op]);
   buffer += join(
     insn->getInput().begin(), insn->getInput().end(),
-    [this](auto v) { return dumpInstructionInput(v.from); }, ", ");
+    [this](auto &v) { return dumpInstructionInput(v.from); }, ", ");
   buffer += fmt::format(" {}\n", dumpUser(insn));
 }
 
 void IRDump::dumpBasicBlock(BasicBlock *bb) {
   buffer += fmt::format("L{}:\n", bb->getIdentity());
   std::for_each(bb->begin(), bb->end(),
-                [&](auto insn) { dumpInstruction(&insn); });
+                [&](auto &insn) { dumpInstruction(&insn); });
 }
 
 void IRDump::dumpFunction(Function *func) {
