@@ -79,6 +79,7 @@ class IDFDump {
                               IteratedDominanceFrontierAnalysis &idfa) {
     assert(!func.refExternal());
 
+    std::unordered_set<BasicBlock *> visited;
     cfg.addNode(-func.getIdentity(), fmt::format("Function {}", func.name));
 
     auto &front = func.block.front();
@@ -90,15 +91,25 @@ class IDFDump {
                     fmt::format("var %{}", insn.getIdentity()));
         auto def_set = findDefBlock(insn);
         for (auto *def : def_set) {
-          cfg.addNode(def->getIdentity(),
-                      fmt::format("L{}", def->getIdentity()));
-          cfg.addEdge(insn.getIdentity(), def->getIdentity(), "defined in");
+          if (!visited.contains(def)) {
+            cfg.addNode(def->getIdentity(),
+                        fmt::format("L{}", def->getIdentity()));
+            visited.insert(def);
+          }
+          cfg.addEdge(insn.getIdentity(), def->getIdentity(), "Def");
         }
-        auto idf_set = idfa.getIDFSet(def_set);
-        for (auto *idf : idf_set) {
-          cfg.addNode(idf->getIdentity(),
-                      fmt::format("L{}", idf->getIdentity()));
-          cfg.addEdge(insn.getIdentity(), idf->getIdentity(), "dom frontier");
+        auto [idf_set_split, idf_set] = idfa.getIDFSet(def_set);
+        for (auto &[bb, idf] : idf_set_split) {
+          if (!def_set.contains(bb))
+            continue;
+          for (auto *idf_elem : idf) {
+            if (!visited.contains(idf_elem)) {
+              cfg.addNode(idf_elem->getIdentity(),
+                          fmt::format("L{}", idf_elem->getIdentity()));
+              visited.insert(idf_elem);
+            }
+            cfg.addEdge(bb->getIdentity(), idf_elem->getIdentity(), "DF");
+          }
         }
       }
     }

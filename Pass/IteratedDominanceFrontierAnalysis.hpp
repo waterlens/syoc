@@ -6,15 +6,21 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace SyOC {
 class IteratedDominanceFrontierAnalysis {
+public:
+  using BBMap =
+    std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>>;
+  using BBSet = std::unordered_set<BasicBlock *>;
+  using ReturnTy = std::pair<BBMap, BBSet>;
+
 private:
   IRHost *host;
   IDominatorAnalysis idom;
-  std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>>
-    dominance_frontier;
-  std::unordered_set<BasicBlock *> dominance_frontier_set;
+  BBMap dominance_frontier;
+  BBSet dominance_frontier_set;
   void computeDFLocal(const IDominatorAnalysis &ida, BasicBlock *x,
                       std::unordered_set<BasicBlock *> &res);
   void computeDFUp(const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z,
@@ -39,18 +45,18 @@ public:
     idom(host);
   }
 
-  auto getIDFSet(const std::vector<BasicBlock *> &defs) {
+  ReturnTy getIDFSet(const std::vector<BasicBlock *> &defs) {
     std::unordered_set<BasicBlock *> set;
     set.reserve(defs.size());
     for (auto *bb : defs) set.insert(bb);
     computeIteratedDominanceFrontierSet(idom, set);
-    return dominance_frontier_set;
+    return {dominance_frontier, dominance_frontier_set};
   }
 
-  auto getIDFSet(const std::unordered_set<BasicBlock *> &defs) {
+  ReturnTy getIDFSet(const std::unordered_set<BasicBlock *> &defs) {
     auto set = defs;
     computeIteratedDominanceFrontierSet(idom, set);
-    return dominance_frontier_set;
+    return {dominance_frontier, dominance_frontier_set};
   }
 };
 } // namespace SyOC
