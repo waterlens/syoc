@@ -44,6 +44,9 @@ public:
   std::unordered_set<BasicBlock *>
   findAllDominatedSet(BasicBlock *dominator) const;
   std::vector<BasicBlock *> findAllDominated(BasicBlock *dominator) const;
+  std::unordered_set<BasicBlock *>
+  findAllIDominatedSet(BasicBlock *dominator) const;
+  std::vector<BasicBlock *> findAllIDominated(BasicBlock *dominator) const;
   void operator()(IRHost &host);
 
   template <bool Postfix, bool Reverse>

@@ -23,11 +23,12 @@ void IteratedDominanceFrontierAnalysis::computeDFUp(
   const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z,
   std::unordered_set<BasicBlock *> &res) {
   auto [idom, _] = ida.getIDominatorMap();
+  assert(idom.at(z) == x);
   for (auto *y : dominance_frontier[z]) {
     assert(y != nullptr);
     if (!idom.contains(y) || !idom.contains(z))
       throw std::runtime_error("y has no dominator");
-    if (idom.at(y) != x && idom.at(z) == x /* redundancy */) {
+    if (idom.at(y) != x) {
       dominance_frontier[x].emplace(y);
       res.insert(y);
     }
@@ -40,7 +41,7 @@ void IteratedDominanceFrontierAnalysis::computeDominanceFrontier(
   auto po = ida.dominanceTreeTraversal<true, false>(x);
   for (auto *bb : po) {
     computeDFLocal(ida, bb, res);
-    auto idominated = ida.findAllDominated(bb);
+    auto idominated = ida.findAllIDominated(bb);
     for (auto *z : idominated) computeDFUp(ida, bb, z, res);
   }
 }

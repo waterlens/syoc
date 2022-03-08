@@ -99,6 +99,25 @@ IDominatorAnalysis::findAllDominated(BasicBlock *dominator) const {
   dominated.push_back(dominator); // always dominates itself
   return dominated;
 }
+
+std::unordered_set<BasicBlock *>
+IDominatorAnalysis::findAllIDominatedSet(BasicBlock *dominator) const {
+  std::unordered_set<BasicBlock *> dominated;
+  auto range = immediate_dominating_map.equal_range(dominator);
+  for (auto iter = range.first; iter != range.second; ++iter)
+    dominated.insert(iter->second);
+  return dominated;
+}
+
+std::vector<BasicBlock *>
+IDominatorAnalysis::findAllIDominated(BasicBlock *dominator) const {
+  std::vector<BasicBlock *> dominated;
+  auto range = immediate_dominating_map.equal_range(dominator);
+  for (auto iter = range.first; iter != range.second; ++iter)
+    dominated.push_back(iter->second);
+  return dominated;
+}
+
 void IDominatorAnalysis::operator()(IRHost &host) {
   for (auto *func : host.getModule()->func) {
     if (func->refExternal() || func->block.empty())
