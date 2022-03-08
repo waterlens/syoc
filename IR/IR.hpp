@@ -108,7 +108,7 @@ protected:
 
 public:
   unsigned &getIdentity() { return identity; }
-  Value *&getParent() { return parent; }
+  Value *&refParent() { return parent; }
   Value(ClassType t) : class_type(t) {}
   template <typename T> bool is() {
     return class_type == std::remove_pointer_t<T>::this_type;
@@ -148,7 +148,7 @@ public:
     for (auto use_iter = getEdgeHead(); !use_iter.reach_end(); ++use_iter) ++n;
     return n;
   }
-  
+
   void replaceAllUsesWith(Value *new_value) const {
     static std::vector<decltype(edge)> uses;
     uses.clear();
@@ -301,7 +301,15 @@ struct Function : public Value {
                           Module *m = nullptr);
   void addBasicBlock(BasicBlock *bb) {
     block.push_back(bb);
-    bb->getParent() = this;
+    bb->refParent() = this;
+  }
+};
+
+struct Undef : public Value {
+  THIS(SV_Undef);
+  Undef() : Value{this_type} {}
+  static Undef *create() {
+    return new Undef();
   }
 };
 

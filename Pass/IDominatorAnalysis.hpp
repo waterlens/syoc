@@ -25,9 +25,8 @@ class IDominatorAnalysis final {
     if constexpr (!Postfix)
       out.push_back(bb);
     auto range = immediate_dominating_map.equal_range(bb);
-    for (auto iter = range.first; iter != range.second; ++iter) {
+    for (auto iter = range.first; iter != range.second; ++iter)
       domTreeDFS<Postfix>(iter->second, out);
-    }
     if constexpr (Postfix)
       out.push_back(bb);
   }
@@ -50,7 +49,7 @@ public:
   template <bool Postfix, bool Reverse>
   std::vector<BasicBlock *> dominanceTreeTraversal(BasicBlock *b) const {
     std::vector<BasicBlock *> ret;
-    dfs<Postfix>(b, ret);
+    domTreeDFS<Postfix>(b, ret);
     if constexpr (Reverse)
       std::reverse(ret.begin(), ret.end());
     return ret;

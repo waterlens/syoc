@@ -70,7 +70,7 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
         continue;
       }
 
-      auto *def_bb = def->getParent();
+      auto *def_bb = def->refParent();
       auto *store_source = def->getInput()[1].from;
       auto all_dominated =
         lazy_idom().findAllDominatedSet(def_bb->as<BasicBlock *>());
@@ -84,8 +84,8 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
           if (load->op == OP_Load) {
             // the load inst occurs in a dominated block but not the
             // definition block
-            if (all_dominated.contains(load->getParent()->as<BasicBlock *>()) &&
-                load->getParent() != &alloca_bb) {
+            if (all_dominated.contains(load->refParent()->as<BasicBlock *>()) &&
+                load->refParent() != &alloca_bb) {
               // replace the load with the store source
               ++use_iter; // release the load will invalidate use_iter
               inc = true;

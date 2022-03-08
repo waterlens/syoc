@@ -81,6 +81,7 @@ SSAValueTypeDefine(SV_ConstantArray)
 SSAValueTypeDefine(SV_GlobalVariable)
 SSAValueTypeDefine(SV_Function)
 SSAValueTypeDefine(SV_Argument)
+SSAValueTypeDefine(SV_Undef)
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine

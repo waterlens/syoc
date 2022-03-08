@@ -9,7 +9,7 @@ findDefinitionBlock(Instruction &alloca) {
        user_iter++) {
     auto *insn = user_iter->to->as<Instruction *>();
     if (insn->isDefinitionInstruction())
-      res.insert(insn->getParent()->as<BasicBlock *>());
+      res.insert(insn->refParent()->as<BasicBlock *>());
   }
   return res;
 }
