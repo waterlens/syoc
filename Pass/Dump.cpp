@@ -1,4 +1,5 @@
 #include "Dump.hpp"
+#include "AllocaDefinitionHelper.hpp"
 #include "AssignIdentityHelper.hpp"
 
 namespace SyOC {
@@ -125,13 +126,12 @@ void CFGDump::operator()(IRHost &host) {
   GraphHelper cfg;
   assignIdentity(host);
 
-  for (auto *func: host.getModule()->func) {
+  for (auto *func : host.getModule()->func) {
     if (func->external)
       continue;
     cfg.addNode(-func->getIdentity(), fmt::format("Function {}", func->name));
     cfg.addEdge(-func->getIdentity(), func->block.front().getIdentity(), "");
-    for (auto &bb : func->block)
-      dumpBasicBlock(cfg, &bb);
+    for (auto &bb : func->block) dumpBasicBlock(cfg, &bb);
   }
 
   static int cfg_count = 0;
@@ -139,29 +139,83 @@ void CFGDump::operator()(IRHost &host) {
 }
 
 void IDominatorDump::operator()(IRHost &host) {
-    IDominatorAnalysis ida;
-    GraphHelper idg;
-    ida(host);
-    assignIdentity(host);
+  IDominatorAnalysis ida;
+  GraphHelper idg;
+  ida(host);
+  assignIdentity(host);
 
-    std::unordered_set<BasicBlock *> visited;
-    const auto &idominated_map = ida.getIDominatorMap().first;
-    for (auto [idominated, idominator] : idominated_map) {
-        if (!visited.contains(idominated)) {
-            idg.addNode(idominated->getIdentity(),
-                        fmt::format("L{}", idominated->getIdentity()));
-            visited.insert(idominated);
-        }
-        if (!visited.contains(idominator)) {
-            idg.addNode(idominator->getIdentity(),
-                        fmt::format("L{}", idominator->getIdentity()));
-            visited.insert(idominator);
-        }
-        idg.addEdge(idominator->getIdentity(), idominated->getIdentity(), "");
+  std::unordered_set<BasicBlock *> visited;
+  const auto &idominated_map = ida.getIDominatorMap().first;
+  for (auto [idominated, idominator] : idominated_map) {
+    if (!visited.contains(idominated)) {
+      idg.addNode(idominated->getIdentity(),
+                  fmt::format("L{}", idominated->getIdentity()));
+      visited.insert(idominated);
     }
-    visited.clear();
+    if (!visited.contains(idominator)) {
+      idg.addNode(idominator->getIdentity(),
+                  fmt::format("L{}", idominator->getIdentity()));
+      visited.insert(idominator);
+    }
+    idg.addEdge(idominator->getIdentity(), idominated->getIdentity(), "");
+  }
+  visited.clear();
 
-    static int g_count = 0;
-    idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
+  static int g_count = 0;
+  idg.outputToFile(fmt::format("dump.idom.{}.dot", g_count), "IDominator");
+}
+
+void IDFDump::operator()(IRHost &host) {
+  GraphHelper g;
+  IteratedDominanceFrontierAnalysis idfa;
+
+  assignIdentity(host);
+  idfa(host);
+  for (auto *func : host.getModule()->func)
+    if (!func->refExternal())
+      dumpFunctionIDF(g, *func, idfa);
+
+  static int idf_count = 0;
+  g.outputToFile(fmt::format("dump.idf.{}.dot", idf_count++), "IDF");
+}
+
+void IDFDump::dumpFunctionIDF(GraphHelper &cfg, Function &func,
+                              IteratedDominanceFrontierAnalysis &idfa) {
+  assert(!func.refExternal());
+
+  std::unordered_set<BasicBlock *> visited;
+  cfg.addNode(-func.getIdentity(), fmt::format("Function {}", func.name));
+
+  auto &front = func.block.front();
+  for (auto &insn : front) {
+    if (insn.op == OP_Allocate &&
+        insn.getInput()[0].from->as<SyOC::ConstantInteger *>()->value == 4) {
+      cfg.addEdge(-func.getIdentity(), insn.getIdentity(), "");
+      cfg.addNode(insn.getIdentity(),
+                  fmt::format("var %{}", insn.getIdentity()));
+      auto def_set = findDefinitionBlock(insn);
+      for (auto *def : def_set) {
+        if (!visited.contains(def)) {
+          cfg.addNode(def->getIdentity(),
+                      fmt::format("L{}", def->getIdentity()));
+          visited.insert(def);
+        }
+        cfg.addEdge(insn.getIdentity(), def->getIdentity(), "Def");
+      }
+      auto [idf_set_split, idf_set] = idfa.getIDFSet(def_set);
+      for (auto &[bb, idf] : idf_set_split) {
+        if (!def_set.contains(bb))
+          continue;
+        for (auto *idf_elem : idf) {
+          if (!visited.contains(idf_elem)) {
+            cfg.addNode(idf_elem->getIdentity(),
+                        fmt::format("L{}", idf_elem->getIdentity()));
+            visited.insert(idf_elem);
+          }
+          cfg.addEdge(bb->getIdentity(), idf_elem->getIdentity(), "DF");
+        }
+      }
+    }
+  }
 }
 } // namespace SyOC

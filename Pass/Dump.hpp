@@ -63,74 +63,12 @@ public:
 };
 
 class IDFDump {
-  static auto findDefBlock(Instruction &alloca) {
-    assert(alloca.op == OP_Allocate);
-    std::unordered_set<BasicBlock *> res;
-    for (auto user_iter = alloca.getEdgeHead(); !user_iter.reach_end();
-         user_iter++) {
-      auto *insn = user_iter->to->as<Instruction *>();
-      if (insn->isDefinitionInstruction())
-        res.insert(insn->getParent()->as<BasicBlock *>());
-    }
-    return res;
-  }
-
   static void dumpFunctionIDF(GraphHelper &cfg, Function &func,
-                              IteratedDominanceFrontierAnalysis &idfa) {
-    assert(!func.refExternal());
-
-    std::unordered_set<BasicBlock *> visited;
-    cfg.addNode(-func.getIdentity(), fmt::format("Function {}", func.name));
-
-    auto &front = func.block.front();
-    for (auto &insn : front) {
-      if (insn.op == OP_Allocate &&
-          insn.getInput()[0].from->as<SyOC::ConstantInteger *>()->value == 4) {
-        cfg.addEdge(-func.getIdentity(), insn.getIdentity(), "");
-        cfg.addNode(insn.getIdentity(),
-                    fmt::format("var %{}", insn.getIdentity()));
-        auto def_set = findDefBlock(insn);
-        for (auto *def : def_set) {
-          if (!visited.contains(def)) {
-            cfg.addNode(def->getIdentity(),
-                        fmt::format("L{}", def->getIdentity()));
-            visited.insert(def);
-          }
-          cfg.addEdge(insn.getIdentity(), def->getIdentity(), "Def");
-        }
-        auto [idf_set_split, idf_set] = idfa.getIDFSet(def_set);
-        for (auto &[bb, idf] : idf_set_split) {
-          if (!def_set.contains(bb))
-            continue;
-          for (auto *idf_elem : idf) {
-            if (!visited.contains(idf_elem)) {
-              cfg.addNode(idf_elem->getIdentity(),
-                          fmt::format("L{}", idf_elem->getIdentity()));
-              visited.insert(idf_elem);
-            }
-            cfg.addEdge(bb->getIdentity(), idf_elem->getIdentity(), "DF");
-          }
-        }
-      }
-    }
-  }
-
+                              IteratedDominanceFrontierAnalysis &idfa);
 public:
   IDFDump() = default;
   [[nodiscard]] static std::string_view getName() { return "IDF Dump"; }
-  void operator()(IRHost &host) {
-    GraphHelper g;
-    IteratedDominanceFrontierAnalysis idfa;
-
-    assignIdentity(host);
-    idfa(host);
-    for (auto *func : host.getModule()->func)
-      if (!func->refExternal())
-        dumpFunctionIDF(g, *func, idfa);
-
-    static int idf_count = 0;
-    g.outputToFile(fmt::format("dump.idf.{}.dot", idf_count++), "IDF");
-  }
+  void operator()(IRHost &host);
 };
 
 } // namespace SyOC
