@@ -52,6 +52,8 @@ std::string IRDump::dumpInstructionInput(Value *value) {
     return fmt::format("label L{}", bb->getIdentity());
   if (auto *f = value->as<Function *>())
     return fmt::format("fn {} {}", dumpType(f->return_type), f->name);
+  if (auto *_ = value->as<Undef *>())
+    return "undef";
   throw std::runtime_error("can not dump this SSAValue");
 }
 
