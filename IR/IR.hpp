@@ -119,7 +119,7 @@ public:
     return nullptr;
   }
   template <typename T> T as() const { return as<T>(); }
-  [[nodiscard]] bool hasNoEdge() const { return edge.base() == nullptr; }
+  [[nodiscard]] bool hasNoEdge() const { return edge.reach_end(); }
   auto &getEdge() { return edge; }
   void removeEdge(UseEdge *edge) {
     if (edge == getEdge().base())
@@ -186,7 +186,14 @@ struct Instruction : public Value, public ListNode<Instruction> {
     return op == OP_Jump || op == OP_Branch || op == OP_Return;
   }
 
-  [[nodiscard]] bool isDefinitionInstruction() const { return op == OP_Store; }
+  [[nodiscard]] bool isDefinitionInstruction() const {
+    return op == OP_Store || op == OP_Memset0;
+  }
+
+  [[nodiscard]] bool safeEliminative() const {
+    return !(isControlInstruction() || isDefinitionInstruction() ||
+             op == OP_Call);
+  }
 };
 
 struct BasicBlock final : public Value, public ListNode<BasicBlock> {
@@ -308,9 +315,7 @@ struct Function : public Value {
 struct Undef : public Value {
   THIS(SV_Undef);
   Undef() : Value{this_type} {}
-  static Undef *create() {
-    return new Undef();
-  }
+  static Undef *create() { return new Undef(); }
 };
 
 struct GlobalVariable : public Value {

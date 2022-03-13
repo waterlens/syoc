@@ -1,7 +1,7 @@
 #include "Parser/Parser.hpp"
+#include "Pass/DeadCodeElimination.hpp"
 #include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
-#include "Pass/PromoteMem2Reg.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -56,6 +56,6 @@ void stoptime();
   transformer.doSSATransformation<
     SyOC::SimplifyCFG, SyOC::SimpleAllocationElimination, SyOC::IRDump,
     SyOC::IDominatorDump, SyOC::IDFDump, SyOC::CFGDump, SyOC::PromoteMem2Reg,
-    SyOC::IRDump, SyOC::CFGDump>();
+    SyOC::IRDump, SyOC::DeadCodeElimination, SyOC::IRDump, SyOC::CFGDump>();
   return 0;
 }
