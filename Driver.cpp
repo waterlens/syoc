@@ -1,4 +1,5 @@
 #include "Parser/Parser.hpp"
+#include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/PromoteMem2Reg.hpp"
 #include "Transformer/Transformer.hpp"
@@ -52,9 +53,9 @@ void stoptime();
   transformer
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  transformer
-    .doSSATransformation<SyOC::SimplifyCFG, SyOC::SimpleAllocationElimination,
-                         SyOC::IRDump, SyOC::IDominatorDump, SyOC::IDFDump,
-                         SyOC::PromoteMem2Reg, SyOC::IRDump, SyOC::CFGDump>();
+  transformer.doSSATransformation<
+    SyOC::SimplifyCFG, SyOC::SimpleAllocationElimination, SyOC::IRDump,
+    SyOC::IDominatorDump, SyOC::IDFDump, SyOC::CFGDump, SyOC::PromoteMem2Reg,
+    SyOC::IRDump, SyOC::CFGDump>();
   return 0;
 }

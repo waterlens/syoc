@@ -21,12 +21,9 @@ private:
   IDominatorAnalysis idom;
   BBMap dominance_frontier;
   BBSet dominance_frontier_set;
-  void computeDFLocal(const IDominatorAnalysis &ida, BasicBlock *x,
-                      std::unordered_set<BasicBlock *> &res);
-  void computeDFUp(const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z,
-                   std::unordered_set<BasicBlock *> &res);
-  void computeDominanceFrontier(const IDominatorAnalysis &ida, BasicBlock *x,
-                                std::unordered_set<BasicBlock *> &res);
+  void computeDFLocal(const IDominatorAnalysis &ida, BasicBlock *x);
+  void computeDFUp(const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z);
+  void computeDominanceFrontier(const IDominatorAnalysis &ida, BasicBlock *x);
   std::unordered_set<BasicBlock *>
   computeDominanceFrontierSet(const IDominatorAnalysis &ida,
                               const std::unordered_set<BasicBlock *> &set);

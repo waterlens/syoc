@@ -47,6 +47,7 @@ class IRDump {
   dumpFunctionParameterList(const std::vector<Argument *> &param);
   static std::string dumpInstructionInput(Value *value);
   void dumpAllGlobalVariable(IRHost &host);
+  void dumpPhiInput(Instruction *insn);
   void dumpInstruction(Instruction *insn);
   void dumpBasicBlock(BasicBlock *bb);
   void dumpFunction(Function *func);

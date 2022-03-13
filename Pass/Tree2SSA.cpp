@@ -425,7 +425,7 @@ void Tree2SSA::functionGeneration(TreeFunctionDeclaration *decl) {
     if (!is_void) {
       auto *retval = host->createInstruction(
         OP_Load, current_function->return_type, {current_retval});
-      host->createInstruction(OP_Return, current_function->return_type,
+      host->createInstruction(OP_Return, PredefinedType::Void,
                               {retval});
     } else {
       host->createInstruction(OP_Return, PredefinedType::Void);

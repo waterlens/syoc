@@ -15,7 +15,7 @@ int IDominatorAnalysis::intersect(const std::vector<int> &doms, int pred,
 
 void IDominatorAnalysis::calculateImmediateDominator(Function *f) {
   invalidateAllOrder(f);
-  auto rpo = traversal<true, true>(f);
+  auto rpo = dfsTraversal<true, true>(f);
   bool changed = true;
   auto id = rpo.size();
   // order is assigned by the reverse postorder traversal

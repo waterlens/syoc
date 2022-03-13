@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pass/Dump.hpp"
+#include "Pass/IteratedDominanceFrontierAnalysis.hpp"
 namespace SyOC {
 class Tree2SSA;
 class IRDump;
@@ -12,6 +13,7 @@ class CFGAnalysis;
 class SimpleAllocationElimination;
 class TypeCheck;
 class ConstantInitializerFold;
+class IteratedDominanceFrontierAnalysis;
 }
 
 #include "ConstantInitializerFold.hpp"
@@ -21,3 +23,4 @@ class ConstantInitializerFold;
 #include "SimplifyCFG.hpp"
 #include "CFGAnalysis.hpp"
 #include "SimpleAllocationElimination.hpp"
+#include "IteratedDominanceFrontierAnalysis.hpp"

@@ -1,6 +1,10 @@
 #include "Dump.hpp"
 #include "AllocaDefinitionHelper.hpp"
 #include "AssignIdentityHelper.hpp"
+#include "IR/IR.hpp"
+#include "Tree/Tree.hpp"
+#include <cassert>
+#include <cstddef>
 
 namespace SyOC {
 std::string IRDump::dumpType(const Type &ty) {
@@ -67,12 +71,30 @@ void IRDump::dumpAllGlobalVariable(IRHost &host) {
   buffer += "\n";
 }
 
+void IRDump::dumpPhiInput(Instruction *insn) {
+  assert(insn->op == OP_Phi);
+  static std::vector<std::pair<Value *, Value *>> tmp;
+  tmp.clear();
+  for (size_t i = 0; i < insn->getInput().size(); i += 2)
+    tmp.emplace_back(insn->getInput()[i].from, insn->getInput()[i + 1].from);
+  buffer += join(
+    tmp.begin(), tmp.end(),
+    [](auto &v) {
+      return fmt::format("[{}, {}]", dumpInstructionInput(v.first),
+                         dumpInstructionInput(v.second));
+    },
+    ", ");
+}
+
 void IRDump::dumpInstruction(Instruction *insn) {
   buffer += fmt::format("    {} %{} <- {} ", dumpType(insn->type),
                         insn->getIdentity(), op_name[insn->op]);
-  buffer += join(
-    insn->getInput().begin(), insn->getInput().end(),
-    [this](auto &v) { return dumpInstructionInput(v.from); }, ", ");
+  if (insn->op == OP_Phi)
+    dumpPhiInput(insn);
+  else
+    buffer += join(
+      insn->getInput().begin(), insn->getInput().end(),
+      [this](auto &v) { return dumpInstructionInput(v.from); }, ", ");
   buffer += fmt::format(" {}\n", dumpUser(insn));
 }
 

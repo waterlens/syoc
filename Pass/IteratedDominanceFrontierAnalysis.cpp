@@ -6,22 +6,19 @@
 
 namespace SyOC {
 void IteratedDominanceFrontierAnalysis::computeDFLocal(
-  const IDominatorAnalysis &ida, BasicBlock *x,
-  std::unordered_set<BasicBlock *> &res) {
+  const IDominatorAnalysis &ida, BasicBlock *x) {
   auto [idom, _] = ida.getIDominatorMap();
   for (auto &y : x->getSuccessor()) {
     if (!idom.contains(y.to))
       throw std::runtime_error("Successor has no dominator");
     if (idom.at(y.to) != x) {
       dominance_frontier[x].emplace(y.to);
-      res.insert(y.to);
     }
   }
 }
 
 void IteratedDominanceFrontierAnalysis::computeDFUp(
-  const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z,
-  std::unordered_set<BasicBlock *> &res) {
+  const IDominatorAnalysis &ida, BasicBlock *x, BasicBlock *z) {
   auto [idom, _] = ida.getIDominatorMap();
   assert(idom.at(z) == x);
   for (auto *y : dominance_frontier[z]) {
@@ -30,19 +27,17 @@ void IteratedDominanceFrontierAnalysis::computeDFUp(
       throw std::runtime_error("y has no dominator");
     if (idom.at(y) != x) {
       dominance_frontier[x].emplace(y);
-      res.insert(y);
     }
   }
 }
 
 void IteratedDominanceFrontierAnalysis::computeDominanceFrontier(
-  const IDominatorAnalysis &ida, BasicBlock *x,
-  std::unordered_set<BasicBlock *> &res) {
+  const IDominatorAnalysis &ida, BasicBlock *x) {
   auto po = ida.dominanceTreeTraversal<true, false>(x);
   for (auto *bb : po) {
-    computeDFLocal(ida, bb, res);
+    computeDFLocal(ida, bb);
     auto idominated = ida.findAllIDominated(bb);
-    for (auto *z : idominated) computeDFUp(ida, bb, z, res);
+    for (auto *z : idominated) computeDFUp(ida, bb, z);
   }
 }
 
@@ -50,7 +45,11 @@ std::unordered_set<BasicBlock *>
 IteratedDominanceFrontierAnalysis::computeDominanceFrontierSet(
   const IDominatorAnalysis &ida, const std::unordered_set<BasicBlock *> &set) {
   std::unordered_set<BasicBlock *> res;
-  for (auto *bb : set) computeDominanceFrontier(ida, bb, res);
+  for (auto *bb : set) computeDominanceFrontier(ida, bb);
+  for (auto *bb : set) {
+    if (dominance_frontier.contains(bb))
+      for (auto *df : dominance_frontier.at(bb)) res.insert(df);
+  }
   return res;
 }
 
