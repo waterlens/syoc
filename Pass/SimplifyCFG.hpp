@@ -10,6 +10,8 @@ namespace SyOC {
 class SimplifyCFG final {
   static void clearExtraJump(BasicBlock *bb);
   static void removeDanglingBB(Function *f);
+  static void fuseBasicBlock(BasicBlock *bb1, BasicBlock *bb2);
+  static void straighten(Function *f);
 
 public:
   SimplifyCFG() = default;

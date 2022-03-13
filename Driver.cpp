@@ -2,6 +2,7 @@
 #include "Pass/DeadCodeElimination.hpp"
 #include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
+#include "Pass/SimplifyCFG.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -53,9 +54,9 @@ void stoptime();
   transformer
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  transformer.doSSATransformation<
-    SyOC::SimplifyCFG, SyOC::SimpleAllocationElimination, SyOC::IRDump,
-    SyOC::IDominatorDump, SyOC::IDFDump, SyOC::CFGDump, SyOC::PromoteMem2Reg,
-    SyOC::IRDump, SyOC::DeadCodeElimination, SyOC::IRDump, SyOC::CFGDump>();
+  transformer
+    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump, SyOC::SimpleAllocationElimination,
+                         SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
+                         SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
   return 0;
 }

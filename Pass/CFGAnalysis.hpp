@@ -15,6 +15,7 @@ public:
   CFGAnalysis() = default;
   [[nodiscard]] static std::string_view getName() { return "CFG Analysis"; }
   void operator()(IRHost &host);
+  static void updateBlockPredecessor(BasicBlock &bb);
 };
 
 } // namespace SyOC
