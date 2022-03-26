@@ -26,6 +26,10 @@
 #define ConditionTypeDefine(x, v)
 #endif
 
+#ifndef ARMv7aOpcodeDefine
+#define ARMv7aOpcodeDefine
+#endif
+
 OpcodeDefine(OP_None, "")
 OpcodeDefine(OP_Phi, "phi")
 OpcodeDefine(OP_Mul, "mul")
@@ -114,6 +118,51 @@ ConditionTypeDefine(CT_GT,  12)
 ConditionTypeDefine(CT_LE,  13)
 ConditionTypeDefine(CT_Any, 14)
 
+ARMv7aOpcodeDefine(ADD,     "add")
+ARMv7aOpcodeDefine(ADC,     "adc")
+ARMv7aOpcodeDefine(SUB,     "sub")
+ARMv7aOpcodeDefine(SDC,     "sdc")
+ARMv7aOpcodeDefine(RSB,     "rsb")
+ARMv7aOpcodeDefine(RSC,     "rsc")
+ARMv7aOpcodeDefine(ADD,     "add")
+ARMv7aOpcodeDefine(ADC,     "adc")
+ARMv7aOpcodeDefine(MUL,     "mul")
+ARMv7aOpcodeDefine(MLA,     "mla")
+ARMv7aOpcodeDefine(MLS,     "mla")
+ARMv7aOpcodeDefine(UMULL,   "umull")
+ARMv7aOpcodeDefine(UMLAL,   "umlal")
+ARMv7aOpcodeDefine(UMAAL,   "umaal")
+ARMv7aOpcodeDefine(SMMUL,   "smmul")
+ARMv7aOpcodeDefine(SMMLA,   "smmla")
+ARMv7aOpcodeDefine(SMMLS,   "smmls")
+ARMv7aOpcodeDefine(SDIV,    "sdiv")
+ARMv7aOpcodeDefine(UDIV,    "udiv")
+ARMv7aOpcodeDefine(MOV,     "mov")
+ARMv7aOpcodeDefine(MVN,     "mvn")
+ARMv7aOpcodeDefine(ASR,     "asr")
+ARMv7aOpcodeDefine(LSL,     "mov")
+ARMv7aOpcodeDefine(LSR,     "mvn")
+ARMv7aOpcodeDefine(ROR,     "ror")
+ARMv7aOpcodeDefine(RRX,     "rrx")
+ARMv7aOpcodeDefine(CLZ,     "clz")
+ARMv7aOpcodeDefine(CMP,     "cmp")
+ARMv7aOpcodeDefine(CMN,     "cmn")
+ARMv7aOpcodeDefine(TST,     "tst")
+ARMv7aOpcodeDefine(TEQ,     "teq")
+ARMv7aOpcodeDefine(AND,     "and")
+ARMv7aOpcodeDefine(EOR,     "eor")
+ARMv7aOpcodeDefine(ORR,     "orr")
+ARMv7aOpcodeDefine(ORN,     "orn")
+ARMv7aOpcodeDefine(BIC,     "bic")
+ARMv7aOpcodeDefine(BFC,     "bfc")
+ARMv7aOpcodeDefine(BFI,     "bfi")
+ARMv7aOpcodeDefine(SBFX,    "sbfx")
+ARMv7aOpcodeDefine(UBFX,    "ubfx")
+ARMv7aOpcodeDefine(RBIT,    "rbit")
+ARMv7aOpcodeDefine(SEL,     "sel")
+ARMv7aOpcodeDefine(B,       "b")
+ARMv7aOpcodeDefine(BL,      "bl")
+
 #undef OpcodeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine
@@ -121,3 +170,4 @@ ConditionTypeDefine(CT_Any, 14)
 #undef SSAValueTypeDefine
 #undef ShiftTypeDefine
 #undef ConditionTypeDefine
+#undef ARMv7aOpcodeDefine

@@ -32,7 +32,7 @@ enum class Condition {
 
 struct Address {
   Register base;
-  std::variant<unsigned, Register, Shift> offset;
+  std::variant<unsigned, Register, Shift, RegisterList> offset;
 };
 
 struct MBasicBlock;
@@ -41,6 +41,11 @@ struct MFunction;
 struct MModule;
 
 struct MInstruction : public ListNode<MInstruction> {
+  MBasicBlock *parent;
+  Condition cond;
+  Register ra;    // Rd, RdLo, Rn
+  Register rb;    // Rm, Rn, RdHi
+  Address rc;     // Rs, Rm, Rn, imm, Operand2
 };
 
 struct MBasicBlock : public ListNode<MBasicBlock> {};
