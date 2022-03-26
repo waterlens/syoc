@@ -18,6 +18,14 @@
 #define SSAValueTypeDefine(x)
 #endif
 
+#ifndef ShiftTypeDefine
+#define ShiftTypeDefine(x, y)
+#endif
+
+#ifndef ConditionTypeDefine
+#define ConditionTypeDefine(x, v)
+#endif
+
 OpcodeDefine(OP_None, "")
 OpcodeDefine(OP_Phi, "phi")
 OpcodeDefine(OP_Mul, "mul")
@@ -83,8 +91,33 @@ SSAValueTypeDefine(SV_Function)
 SSAValueTypeDefine(SV_Argument)
 SSAValueTypeDefine(SV_Undef)
 
+ShiftTypeDefine(sF_None, "")
+ShiftTypeDefine(SF_LSL,  "LSL")
+ShiftTypeDefine(SF_LSR,  "LSR")
+ShiftTypeDefine(SF_ASR,  "ASR")
+ShiftTypeDefine(SF_ROR,  "ROR")
+ShiftTypeDefine(SF_RRX,  "RRX")
+
+ConditionTypeDefine(CT_EQ,  0)
+ConditionTypeDefine(CT_NE,  1)
+ConditionTypeDefine(CT_CS,  2)
+ConditionTypeDefine(CT_CC,  3)
+ConditionTypeDefine(CT_MI,  4)
+ConditionTypeDefine(CT_PL,  5)
+ConditionTypeDefine(CT_VS,  6)
+ConditionTypeDefine(CT_VC,  7)
+ConditionTypeDefine(CT_HI,  8)
+ConditionTypeDefine(CT_LS,  9)
+ConditionTypeDefine(CT_GE,  10)
+ConditionTypeDefine(CT_LT,  11)
+ConditionTypeDefine(CT_GT,  12)
+ConditionTypeDefine(CT_LE,  13)
+ConditionTypeDefine(CT_Any, 14)
+
 #undef OpcodeDefine
 #undef TypeSpecifierDefine
 #undef TypeQualifierDefine
 #undef NodeTypeDefine
 #undef SSAValueTypeDefine
+#undef ShiftTypeDefine
+#undef ConditionTypeDefine
