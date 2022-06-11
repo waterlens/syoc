@@ -5,8 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(syoc Driver.cpp)
 
-include_directories(ThirdParty/fmt/include)
-include_directories(.)
+target_include_directories(syoc PRIVATE ThirdParty/fmt/include)
+target_include_directories(syoc PRIVATE .)
 
 add_subdirectory(IR)
 add_subdirectory(Parser)
