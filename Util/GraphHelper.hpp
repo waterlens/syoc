@@ -20,7 +20,7 @@ public:
     nodes.emplace_back(node, label);
   }
   void outputToFile(std::string_view path, const char *graph_name) {
-    auto out = fmt::output_file(path.data());
+    auto out = fmt::buffered_file(path.data(), "wb");
     out.print("digraph {} {{\n  node[shape = box];\n", graph_name);
     for (auto &[node, label] : nodes)
       out.print("  node_{} [label=\"{}\"];\n", node, label);

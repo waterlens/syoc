@@ -125,7 +125,8 @@ void IRDump::dumpIRText(IRHost &host) {
   std::for_each(host.getModule()->func.begin(), host.getModule()->func.end(),
                 [&](auto f) { dumpFunction(f); });
   static int ir_count = 0;
-  auto out = fmt::output_file(fmt::format("dump.new-ir.{}.txt", ir_count++));
+  auto out =
+    fmt::buffered_file(fmt::format("dump.new-ir.{}.txt", ir_count++), "wb");
   out.print("{}", buffer);
 }
 
