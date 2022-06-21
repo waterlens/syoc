@@ -136,6 +136,24 @@ public:
   const std::vector<std::string_view> &getAllPositionalOptions() const {
     return positional_storage;
   }
+  bool has(const std::string_view &name) const {
+    if (name.starts_with('-')) {
+      const OptionConfig::mapped_type *config_value;
+      if (long_option.contains(name))
+        config_value = &long_option.at(name);
+      else if (short_option.contains(name))
+        config_value = &short_option.at(name);
+      else
+        return false;
+      const auto &[idx, has_default, val_ty] = *config_value;
+      auto storage = raw_storage.at(idx);
+      return has_default || storage.second;
+    }
+    if (positional_option.contains(name)) {
+      return !positional_storage.at(positional_option.at(name)).empty();
+    }
+    return false;
+  }
   OptionProxy operator[](const std::string_view &name) const {
     if (name.starts_with('-')) {
       const OptionConfig::mapped_type *config_value;

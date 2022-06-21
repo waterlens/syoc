@@ -19,12 +19,27 @@ int main(int argc, char *argv[]) {
   OptionParser optParser;
   optParser.add(Option<bool>("--help", "-h").setDefault("false"),
                 Option<bool>("--version", "-v").setDefault("false"),
+                Option<bool>("--debug-opt-parser").setDefault("false"),
+                Option<std::string_view>("--output", "-o"),
                 Option<std::string_view>("filename"));
 
   optParser.parse(argc, argv);
 
+  if (optParser["--debug-opt-parser"].as<bool>()) {
+    if (optParser.has("-h"))
+      fmt::print("-h: {}\n", optParser["-h"].as<bool>());
+    if (optParser.has("-v"))
+      fmt::print("-v: {}\n", optParser["-v"].as<bool>());
+    if (optParser.has("filename"))
+      fmt::print("p[0]: {}\n", optParser["filename"].as<std::string_view>());
+    if (optParser.has("-o"))
+      fmt::print("-o: {}\n", optParser["-o"].as<std::string_view>());
+    return 0;
+  }
+
   if (optParser["-h"].as<bool>()) {
-    fmt::print("usage: syoc [filename] [-h | --help] [-v | --version]\n");
+    fmt::print("usage: syoc [filename] [(-o | --output) filename]  [-h | "
+               "--help] [-v | --version]\n");
     return 0;
   }
 
@@ -55,7 +70,8 @@ void stoptime();
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
   transformer
-    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump, SyOC::SimpleAllocationElimination,
+    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+                         SyOC::SimpleAllocationElimination,
                          SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
   return 0;
