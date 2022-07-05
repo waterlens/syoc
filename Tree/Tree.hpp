@@ -211,6 +211,12 @@ struct TreeIntegerLiteral : public TreeExpr {
   TreeIntegerLiteral(int64_t value) : TreeExpr(this_type), value(value) {}
 };
 
+struct TreeFloatLiteral : public TreeExpr {
+  THIS(ND_FloatLiteral);
+  float value;
+  TreeFloatLiteral(float value) : TreeExpr(this_type), value(value) {}
+};
+
 struct TreeRefExpr : public TreeExpr {
   THIS(ND_RefExpr);
   std::string_view name;
@@ -249,7 +255,7 @@ inline bool isExpression(NodePtr node) {
          node->is<TreeArraySubscriptExpr *>() || node->is<TreeCallExpr *>() ||
          node->is<TreeAssignExpr *>() || node->is<TreeBinaryExpr *>() ||
          node->is<TreeUnaryExpr *>() || node->is<TreeIntegerLiteral *>() ||
-         node->is<TreeRefExpr *>();
+         node->is<TreeFloatLiteral *>() || node->is<TreeRefExpr *>();
   ;
 }
 } // namespace SyOC

@@ -24,6 +24,7 @@
 namespace SyOC {
 enum class TokenType {
   IntegerConstant,
+  FloatConstant,
   Keyword,
   Identifier,
   Operator,
@@ -45,7 +46,7 @@ struct Parser {
 
   inline static std::unordered_set<std::string_view> keywords = {
     "break", "const",  "continue", "else",  "if",
-    "int",   "return", "void",     "while",
+    "int",   "return", "void",     "while", "float",
   };
   inline static std::string_view long_operators[] = {
     "<=", ">=", "==", "!=", "&&", "||"};
@@ -99,13 +100,18 @@ struct Parser {
 
   size_t delimitIntegerConstant() {
     if (index < input.length()) {
-      auto i = index;
-      if (startWith("0x")) {
-        i += 2;
-        while (i < input.length() && isxdigit(input[i]) != 0) i++;
-      } else
-        while (i < input.length() && isdigit(input[i]) != 0) i++;
-      return i - index;
+      char *p_end = nullptr;
+      strtol(input.data() + index, &p_end, 0);
+      return p_end - input.data() - index;
+    }
+    return 0;
+  }
+
+  size_t delimitFloatConstant() {
+    if (index < input.length()) {
+      char *p_end = nullptr;
+      strtof(input.data() + index, &p_end);
+      return p_end - input.data() - index;
     }
     return 0;
   }
@@ -130,6 +136,7 @@ struct Parser {
       skipWhitespace();
       auto start = index;
       size_t len;
+      size_t len2;
 
       if (startWith("//")) {
         skipLineComment();
@@ -144,10 +151,19 @@ struct Parser {
       } else if ((len = delimitOperator()) != 0U) {
         index += len;
         tokens.push_back({TokenType::Operator, input_view.substr(start, len)});
-      } else if ((len = delimitIntegerConstant()) != 0U) {
-        index += len;
-        tokens.push_back(
-          {TokenType::IntegerConstant, input_view.substr(start, len)});
+      } else if ((len = delimitFloatConstant()) +
+                   (len2 = delimitIntegerConstant()) !=
+                 0U) {
+        // NOTICE: don't short circuit here
+        if (len2 >= len) {
+          index += len2;
+          tokens.push_back(
+            {TokenType::IntegerConstant, input_view.substr(start, len2)});
+        } else {
+          index += len;
+          tokens.push_back(
+            {TokenType::FloatConstant, input_view.substr(start, len)});
+        }
       } else if (index != input.length())
         throw std::runtime_error(
           fmt::format("unexpected token {} ...", input_view.substr(start, 16)));
@@ -196,6 +212,15 @@ struct Parser {
       return tokens[token_index++];
     }
     throw std::runtime_error(fmt::format("expect integer constant but got {}",
+                                         tokens[token_index].text));
+  }
+
+  Token expectFloatConstant() {
+    if (token_index < tokens.size() &&
+        tokens[token_index].token_type == TokenType::FloatConstant) {
+      return tokens[token_index++];
+    }
+    throw std::runtime_error(fmt::format("expect float constant but got {}",
                                          tokens[token_index].text));
   }
 
@@ -311,17 +336,25 @@ struct Parser {
     }
     auto tok = peek();
     skip();
+
     if (tok.token_type == TokenType::IntegerConstant) {
       convert_buffer = tok.text;
       return new TreeIntegerLiteral{
         std::strtoll(convert_buffer.c_str(), nullptr, 0)};
     }
+
+    if (tok.token_type == TokenType::FloatConstant) {
+      convert_buffer = tok.text;
+      return new TreeFloatLiteral{std::strtof(convert_buffer.c_str(), nullptr)};
+    }
+
     if (tok.token_type == TokenType::Identifier) {
       auto *node = scope.find(tok.text);
       if (node == nullptr)
         throw std::runtime_error(fmt::format("undefined symbol {}", tok.text));
       return new TreeRefExpr{tok.text, node};
     }
+
     throw std::runtime_error(fmt::format("unexpected token {}", tok.text));
   }
 
@@ -394,7 +427,7 @@ struct Parser {
   }
 
   void blockItem(std::vector<NodePtr> &stmts) {
-    if (peek("void") || peek("int") || peek("const")) {
+    if (peek("void") || peek("int") || peek("const") || peek("float")) {
       auto declspec = declarationSpecifiers();
 
       if (!peek(";")) {
@@ -579,6 +612,8 @@ struct Parser {
         spec = TS_Void;
       else if (consume("int"))
         spec = TS_Int;
+      else if (consume("float"))
+        spec = TS_Float;
       else
         break;
     }

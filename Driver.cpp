@@ -56,8 +56,14 @@ int main(int argc, char *argv[]) {
   getline(ifstream(fileName), fileContent, '\0');
 
   fileContent = R"(
-int getint(), getch(), getarray(int a[]);
-void putint(int a), putch(int a), putarray(int n, int a[]);
+int getint(),getch(),getarray(int a[]);
+float getfloat();
+int getfarray(float a[]);
+
+void putint(int a),putch(int a),putarray(int n,int a[]);
+void putfloat(float a);
+void putfarray(int n, float a[]);
+
 void starttime();
 void stoptime();
 )" + fileContent;

@@ -127,7 +127,8 @@ private:
     auto ret_type = checkExpr(ret->value);
     if (ret_type.spec == TS_Void)
       throw std::runtime_error("cannot return a void value");
-    if (ret_type.spec != current_function->return_type.spec ||
+    if (!isTypeSpecifierCompatible(current_function->return_type.spec,
+                                   ret_type.spec) ||
         ret_type.dim.size() != current_function->return_type.dim.size())
       throw std::runtime_error("return type mismatch");
   }
@@ -136,6 +137,8 @@ private:
     switch (expr->node_type) {
     case ND_IntegerLiteral:
       return TreeType{TS_Int, TQ_None, {}};
+    case ND_FloatLiteral:
+      return TreeType{TS_Float, TQ_None, {}};
     case ND_ArraySubscriptExpr:
       return checkArraySubscriptExpr(expr);
     case ND_UnaryExpr:
@@ -191,8 +194,15 @@ private:
     return combine(binary->op, lhs_type, rhs_type);
   }
 
+  static bool isTypeSpecifierCompatible(TypeSpecifier src, TypeSpecifier dst) {
+    return src == dst || src == TS_Int && dst == TS_Float ||
+           src == TS_Float && dst == TS_Int;
+  }
+
   static bool isCompatible(const TreeType &a, const TreeType &b) {
-    return a.spec == b.spec && a.dim.size() == b.dim.size();
+    return a.spec == b.spec && a.dim.size() == b.dim.size() ||
+           a.dim.size() + b.dim.size() == 0 &&
+             isTypeSpecifierCompatible(a.spec, b.spec);
   }
 
   TreeType checkCallExpr(ExprPtr expr) {

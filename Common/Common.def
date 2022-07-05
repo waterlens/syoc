@@ -65,7 +65,8 @@ OpcodeDefine(OP_End, "")
 
 TypeSpecifierDefine(TS_None,  0)
 TypeSpecifierDefine(TS_Void,  1 << 0)
-TypeSpecifierDefine(TS_Int,   1 << 4)
+TypeSpecifierDefine(TS_Int,   1 << 8)
+TypeSpecifierDefine(TS_Float, 1 << 12)
 
 TypeQualifierDefine(TQ_None,  0)
 TypeQualifierDefine(TQ_Const, 1 << 0)
@@ -87,6 +88,7 @@ NodeTypeDefine(ND_BinaryExpr)
 NodeTypeDefine(ND_CallExpr)
 NodeTypeDefine(ND_RefExpr)
 NodeTypeDefine(ND_IntegerLiteral)
+NodeTypeDefine(ND_FloatLiteral)
 NodeTypeDefine(ND_AssignExpr)
 
 SSAValueTypeDefine(SV_Module)
