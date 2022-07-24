@@ -7,15 +7,47 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <bitset>
 
 namespace SyOC::ARMv7a {
 
+// 16 int + 32 float
+static const unsigned int RegCount = 48;
+
+static const char *RegisterNames[] = {
+#define TargetIntegralRegister(x, y, z) #x,
+#define TargetFloatRegister(x, y, z) #x,
+#include "Common/TargetInfo.def"
+};
+
+
 struct Register {
+  enum IntRegs {
+#define FirstIntReg(x) INTEGER_REG_BEGIN = x,
+#define TargetIntegralRegister(x, y, z) x = z,
+#define LastIntReg(x) INTEGER_REG_END = x,
+#include "Common/TargetInfo.def"
+  };
+  enum VFPRegs {
+#define FirstVFPReg(x) VFP_REG_BEGIN = x,
+#define TargetFloatRegister(x, y, z) x = z,
+#define LastVFPReg(x) VFP_REG_END = x,
+#include "Common/TargetInfo.def"
+  };
   int id = -1;
+
+  static bool isVirtual(const Register &r) { return r.id == -1; }
+  static bool isInteger(const Register &r) { return r.id >= INTEGER_REG_BEGIN && r.id <= INTEGER_REG_END; }
+  static bool isFloat(const Register &r) { return r.id >= VFP_REG_BEGIN && r.id <= VFP_REG_END; }
+  static const char *getName(const Register &r) {
+    if (isInteger(r) || isFloat(r)) return RegisterNames[r.id];
+    return nullptr;
+  }
 };
 
 struct RegisterList {
-  short ls = 0;
+  // short ls = 0;
+  std::bitset<RegCount> ls;
 };
 
 enum class Opcode : unsigned char {
@@ -74,6 +106,8 @@ struct MInstruction : public ListNode<MInstruction> {
   Register ra = Register{-1};             // Rd, RdLo, Rn
   Register rb = Register{-1};             // Rm, Rn, RdHi
   Address rc = Address{Register{-1}, -1}; // Rs, Rm, Rn, imm, Operand2, label
+
+  static bool isLegalImm();
   static MInstruction *create() { return new MInstruction; }
   static MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
                               Condition cond = Condition::CT_Any) {
@@ -195,5 +229,6 @@ struct MFunction {
   List<MBasicBlock> block;
   std::string name;
 };
+
 
 } // namespace SyOC::ARMv7a

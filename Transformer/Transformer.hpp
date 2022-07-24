@@ -30,6 +30,8 @@ private:
 
 public:
   Transformer(NodePtr tree) : tree(tree) {}
+  IRHost *getTransformedIR() const { return host; }
+
   template <typename T> void doTreeTransformation() {
     T f{};
     run([&]() { f(tree); }, f.getName());
