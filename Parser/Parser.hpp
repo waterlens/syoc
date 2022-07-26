@@ -40,8 +40,8 @@ struct Parser {
   std::string input;
   std::string_view input_view;
   std::vector<Token> tokens;
-  size_t index;
-  size_t token_index;
+  size_t index{};
+  size_t token_index{};
   Scope<NodePtr> scope;
 
   inline static std::unordered_set<std::string_view> keywords = {
@@ -565,7 +565,7 @@ struct Parser {
     return param;
   }
 
-  std::vector<ExprPtr> arrayDimmension() {
+  std::vector<ExprPtr> arrayDimension() {
     std::vector<ExprPtr> dimensions;
     while (peek("[")) {
       skip();
@@ -593,7 +593,7 @@ struct Parser {
       param_list = parameterTypeList();
     } else if (peek("[")) {
       index = 1;
-      dimensions = arrayDimmension();
+      dimensions = arrayDimension();
     } else {
       index = 2;
     }
@@ -641,6 +641,6 @@ struct Parser {
   NodePtr parse() { return translationUnit(); }
 
   Parser(const std::string &input)
-    : input(input), input_view(input), index(0), token_index(0) {}
+    : input(input), input_view(input)  {}
 };
 } // namespace SyOC
