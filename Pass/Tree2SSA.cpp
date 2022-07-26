@@ -1,4 +1,5 @@
 #include "Tree2SSA.hpp"
+#include <stdexcept>
 
 namespace SyOC {
 void Tree2SSA::setupGlobalInitializerFunction() {
@@ -21,6 +22,8 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
   if (auto *arr_sub = expr->as<TreeArraySubscriptExpr *>()) {
     auto [arr_ty, arr] = generateLValue(arr_sub->array);
     auto [idx_ty, idx] = generateRValue(arr_sub->subscript);
+    if (arr_ty.second.empty())
+      throw std::runtime_error("can't get the dimension of array type");
     auto bound = arr_ty.second.front();
     arr_ty.second.pop_front();
     auto offset_unit_size = calculateArrayTotalLength(arr_ty);
@@ -28,7 +31,7 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
       host->createInstruction(OP_Offset, PredefinedType::IntPtr,
                               {arr, ConstantInteger::create(bound), idx,
                                ConstantInteger::create(offset_unit_size)});
-    return {{PredefinedType::IntPtr, {}}, elem};
+    return {{PredefinedType::IntPtr, arr_ty.second}, elem};
   }
   if (auto *ref = expr->as<TreeRefExpr *>()) {
     return findInScope(ref->name);
@@ -229,7 +232,7 @@ void Tree2SSA::generateListInitializer(TreeInitListExpr *init,
         offset->addInput(ConstantInteger::create(dim[i]));
         offset->addInput(ConstantInteger::create(array_idx[i]));
       }
-      offset->addInput(ConstantInteger::create(1));
+      offset->addInput(ConstantInteger::create(calculateArrayBaseUnitSize(th.first)));
       generateStore(expr, offset);
       adjust_array_index();
       idx++;
