@@ -143,11 +143,11 @@ protected:
   friend ListIterator<T>;
   friend List<T>;
 
-  const_pointer cast_to_derived(auto *p) const {
+  const_pointer cast_to_derived(void *p) const {
     return static_cast<const_pointer>(p);
   }
   const_pointer cast_to_derived() const { return cast_to_derived(this); }
-  pointer cast_to_derived(auto *p) { return static_cast<pointer>(p); }
+  pointer cast_to_derived(void *p) { return static_cast<pointer>(p); }
   pointer cast_to_derived() { return cast_to_derived(this); }
   virtual ~ListNode() = default;
 

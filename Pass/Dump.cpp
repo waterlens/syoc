@@ -172,12 +172,12 @@ void IDominatorDump::operator()(IRHost &host) {
   std::unordered_set<BasicBlock *> visited;
   const auto &idominated_map = ida.getIDominatorMap().first;
   for (auto [idominated, idominator] : idominated_map) {
-    if (!visited.contains(idominated)) {
+    if (visited.count(idominated) == 0) {
       idg.addNode(idominated->getIdentity(),
                   fmt::format("L{}", idominated->getIdentity()));
       visited.insert(idominated);
     }
-    if (!visited.contains(idominator)) {
+    if (visited.count(idominator) == 0) {
       idg.addNode(idominator->getIdentity(),
                   fmt::format("L{}", idominator->getIdentity()));
       visited.insert(idominator);
@@ -220,7 +220,7 @@ void IDFDump::dumpFunctionIDF(GraphHelper &cfg, Function &func,
                   fmt::format("var %{}", insn.getIdentity()));
       auto def_set = findDefinitionBlock(insn);
       for (auto *def : def_set) {
-        if (!visited.contains(def)) {
+        if (visited.count(def) == 0) {
           cfg.addNode(def->getIdentity(),
                       fmt::format("L{}", def->getIdentity()));
           visited.insert(def);
@@ -229,10 +229,10 @@ void IDFDump::dumpFunctionIDF(GraphHelper &cfg, Function &func,
       }
       auto [idf_set_split, idf_set] = idfa.getIDFSet(def_set);
       for (auto &[bb, idf] : idf_set_split) {
-        if (!def_set.contains(bb))
+        if (def_set.count(bb) == 0)
           continue;
         for (auto *idf_elem : idf) {
-          if (!visited.contains(idf_elem)) {
+          if (visited.count(idf_elem) == 0) {
             cfg.addNode(idf_elem->getIdentity(),
                         fmt::format("L{}", idf_elem->getIdentity()));
             visited.insert(idf_elem);

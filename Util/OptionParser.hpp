@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "CppLegacy.hpp"
 
 struct OptionName {
   std::string_view long_name;
@@ -80,19 +81,19 @@ public:
       ty = 0;
     else
       ty = 1;
-    if (l.starts_with('-')) {
-      if (long_option.contains(l))
+    if (compatibility::starts_with(l, '-')) {
+      if (long_option.count(l) != 0)
         throw std::invalid_argument("duplicate long option");
       long_option[l] = {raw_storage.size(), opt.hasDefault(), ty};
       if (!s.empty()) {
-        if (short_option.contains(s))
+        if (short_option.count(s) != 0)
           throw std::invalid_argument("duplicate short option");
         short_option[s] = {raw_storage.size(), opt.hasDefault(), ty};
       }
       if (l.length() || s.length())
         raw_storage.emplace_back(opt.getDefault(), false);
     } else if (!l.empty()) {
-      if (positional_option.contains(l))
+      if (positional_option.count(l) != 0)
         throw std::invalid_argument("duplicate positional option");
       positional_option[l] = positional_storage.size();
       positional_storage.emplace_back();
@@ -108,12 +109,12 @@ public:
     for (int i = 1; i < argc; ++i) {
       std::string_view arg{argv[i]};
       OptionConfig::mapped_type *config_value;
-      if (arg.starts_with('-')) { // named option
+      if (compatibility::starts_with(arg, '-')) { // named option
         auto [name, _value, has_value] = split_arg(arg);
         auto value = _value;
-        if (long_option.contains(name))
+        if (long_option.count(name) != 0)
           config_value = &long_option.at(name);
-        else if (short_option.contains(name))
+        else if (short_option.count(name) != 0)
           config_value = &short_option.at(name);
         else
           throw std::invalid_argument("no such an option");
@@ -137,11 +138,11 @@ public:
     return positional_storage;
   }
   bool has(const std::string_view &name) const {
-    if (name.starts_with('-')) {
+    if (compatibility::starts_with(name, '-')) {
       const OptionConfig::mapped_type *config_value;
-      if (long_option.contains(name))
+      if (long_option.count(name) != 0)
         config_value = &long_option.at(name);
-      else if (short_option.contains(name))
+      else if (short_option.count(name) != 0)
         config_value = &short_option.at(name);
       else
         return false;
@@ -149,17 +150,17 @@ public:
       auto storage = raw_storage.at(idx);
       return has_default || storage.second;
     }
-    if (positional_option.contains(name)) {
+    if (positional_option.count(name) != 0) {
       return !positional_storage.at(positional_option.at(name)).empty();
     }
     return false;
   }
   OptionProxy operator[](const std::string_view &name) const {
-    if (name.starts_with('-')) {
+    if (compatibility::starts_with(name, '-')) {
       const OptionConfig::mapped_type *config_value;
-      if (long_option.contains(name))
+      if (long_option.count(name) != 0)
         config_value = &long_option.at(name);
-      else if (short_option.contains(name))
+      else if (short_option.count(name) != 0)
         config_value = &short_option.at(name);
       else
         throw std::invalid_argument("no such an option");
@@ -169,7 +170,7 @@ public:
         throw std::invalid_argument("required option is not supplied");
       return {storage.first};
     }
-    if (positional_option.contains(name))
+    if (positional_option.count(name) != 0)
       return {positional_storage.at(positional_option.at(name))};
     throw std::invalid_argument("no such a positional option");
   }
