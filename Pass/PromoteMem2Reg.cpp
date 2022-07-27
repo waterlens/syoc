@@ -21,7 +21,7 @@ void PromoteMem2Reg::renamePhiInSuccessorBasicBlock(BasicBlock &bb,
   for (auto &phi : bb.getInstruction()) {
     if (phi.op != OP_Phi)
       break;
-    if (!phiAllocaMap.contains(&phi))
+    if (phiAllocaMap.count(&phi) == 0)
       throw std::runtime_error("phi is not associated with an allocation");
     auto *alloc = phiAllocaMap.at(&phi);
     if (containValue(&pred, alloc)) {
@@ -34,7 +34,7 @@ void PromoteMem2Reg::renamePhiInSuccessorBasicBlock(BasicBlock &bb,
 void PromoteMem2Reg::renamePhi(const IDominatorAnalysis &ida, BasicBlock &bb) {
   for (auto insn_iter = bb.begin(); insn_iter != bb.end();) {
     if (insn_iter->op == OP_Phi) {
-      if (!phiAllocaMap.contains(insn_iter.base()))
+      if (phiAllocaMap.count(insn_iter.base()) == 0)
         throw std::runtime_error("phi is not associated with an allocation");
       auto *alloc = phiAllocaMap.at(insn_iter.base());
       allocaLatest[&bb][alloc] = insn_iter.base();
@@ -70,7 +70,7 @@ void PromoteMem2Reg::renamePhi(const IDominatorAnalysis &ida, BasicBlock &bb) {
   auto [_, idom] = ida.getIDominatorMap();
   auto range = idom.equal_range(&bb);
   for (auto iter = range.first; iter != range.second; iter++) {
-    if (allocaLatest.contains(&bb))
+    if (allocaLatest.count(&bb) != 0)
       allocaLatest[iter->second] = allocaLatest[&bb];
   }
 
@@ -113,7 +113,7 @@ Value *PromoteMem2Reg::getValue(BasicBlock *bb, Instruction *alloc) {
 }
 
 bool PromoteMem2Reg::containValue(BasicBlock *bb, Instruction *alloc) {
-  return allocaLatest.contains(bb) && allocaLatest.at(bb).contains(alloc);
+  return allocaLatest.count(bb) != 0 && allocaLatest.at(bb).count(alloc) != 0;
 }
 
 bool PromoteMem2Reg::isPromotable(Instruction &alloca) {
