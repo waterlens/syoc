@@ -84,7 +84,7 @@ void SimpleAllocationElimination::eliminateSingleDefinitionAllocation(
           if (load->op == OP_Load) {
             // the load inst occurs in a dominated block but not the
             // definition block
-            if (all_dominated.contains(load->refParent()->as<BasicBlock *>()) &&
+            if (all_dominated.count(load->refParent()->as<BasicBlock *>()) != 0 &&
                 load->refParent() != &alloca_bb) {
               // replace the load with the store source
               ++use_iter; // release the load will invalidate use_iter
@@ -140,7 +140,7 @@ void SimpleAllocationElimination::eliminateLocalLoad(IRHost &host) {
             for (int i = 1; i < insn.getInput().size(); ++i)
               erase_helper(insn, i);
         } else if (insn.op == OP_Load) {
-          if (latest_store.contains(insn.getInput()[0].from)) {
+          if (latest_store.count(insn.getInput()[0].from) != 0) {
             insn.replaceAllUsesWith(latest_store.at(insn.getInput()[0].from));
             load_to_be_removed.push_back(&insn);
           }
