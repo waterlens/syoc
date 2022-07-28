@@ -1,13 +1,14 @@
 #pragma once
 
 #include "IR/IR.hpp"
-#include "Util/TrivialValueVector.hpp"
 #include "Util/Scope.hpp"
+#include "Util/TrivialValueVector.hpp"
 
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <numeric>
 #include <stdexcept>
 #include <string_view>
@@ -36,16 +37,21 @@ class Tree2SSA final {
       ty_dim.first = PredefinedType::Int32;
     else if (ty.spec == TS_Void)
       ty_dim.first = PredefinedType::Void;
-    for (auto *dim : ty.dim)
-      ty_dim.second.push_back(dim->as<TreeIntegerLiteral *>()->value);
+    for (auto *dim : ty.dim) {
+      auto v = dim->as<TreeIntegerLiteral *>()->value;
+      if (v == std::numeric_limits<decltype(v)>::max())
+        v = std::numeric_limits<unsigned>::max();
+      ty_dim.second.push_back(v);
+    }
     return ty_dim;
   }
   static size_t calculateArrayTotalLength(const TypeDimension &td) {
-    return std::accumulate(
-      td.second.begin(), td.second.end(),
-      td.first.width / CHAR_BIT *
-        (td.first.primitive_type == Type::PrimitiveType::Void ? 0 : 1),
-      std::multiplies<>());
+    return std::accumulate(td.second.begin(), td.second.end(),
+                           calculateArrayBaseUnitSize(td), std::multiplies<>());
+  }
+  static size_t calculateArrayBaseUnitSize(const TypeDimension &td) {
+    return static_cast<size_t>(td.first.width) / CHAR_BIT *
+           (td.first.primitive_type == Type::PrimitiveType::Void ? 0 : 1);
   }
   TypeDimensionValue findInScope(std::string_view name);
   TypeDimensionValue generateLValue(ExprPtr expr);

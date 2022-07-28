@@ -16,7 +16,7 @@ private:
     return op == OP_Land || op == OP_Lor;
   }
 
-  static bool isPointerComparasionOp(OpType op) {
+  static bool isPointerComparaisonOp(OpType op) {
     return op == OP_Eq || op == OP_Ne || op == OP_Ge || op == OP_Le ||
            op == OP_Gt || op == OP_Lt;
   }
@@ -44,19 +44,19 @@ private:
       if (isArrayType(lhs) && !isArrayType(rhs)) {
         if (isPointerArithmeticOp(op))
           return TreeType{TS_Int, TQ_None, lhs.dim};
-        if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+        if (isPointerComparaisonOp(op) || isPointerLogicOp(op))
           return TreeType{TS_Int, TQ_None, {}};
         throw std::runtime_error("incompatible types when lhs is an array");
       }
       if (!isArrayType(lhs) && isArrayType(rhs)) {
         if (op == OP_Add)
           return TreeType{TS_Int, TQ_None, rhs.dim};
-        if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+        if (isPointerComparaisonOp(op) || isPointerLogicOp(op))
           return TreeType{TS_Int, TQ_None, {}};
         throw std::runtime_error("incompatible types when rhs is an array");
       }
       // isArrayType(lhs) && isArrayType(rhs)
-      if (isPointerComparasionOp(op) || isPointerLogicOp(op))
+      if (isPointerComparaisonOp(op) || isPointerLogicOp(op))
         return TreeType{TS_Int, TQ_None, {}};
       if (op == OP_Sub) {
         if (lhs.dim.size() != rhs.dim.size())
