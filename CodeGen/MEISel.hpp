@@ -14,12 +14,16 @@ private:
   ARMv7a::MFunction *function;
   ARMv7a::MBasicBlock *basic_block;
 private:
+  /// Return the register loaded with given Imm.
+  ARMv7a::Register CreatePseudoImmLoad(Value *V);
   /// Expand offset, call, br, memset0 to appropriate MInsts.
   bool expandInst(Instruction *I);
   bool selectRdRnOperand2(Instruction *I);
   bool selectRdRnRm(Instruction *I);
+  bool selectRdOperand2(Instruction *I);
   bool selectRdRnImm(Instruction *I);
-  bool selectLabel(Instruction *I);
+  // Branch Instructions, Label, lr
+  bool selectLabelOrRd(Instruction *I);
 
 public:
   MEISel() {}

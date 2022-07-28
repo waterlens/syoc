@@ -147,13 +147,24 @@ struct MInstruction : public ListNode<MInstruction> {
 
   // stack memory access with intermediate FrameObject representation,
   // will be lowered to [sp, #offset] afterward.
-  static MInstruction *RdRnImm(Opcode op, Register rd, FrameObject rn, int imm,
+  static MInstruction *RdRnImm(Opcode op, Register rd, FrameObject rn, int32_t imm,
                                Condition cond = Condition::CT_Any) {
     assert_op_format(IF_RdRnImm);
     auto p = create();
     p->op = op;
     p->ra = rd;
     p->rc.base = rn;
+    p->rc.offset_or_else = imm;
+    p->cond = cond;
+    return p;
+  }
+
+  static MInstruction *RdImm(Opcode op, Register rd, int32_t imm,
+                             Condition cond = Condition::CT_Any) {
+    assert_op_format(IF_RdImm);
+    auto p = create();
+    p->op = op;
+    p->ra = rd;
     p->rc.offset_or_else = imm;
     p->cond = cond;
     return p;

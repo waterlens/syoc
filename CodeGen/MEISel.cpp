@@ -55,6 +55,7 @@ static Opcode getMachineVoidOpcode(OpType Op) {
   return Opcode::NOP;
 }
 
+// Trivial mapping from IR OpType to machine Opcode
 static Opcode getMachineOpcode(OpType Op, Type T) {
   if (T.isInt()) {
     return getMachineIntOpcode(Op);
@@ -68,11 +69,17 @@ static Opcode getMachineOpcode(OpType Op, Type T) {
 }
 
 // mov or ldr
-Register CreatePseudoImmLoad() {
-
+// Pseudo asm ldr, =0xdeadbeef
+// Or generate movw/movt pair to load long imm.
+Register MEISel::CreatePseudoImmLoad(Value *V) {
+  Register Rd = CreateVirtualRegister(V);
+  if (V->is<ConstantInteger>()) {
+    int32_t Imm = V->as<ConstantInteger *>()->value;
+    MInstruction::RdImm(Opcode::LDR_PC, Rd, Imm);
+  }
 }
 
-// add, sub
+// add, sub, and, eor, orr, bic
 bool MEISel::selectRdRnOperand2(Instruction *I) {
   Register Rd = CreateVirtualRegister(I);
   // assume const-folding guarantee both Rm and Operand2 is not constant.
@@ -95,6 +102,7 @@ bool MEISel::selectRdRnRm(Instruction *I) {
   return true;
 }
 
+// ldr, str, mov, movn, movw, movt
 bool MEISel::selectRdRnImm(Instruction *I) {
   assert(I->isMemoryAccessInst());
   Value *Address = I->getOperand(0);
@@ -112,6 +120,18 @@ bool MEISel::selectRdRnImm(Instruction *I) {
   return true;
 }
 
+// cmps, lt, gt, le, ge, eq, ne
+//
+bool MEISel::selectRdOperand2(Instruction *I) {
+
+}
+
+// expand special IR.
+bool MEISel::expandInst(Instruction *I) {
+  if (I->op = OP_Offset) {
+
+  }
+}
 
 bool MEISel::selectInstruction(Instruction *I) {
 
