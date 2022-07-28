@@ -181,6 +181,7 @@ struct Instruction : public Value, public ListNode<Instruction> {
   auto &getInput() { return input; }
   UseEdge &getInput(size_t num) { return input[num]; }
   Value *getOperand(size_t num) { return input[num].from; }
+  size_t getNumOperands() const { return input.size(); }
 
   static inline auto addEdgeAction = [](UseEdge *edge, Value *from, Value *) {
     from->addEdge(edge);
@@ -229,6 +230,7 @@ public:
   [[nodiscard]] auto end() { return insn.end(); }
   auto &getInstruction() { return insn; }
   auto &getPredecessor() { return pred; }
+  size_t getNumPredecessor() const { return pred.size(); }
   auto &getSuccessorHead() { return succ; }
   void removeSuccessor(BasicBlockEdge *edge) {
     if (edge == getSuccessorHead().base())
@@ -262,6 +264,12 @@ public:
   };
 
   SuccessorView getSuccessor() { return SuccessorView{getSuccessorHead()}; }
+
+  Instruction *getTerminator() const {
+    if (insn.empty() || !insn.back().isControlInstruction())
+      return nullptr;
+    return &insn.back();
+  }
 
   [[nodiscard]] bool isNormalBasicBlock() const {
     return insn.back().op == OP_Jump || insn.back().op == OP_Branch;
