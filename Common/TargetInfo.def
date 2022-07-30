@@ -22,6 +22,20 @@
 #define LastVFPReg(num)
 #endif
 
+#ifndef FirstStatusReg
+#define FirstStatusReg(num)
+#endif
+#ifndef TargetStatusRegister
+#define TargetStatusRegister(x, y, z)
+#endif
+#ifndef LastStatusReg
+#define LastStatusReg(num)
+#endif
+
+#ifndef FirstVirtualReg
+#define FirstVirtualReg(num)
+#endif
+
 // define volatile attribute of registers.
 TargetRegisterVolatile(Volatile)
 TargetRegisterVolatile(NonVolatile)
@@ -83,10 +97,20 @@ TargetFloatRegister(s30, NonVolatile,   46)
 TargetFloatRegister(s31, NonVolatile,   47)
 LastVFPReg(47)
 
+FirstStatusReg(48)
+TargetStatusRegister(cspr, Volatile, 48)
+LastStatusReg(48)
+
+FirstVirtualReg(49)
+
 #undef FirstIntReg
 #undef LastIntReg
 #undef FirstVFPReg
 #undef LastVFPReg
+#undef FirstStatusReg
+#undef LastStatusReg
+#undef FirstVirtualReg
 #undef TargetRegisterVolatile
 #undef TargetIntegralRegister
 #undef TargetFloatRegister
+#undef TargetStatusRegister

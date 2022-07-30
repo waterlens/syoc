@@ -5,6 +5,7 @@ namespace SyOC {
 using ARMv7a::FrameObject;
 using ARMv7a::Register;
 using ARMv7a::Shift;
+using ARMv7a::Condition;
 using ARMv7a::MInstruction;
 using ARMv7a::MBasicBlock;
 using ARMv7a::MFunction;
@@ -31,6 +32,10 @@ static bool test_Imm16(int32_t Imm) {
 
 static bool test_LDR_STR_Imm_Offset(int32_t Imm) {
   return Imm >= -4095 && Imm <= 4095;
+}
+
+static bool test_Imm_Pow2(int32_t Imm) {
+  return (Imm == 0)? false : !(Imm & (Imm - 1));
 }
 
 // return Armv7-a Opcode with Integer value Inst.
@@ -68,15 +73,46 @@ static Opcode getMachineOpcode(OpType Op, Type T) {
   }
 }
 
+// Map SSA IR comparison to ARM asm condition.
+static Condition getMachineCondition(OpType Op) {
+  switch (Op) {
+  case OP_Gt: return Condition::CT_GT;
+  case OP_Ge: return Condition::CT_GE;
+  case OP_Lt: return Condition::CT_LT;
+  case OP_Le: return Condition::CT_LE;
+  case OP_Eq: return Condition::CT_EQ;
+  case OP_Ne: return Condition::CT_NE;
+  default: return Condition::CT_Any;
+  }
+}
+
+// Return the negation of the comparison predicates.
+static Condition conjugateCondition(OpType Op) {
+  switch (Op) {
+  case OP_Ge: return Condition::CT_LT;
+  case OP_Gt: return Condition::CT_LE;
+  case OP_Le: return Condition::CT_GT;
+  case OP_Lt: return Condition::CT_GE;
+  case OP_Eq: return Condition::CT_NE;
+  case OP_Ne: return Condition::CT_EQ;
+  default: return Condition::CT_Any;
+  }
+}
+
 // mov or ldr
 // Pseudo asm ldr, =0xdeadbeef
 // Or generate movw/movt pair to load long imm.
+// ldr with [PC + offset] has only around 4KB search space
+// assembler auto-generated literal pool may out of range.
 Register MEISel::CreatePseudoImmLoad(Value *V) {
   Register Rd = CreateVirtualRegister(V);
-  if (V->is<ConstantInteger>()) {
-    int32_t Imm = V->as<ConstantInteger *>()->value;
+  int32_t Imm = V->as<ConstantInteger *>()->value;
+  if (test_Imm8(Imm)) {
+    MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
+  } else {
     MInstruction::RdImm(Opcode::LDR_PC, Rd, Imm);
   }
+  return Rd;
 }
 
 // add, sub, and, eor, orr, bic
@@ -120,14 +156,30 @@ bool MEISel::selectRdRnImm(Instruction *I) {
   return true;
 }
 
-// cmps, lt, gt, le, ge, eq, ne
-//
-bool MEISel::selectRdOperand2(Instruction *I) {
-
-}
-
 // expand special IR.
 bool MEISel::expandInst(Instruction *I) {
+  if (I->op == OP_Mod) {
+    Register Rd = CreateVirtualRegister(I);
+    Register Dividend = RegisterOrImm(I->getOperand(0));
+    if (I->getOperand(1)->is<ConstantInteger>()) {
+      int32_t Modulo = I->getOperand(1)->as<ConstantInteger *>()->value;
+      // if the module is a power of 2, use 'and' implementation.
+      if (test_Imm_Pow2(Modulo)) {
+        MInstruction::RdRnOperand2(Opcode::AND,
+                                   Rd, Dividend, Shift::GetImm(Modulo));
+        return true;
+      }
+    }
+    // otherwise, use sdiv + mls implementation.
+    Register Modulo = RegisterOrImm(I->getOperand(1));
+    Register Temp = CreateVirtualRegister(nullptr);
+    MInstruction::RdRnRm(Opcode::SDIV,
+                         Temp, Dividend, Modulo);
+    MInstruction::RdRmRnRa(Opcode::MLS,
+                           Rd, Dividend, Temp, Modulo);
+    return true;
+  }
+
   if (I->op = OP_Offset) {
     size_t Size = I->getNumOperands();
     Value *Ptr = I->getOperand(0);
@@ -143,7 +195,7 @@ bool MEISel::expandInst(Instruction *I) {
     Value *Index0 = I->getOperand(2);
     Register Rd = RegisterOrImm(Index0);
 
-    // [3, 4], [5, 6] ...
+    // [Limit, Index] : [3, 4], [5, 6] ...
     for (int i = 2; i * 2 < Size; ++i) {
       Value *Limit = I->getOperand(i * 2 - 1);
       Value *Index = I->getOperand(i * 2);
@@ -154,7 +206,7 @@ bool MEISel::expandInst(Instruction *I) {
           MInstruction::RdRnOperand2(Opcode::ADD, Rd, Rd,
                                      Shift::GetImm(Index->as<ConstantInteger *>()->value));
       } else {
-        Register Rm = function->LookUpRegister(Index);
+        Register Rm = RegisterOrImm(Index);
         assert(!Rm.isInvalid());
         MInstruction::RdRnOperand2(Opcode::ADD, Rd, Rd,
                                    Shift::GetDefaultShift(Rm));
@@ -162,6 +214,7 @@ bool MEISel::expandInst(Instruction *I) {
     }
     MInstruction::RdRnRm(Opcode::MUL, Rd, Rd, RegisterOrImm(Width));
     // Now Rd holds the total offset.
+    return true;
   }
 
   // follow calling conventions.
@@ -176,22 +229,68 @@ bool MEISel::expandInst(Instruction *I) {
       MInstruction::RdRm(Opcode::CPY, Register{RegId}, tmp);
       RegId++;
     }
-    // more than 4 args, spill to stack.
+    // more than 4 args, spill to stack;
+    // and protect volatile registers.
     if (Callee->arg.size() > 4) {
       // @TODO
     }
     // Copy the return value to a virtual register.
     if (!I->type.isVoid()) {
       Register Rd = CreateVirtualRegister(I);
-      MInstruction::RdRm(Opcode::CPY, Rd,Register{Register::r0});
+      MInstruction::RdRm(Opcode::CPY, Rd, Register{Register::r0});
     }
     // more than 4 args, recover the spilled args in the stack.
+    // and recover volatile registers.
     if (Callee->arg.size() > 4) {
       // @TODO
     }
+    return true;
   }
+
+  // conditional branch affects CSPR register
+  // br may use -a, !a, comparisons as branch condition.
+  // InstCombine pass guarantees there would not
+  if (I->op == OP_Branch) {
+    // We expect after unreachable block elimination,
+    // condition is not a constant int.
+    // It must be argument, global variable etc.
+    Value *Condition = I->getOperand(0);
+    if (Condition->is<Instruction>()) {
+      auto Cmp = Condition->as<Instruction *>();
+      if (Cmp->isCompareInst()) {
+          Register lhs = RegisterOrImm(Cmp->getOperand(0));
+          Register rhs = RegisterOrImm(Cmp->getOperand(1));
+          MInstruction::RdOperand2(Opcode::CMP,
+                                   lhs, Shift::GetDefaultShift(rhs));
+          /// @TODO: branch label
+          return true;
+      }
+    }
+    Register lhs = RegisterOrImm(Condition);
+    MInstruction::RdOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
+    return true;
+  }
+
+  if (I->op == OP_Return) {
+    // get return value.
+    Register Rd = CreateVirtualRegister(I->getOperand(0));
+    MInstruction::RdRm(Opcode::CPY, Register{Register::r0}, Rd);
+    MInstruction::Rm(Opcode::BX, Register{Register::lr});
+  }
+
+  if (I->isCompareInst()) {
+    Register Rd = CreateVirtualRegister(I);
+    Condition pos = getMachineCondition(I->op);
+    Condition neg = conjugateCondition(I->op);
+    MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(1), pos);
+    MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(0), pos);
+  }
+  return false;
 }
 
+
+/// @Attenion: Use copy reg to eliminate PHI node may
+/// requires split critical edges first.
 bool MEISel::copyPhiNodesRegs(BasicBlock *SyOCBB) {
   for (auto I = SyOCBB->begin(), E = SyOCBB->end();
        I != E; ++I) {
@@ -211,5 +310,30 @@ bool MEISel::copyPhiNodesRegs(BasicBlock *SyOCBB) {
 bool MEISel::selectInstruction(Instruction *I) {
 
 }
+
+Register MEISel::CreateVirtualRegister(Value *V) {
+  // cannot map the IR Value into a register,
+  // need produce extra machine instructions.
+  if (V == nullptr) {
+    return Register{function->vregs_id++};
+  }
+  auto map_iter = function->value_map.find(V);
+  if (map_iter != function->value_map.end()) {
+    return Register{map_iter->second};
+  }
+  function->value_map.insert({V, function->vregs_id});
+  return Register{function->vregs_id++};
+}
+
+Register MEISel::RegisterOrImm(Value *V) {
+  // We expect Value V is a certain operand or instruction result.
+  assert(V);
+  if (V->is<ConstantInteger>()) {
+    return CreatePseudoImmLoad(V);
+  }
+  return Register{function->value_map.at(V)};
+}
+
+
 
 } // end namespace SyOC

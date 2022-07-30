@@ -2,7 +2,6 @@
 
 namespace SyOC {
 
-std::vector<ListIterator<Instruction>> InstCombine::work_list;
 
 static OpType conjugateComparison(OpType Op) {
   switch (Op) {
