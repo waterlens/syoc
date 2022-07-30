@@ -34,12 +34,23 @@ struct Register {
 #define LastVFPReg(x) VFP_REG_END = x,
 #include "Common/TargetInfo.def"
   };
+  enum StatusRegs {
+#define FirstStatusReg(x) STATUS_REG_BEGIN = x,
+#define TargetStatusRegister(x, y, z) x = z,
+#define LastStatusReg(x) STATUS_REG_END = x,
+#include "Common/TargetInfo.def"
+  };
+  enum VirtualRegs {
+#define FirstVirtualReg(x) VREG_BEGIN = x,
+#include "Common/TargetInfo.def"
+  };
   int id = -1;
 
   inline bool isInvalid() const { return id == -1; }
-  inline bool isVirtual() const { return !(isInteger() || isFloat()) && id > 0; }
+  inline bool isVirtual() const { return !(isInteger() || isFloat() || !isStatus()) && id > 0; }
   inline bool isInteger() const { return id >= INTEGER_REG_BEGIN && id <= INTEGER_REG_END; }
   inline bool isFloat() const { return id >= VFP_REG_BEGIN && id <= VFP_REG_END; }
+  inline bool isStatus() const { return id >= STATUS_REG_BEGIN && id <= STATUS_REG_END; }
   static const char *getName(const Register &r) {
     if (r.isInteger() || r.isFloat()) return RegisterNames[r.id];
     return nullptr;
@@ -257,6 +268,16 @@ struct MInstruction : public ListNode<MInstruction> {
     p.cond = cond;
     return &p;
   }
+
+  static MInstruction *Rm(Opcode op, Register rm,
+                          Condition cond = Condition::CT_Any) {
+    assert_op_format(IF_Rm);
+    auto p = create();
+    p->op = op;
+    p->rb = rm;
+    p->cond = cond;
+    return p;
+  }
 #undef assert_op_format
 };
 
@@ -271,8 +292,9 @@ struct MFunction {
   std::vector<size_t> frame; // stack frame sizes
   std::string name;
 
-  std::map<Value *, Register> value_map; // IR Value to register id.
-  std::map<Value *, FrameObject> frame_info;
+  int vregs_id = Register::VREG_BEGIN;
+  std::unordered_map<Value *, int> value_map; // IR Value to register id.
+  std::unordered_map<Value *, FrameObject> frame_info;
 
   MBasicBlock *CreateBasicBlock();
   FrameObject *GetStackObject(Value *V);
