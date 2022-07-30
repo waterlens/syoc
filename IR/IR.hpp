@@ -201,6 +201,11 @@ struct Instruction : public Value, public ListNode<Instruction> {
             || op == OP_Eq || op == OP_Ne);
   }
 
+  [[nodiscard]] bool isBinaryArithmeticInst() const {
+    return (op == OP_Add || op == OP_Sub || op == OP_Mul
+            || op == OP_Div || op == OP_Mod);
+  }
+
   [[nodiscard]] bool isControlInstruction() const {
     return op == OP_Jump || op == OP_Branch || op == OP_Return;
   }
