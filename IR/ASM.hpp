@@ -36,12 +36,11 @@ struct Register {
   };
   int id = -1;
 
-  inline bool isInvalid() const { return id == -1; }
-  inline bool isVirtual() const { return !(isInteger() || isFloat()) && id > 0; }
-  inline bool isInteger() const { return id >= INTEGER_REG_BEGIN && id <= INTEGER_REG_END; }
-  inline bool isFloat() const { return id >= VFP_REG_BEGIN && id <= VFP_REG_END; }
+  static bool isVirtual(const Register &r) { return !(isInteger(r) || isFloat(r)); }
+  static bool isInteger(const Register &r) { return r.id >= INTEGER_REG_BEGIN && r.id <= INTEGER_REG_END; }
+  static bool isFloat(const Register &r) { return r.id >= VFP_REG_BEGIN && r.id <= VFP_REG_END; }
   static const char *getName(const Register &r) {
-    if (r.isInteger() || r.isFloat()) return RegisterNames[r.id];
+    if (isInteger(r) || isFloat(r)) return RegisterNames[r.id];
     return nullptr;
   }
 };
@@ -82,14 +81,11 @@ struct Shift {
 #include "Common/Common.def"
 #undef ShiftTypeDefine
   } type;
-  int32_t imm; // pure Imm or shift bits
+  signed char imm;
   Register reg;
 
   static Shift GetDefaultShift(Register r) {
     return Shift {Type::SF_None, 0, r};
-  }
-  static Shift GetImm(int32_t Imm) {
-    return Shift {Type::SF_None, Imm, -1};
   }
 };
 
@@ -271,14 +267,12 @@ struct MFunction {
   std::vector<size_t> frame; // stack frame sizes
   std::string name;
 
-  std::map<Value *, Register> value_map; // IR Value to register id.
+  std::map<Value *, int> value_map; // IR Value to register id.
   std::map<Value *, FrameObject> frame_info;
 
   MBasicBlock *CreateBasicBlock();
   FrameObject *GetStackObject(Value *V);
   FrameObject *CreateStackObject(Value *V, size_t size);
-  Register LookUpRegister(Value *);
-  Register LookUpFrame(Value *);
 };
 
 struct MModule {

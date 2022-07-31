@@ -62,7 +62,6 @@ OpcodeDefine(OP_Offset,     "offset")
 OpcodeDefine(OP_Return,     "ret")
 OpcodeDefine(OP_Memset0,    "memset0")
 OpcodeDefine(OP_End, "")
-// OpcodeDefine(OP_COPYREG, "COPYREG") // special IR node used to eliminate Phi node.
 
 TypeSpecifierDefine(TS_None,  0)
 TypeSpecifierDefine(TS_Void,  1 << 0)
@@ -160,7 +159,6 @@ ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm) // sdiv{cond} Rd = Rn / Rm
 ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
 
 // load/store value to registers
-ARMv7aOpcodeDefine(CPY,     "cpy",  IF_RdRm)
 ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2, pseudo cpy will be translated to mov
 ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
 ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd[31:16] = Imm
