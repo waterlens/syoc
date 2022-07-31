@@ -3,7 +3,6 @@
 #include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimplifyCFG.hpp"
-#include "Pass/InstCombine.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -81,8 +80,7 @@ void stoptime();
   transformer
     .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination,
-                         SyOC::PromoteMem2Reg,
-                         SyOC::InstCombine, SyOC::DeadCodeElimination,
+                         SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
   SyOC::IRHost *IR = transformer.getTransformedIR();
 
