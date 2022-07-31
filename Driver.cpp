@@ -3,7 +3,6 @@
 #include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimplifyCFG.hpp"
-#include "Pass/InstCombine.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
@@ -75,16 +74,11 @@ void stoptime();
   SyOC::Transformer transformer(tree);
   transformer
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
-  // from tree gen ssa ir
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  // opt passes
   transformer
     .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination,
-                         SyOC::PromoteMem2Reg,
-                         SyOC::InstCombine, SyOC::DeadCodeElimination,
+                         SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
-  SyOC::IRHost *IR = transformer.getTransformedIR();
-
   return 0;
 }
