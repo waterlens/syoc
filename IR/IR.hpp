@@ -196,11 +196,6 @@ struct Instruction : public Value, public ListNode<Instruction> {
       return (op == OP_Load || op == OP_Store);
   }
 
-  [[nodiscard]] bool isCompareInst() const {
-    return (op == OP_Gt || op == OP_Ge || op == OP_Lt || op == OP_Le
-            || op == OP_Eq || op == OP_Ne);
-  }
-
   [[nodiscard]] bool isControlInstruction() const {
     return op == OP_Jump || op == OP_Branch || op == OP_Return;
   }
