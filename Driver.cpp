@@ -74,15 +74,11 @@ void stoptime();
   SyOC::Transformer transformer(tree);
   transformer
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
-  // from tree gen ssa ir
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  // opt passes
   transformer
     .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination,
                          SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
-  SyOC::IRHost *IR = transformer.getTransformedIR();
-
   return 0;
 }

@@ -135,39 +135,26 @@ ARMv7aInsnFormatDefine(IF_RdRnOperand2)
 ARMv7aInsnFormatDefine(IF_RdOperand2)
 ARMv7aInsnFormatDefine(IF_RnOperand2)
 ARMv7aInsnFormatDefine(IF_Label)
-ARMv7aInsnFormatDefine(IF_RdImm)
-ARMv7aInsnFormatDefine(IF_Rm) // bx(s)
-ARMv7aInsnFormatDefine(IF_RdRnImm) // temporarily no pre-index/post-index
 
-// arithmetic operations
 ARMv7aOpcodeDefine(NOP,     "nop",  IF_Other)
 ARMv7aOpcodeDefine(ADD,     "add",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ADC,     "adc",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SUB,     "sub",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SDC,     "sdc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2) // rsb{s} rd = rn - op2
+ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(RSC,     "rsc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRmRs) // mul{s}{cond} rd = rm * rs
-ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRsRn) // mla{s}{cond} rd = rm * rs + rn
-ARMv7aOpcodeDefine(MLS,     "mls",  IF_RdRmRsRn) // mls{cond} rd = rn - rm * rs
-ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRmRs) // umull{s}{cond} RdHi:RdLo = Rm * Rs
-ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRmRs) // umlal{s}{cond} RdHi:RdLo += Rm * Rs
-ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRmRs) // umall{cond} RdHi:RdLo = RdHi + RdLo + Rm * Rs
+ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRmRs)
+ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRs)
+ARMv7aOpcodeDefine(MLS,     "mla",  IF_RdRmRsRn)
+ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRmRs)
+ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRmRs)
+ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRmRs)
 ARMv7aOpcodeDefine(SMULL,   "smull",IF_RdLoRdHiRmRs)
 ARMv7aOpcodeDefine(SMLAL,   "smlal",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm) // sdiv{cond} Rd = Rn / Rm
+ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm)
 ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
-
-// load/store value to registers
-ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2
-ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
-ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd[31:16] = Imm
-ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd = zext(imm)
-ARMv7aOpcodeDefine(LDR,     "ldr",  IF_RdRnImm)
-ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef
-ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)
-
-
+ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2)
+ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2)
 ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)
 ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2)
 ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2)
@@ -176,13 +163,10 @@ ARMv7aOpcodeDefine(TEQ,     "teq",  IF_RnOperand2)
 ARMv7aOpcodeDefine(AND,     "and",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(EOR,     "eor",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ORR,     "orr",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(BIC,     "bic",  IF_RdRnOperand2) // bic{s}{cond} rd = rn & ~op2
+ARMv7aOpcodeDefine(BIC,     "bic",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SEL,     "sel",  IF_RdRnRm)
-
-// branch operations
-ARMv7aOpcodeDefine(B,       "b",    IF_Label) // b{cond}
+ARMv7aOpcodeDefine(B,       "b",    IF_Label)
 ARMv7aOpcodeDefine(BL,      "bl",   IF_Label)
-ARMv7aOpcodeDefine(BX,      "bx",   IF_Rm) // bx{s} jump to rd and switch arm/thumb mode
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine
