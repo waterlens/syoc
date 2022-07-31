@@ -128,9 +128,9 @@ ConditionTypeDefine(CT_Any, 14)
 ARMv7aInsnFormatDefine(IF_Other)
 ARMv7aInsnFormatDefine(IF_RdRnRm)
 ARMv7aInsnFormatDefine(IF_RdRm)
-// ARMv7aInsnFormatDefine(IF_RdRmRs)
-ARMv7aInsnFormatDefine(IF_RdRmRnRa)
-ARMv7aInsnFormatDefine(IF_RdLoRdHiRnRm)
+ARMv7aInsnFormatDefine(IF_RdRmRs)
+ARMv7aInsnFormatDefine(IF_RdRmRsRn)
+ARMv7aInsnFormatDefine(IF_RdLoRdHiRmRs)
 ARMv7aInsnFormatDefine(IF_RdRnOperand2)
 ARMv7aInsnFormatDefine(IF_RdOperand2)
 ARMv7aInsnFormatDefine(IF_RnOperand2)
@@ -145,16 +145,16 @@ ARMv7aOpcodeDefine(ADD,     "add",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ADC,     "adc",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SUB,     "sub",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SDC,     "sdc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2) // rsb{s} rd = op2 - rn
+ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2) // rsb{s} rd = rn - op2
 ARMv7aOpcodeDefine(RSC,     "rsc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRnRm) // mul{s}{cond} rd = rm * rs
-ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRnRa) // mla{s}{cond} rd = rm * rs + rn
-ARMv7aOpcodeDefine(MLS,     "mls",  IF_RdRmRnRa) // mls{cond} rd = rn - rm * rs
-ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRnRm) // umull{s}{cond} RdHi:RdLo = Rm * Rs
-ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRnRm) // umlal{s}{cond} RdHi:RdLo += Rm * Rs
-ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRnRm) // umall{cond} RdHi:RdLo = RdHi + RdLo + Rm * Rs
-ARMv7aOpcodeDefine(SMULL,   "smull",IF_RdLoRdHiRnRm)
-ARMv7aOpcodeDefine(SMLAL,   "smlal",IF_RdLoRdHiRnRm)
+ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRmRs) // mul{s}{cond} rd = rm * rs
+ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRsRn) // mla{s}{cond} rd = rm * rs + rn
+ARMv7aOpcodeDefine(MLS,     "mls",  IF_RdRmRsRn) // mls{cond} rd = rn - rm * rs
+ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRmRs) // umull{s}{cond} RdHi:RdLo = Rm * Rs
+ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRmRs) // umlal{s}{cond} RdHi:RdLo += Rm * Rs
+ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRmRs) // umall{cond} RdHi:RdLo = RdHi + RdLo + Rm * Rs
+ARMv7aOpcodeDefine(SMULL,   "smull",IF_RdLoRdHiRmRs)
+ARMv7aOpcodeDefine(SMLAL,   "smlal",IF_RdLoRdHiRmRs)
 ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm) // sdiv{cond} Rd = Rn / Rm
 ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
 

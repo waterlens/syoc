@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "IR/IR.hpp"
-#include "IR/ASM.hpp"
 #include "Pass/Tree2SSA.hpp"
 #include "Tree/Tree.hpp"
 
@@ -21,7 +20,6 @@ class Transformer {
 private:
   NodePtr tree;
   IRHost *host;
-  ::SyOC::ARMv7a::MInstHost *mhost;
 
   static void run(std::function<void()> &&func, std::string_view name) {
     auto t1 = std::chrono::steady_clock::now();
@@ -29,13 +27,7 @@ private:
     auto t2 = std::chrono::steady_clock::now();
     fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
   }
-public:
-  enum TransformScope {
-    InstructionPass,
-    BasicBlockPass,
-    FunctionPass,
-    ModulePass,
-  };
+
 public:
   Transformer(NodePtr tree) : tree(tree) {}
   IRHost *getTransformedIR() const { return host; }

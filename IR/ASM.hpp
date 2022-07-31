@@ -7,7 +7,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <map>
+#include <bitset>
 
 namespace SyOC::ARMv7a {
 
@@ -36,7 +36,7 @@ struct Register {
   };
   int id = -1;
 
-  static bool isVirtual(const Register &r) { return !(isInteger(r) || isFloat(r)); }
+  static bool isVirtual(const Register &r) { return r.id == -1; }
   static bool isInteger(const Register &r) { return r.id >= INTEGER_REG_BEGIN && r.id <= INTEGER_REG_END; }
   static bool isFloat(const Register &r) { return r.id >= VFP_REG_BEGIN && r.id <= VFP_REG_END; }
   static const char *getName(const Register &r) {
@@ -46,12 +46,8 @@ struct Register {
 };
 
 struct RegisterList {
-  uint32_t ls = 0; // vmov, vpush requires 32 bit.
-  // std::bitset<RegCount> ls;
-};
-
-struct FrameObject {
-  size_t index; //  size of the current frame object in function.
+  // short ls = 0;
+  std::bitset<RegCount> ls;
 };
 
 enum class Opcode : unsigned char {
@@ -83,10 +79,6 @@ struct Shift {
   } type;
   signed char imm;
   Register reg;
-
-  static Shift GetDefaultShift(Register r) {
-    return Shift {Type::SF_None, 0, r};
-  }
 };
 
 enum class Condition : unsigned char {
@@ -101,12 +93,9 @@ struct MFunction;
 struct MModule;
 
 struct Address {
-  std::variant<Register, FrameObject> base; // global / stack object
-  std::variant<int32_t, Register, Shift, RegisterList, MBasicBlock *, MFunction *>
+  Register base;
+  std::variant<int, Register, Shift, RegisterList, MBasicBlock *>
     offset_or_else;
-
-  bool isPointerOrGlobal() const { return std::holds_alternative<Register>(base); }
-  bool isStack() const { return std::holds_alternative<FrameObject>(base); }
 };
 
 struct MInstruction : public ListNode<MInstruction> {
@@ -116,9 +105,9 @@ struct MInstruction : public ListNode<MInstruction> {
   Condition cond = Condition::CT_Any;
   Register ra = Register{-1};             // Rd, RdLo, Rn
   Register rb = Register{-1};             // Rm, Rn, RdHi
-  Address rc = Address{Register{-1}, -1}; // Rs, Rm, Rn, imm, Operand2, label, function (esp. only declaration)
+  Address rc = Address{Register{-1}, -1}; // Rs, Rm, Rn, imm, Operand2, label
 
-
+  static bool isLegalImm();
   static MInstruction *create() { return new MInstruction; }
   static MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
                               Condition cond = Condition::CT_Any) {
@@ -132,33 +121,6 @@ struct MInstruction : public ListNode<MInstruction> {
     return &p;
   }
 
-  // pointer or global memory access with definite register
-  static MInstruction *RdRnImm(Opcode op, Register rd, Register rn, int imm,
-                               Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.base = rn;
-    p->rc.offset_or_else = imm;
-    p->cond = cond;
-    return p;
-  }
-
-  // stack memory access with intermediate FrameObject representation,
-  // will be lowered to [sp, #offset] afterward.
-  static MInstruction *RdRnImm(Opcode op, Register rd, FrameObject rn, int imm,
-                               Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.base = rn;
-    p->rc.offset_or_else = imm;
-    p->cond = cond;
-    return p;
-  }
-
   static MInstruction *RdRm(Opcode op, Register rd, Register rm,
                             Condition cond = Condition::CT_Any) {
     assert_op_format(IF_RdRm);
@@ -170,10 +132,22 @@ struct MInstruction : public ListNode<MInstruction> {
     return &p;
   }
 
-  static MInstruction *RdRmRnRa(Opcode op, Register rd, Register rm,
+  static MInstruction *RdRmRs(Opcode op, Register rd, Register rm, Register rs,
+                              Condition cond = Condition::CT_Any) {
+    assert_op_format(IF_RdRmRs);
+    auto &p = *create();
+    p.op = op;
+    p.ra = rd;
+    p.rb = rm;
+    p.rc.base = rs;
+    p.cond = cond;
+    return &p;
+  }
+
+  static MInstruction *RdRmRsRn(Opcode op, Register rd, Register rm,
                                 Register rs, Register rn,
                                 Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRmRnRa);
+    assert_op_format(IF_RdRmRsRn);
     auto &p = *create();
     p.op = op;
     p.ra = rd;
@@ -184,10 +158,10 @@ struct MInstruction : public ListNode<MInstruction> {
     return &p;
   }
 
-  static MInstruction *RdLoRdHiRnRm(Opcode op, Register lo, Register hi,
+  static MInstruction *RdLoRdHiRmRs(Opcode op, Register lo, Register hi,
                                     Register rm, Register rs,
                                     Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdLoRdHiRnRm);
+    assert_op_format(IF_RdLoRdHiRmRs);
     auto &p = *create();
     p.op = op;
     p.ra = lo;
@@ -253,29 +227,8 @@ struct MBasicBlock : public ListNode<MBasicBlock> {
 
 struct MFunction {
   List<MBasicBlock> block;
-  std::vector<size_t> frame; // stack frame sizes
   std::string name;
-
-  std::map<Value *, int> value_map; // IR Value to register id.
-  std::map<Value *, FrameObject> frame_info;
-
-  MBasicBlock *CreateBasicBlock();
-  FrameObject *GetStackObject(Value *V);
-  FrameObject *CreateStackObject(Value *V, size_t size);
 };
 
-struct MModule {
-  std::vector<MFunction> function;
-  std::vector<GlobalVariable> global;
-};
-
-// \brief Hosting Lowered IR and MInsts after register allocation
-struct MInstHost {
-  MModule *root;
-  size_t label_cnt;
-
-  // @TODO: Stack Frame Info, MInst Builder Helper Info, Liveness Analysis
-
-};
 
 } // namespace SyOC::ARMv7a
