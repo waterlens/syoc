@@ -166,12 +166,10 @@ ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
 ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd[31:16] = Imm
 ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd = zext(imm)
 ARMv7aOpcodeDefine(LDR,     "ldr",  IF_RdRnImm)
-ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef, may need .ltorg to allocate literal pools
+ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef
 ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)
 
 
-ARMv7aOpcodeDefine(ASR,     "asr",  IF_RdRnImm)    // asr{s}{cond} actually rd, rn, #sh (1~32)
-ARMv7aOpcodeDefine(LSL,     "lsl",  IF_RdRnImm)    // lsl{s}{cond} actually rd, rn, #sh (1~32)
 ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)       // cls{cond} counting leading zeros
 ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2) // cmp{cond} same as subs
 ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2) // cmn{cond} same as adds

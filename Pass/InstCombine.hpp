@@ -7,13 +7,13 @@ namespace SyOC {
 /// https://llvm.org/docs/Passes.html#instcombine-combine-redundant-instructions
 class InstCombine final {
 private:
-  std::vector<ListIterator<Instruction>> work_list;
+  static std::vector<ListIterator<Instruction>> work_list;
 
-  void strengthReduction(IRHost &host);
-  void comparisonSimplify(IRHost &host);
-  void switchOperands(IRHost &host);
-  void groupBitwiseOperators(IRHost &host);
-  void deadCodeElimination(IRHost &host);
+  static void strengthReduction(IRHost &host);
+  static void comparisonSimplify(IRHost &host);
+  static void switchOperands(IRHost &host);
+  static void groupBitwiseOperators(IRHost &host);
+  static void deadCodeElimination(IRHost &host);
 public:
   InstCombine() = default;
   [[nodiscard]] static std::string_view getName() { return "Combine Redundant Instructions";}
