@@ -159,7 +159,7 @@ ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm) // sdiv{cond} Rd = Rn / Rm
 ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
 
 // load/store value to registers
-ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2, pseudo cpy will be translated to mov
+ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2
 ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
 ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd[31:16] = Imm
 ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd = zext(imm)
@@ -168,11 +168,11 @@ ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-
 ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)
 
 
-ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)       // cls{cond} counting leading zeros
-ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2) // cmp{cond} same as subs
-ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2) // cmn{cond} same as adds
-ARMv7aOpcodeDefine(TST,     "tst",  IF_RnOperand2) // tst{cond} same as ands
-ARMv7aOpcodeDefine(TEQ,     "teq",  IF_RnOperand2) // teq{cond} same as eors
+ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)
+ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2)
+ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2)
+ARMv7aOpcodeDefine(TST,     "tst",  IF_RnOperand2)
+ARMv7aOpcodeDefine(TEQ,     "teq",  IF_RnOperand2)
 ARMv7aOpcodeDefine(AND,     "and",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(EOR,     "eor",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ORR,     "orr",  IF_RdRnOperand2)
