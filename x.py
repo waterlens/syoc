@@ -107,7 +107,8 @@ def check(args):
                     if result.returncode != 0:
                         print(f'Error: {name}')
                         open('current.txt', 'wb').write(name.encode())
-                        return
+                        if args.ignore_failed is False:
+                            return
     else:
         for path in args.test:
             check_test_name_valid(path)
@@ -220,6 +221,7 @@ def main():
     ck.add_argument('--test', nargs='+',
                     help='the name of the test you want to check')
     ck.add_argument('--output', action="store_true")
+    ck.add_argument('--ignore-failed', action='store_true')
 
     args = parser.parse_args()
 
