@@ -6,6 +6,8 @@
 #include "Pass/InstCombine.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
+#include "CodeGen/MEISel.hpp"
+#include "CodeGen/AsmPrinter.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
@@ -81,10 +83,14 @@ void stoptime();
   transformer
     .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
                          SyOC::SimpleAllocationElimination,
-                         SyOC::PromoteMem2Reg,
+                         // SyOC::PromoteMem2Reg,
                          SyOC::InstCombine, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
-  SyOC::IRHost *IR = transformer.getTransformedIR();
-
+  // instruction selection
+  // transformer.doSSA2MInstTransformation<SyOC::MEISel>();
+  std::string asmFileName;
+  asmFileName = optParser["-o"].as<std::string_view>();
+  SyOC::ARMv7a::AsmPrinter out(asmFileName);
+  // out << *transformer.getMIR();
   return 0;
 }

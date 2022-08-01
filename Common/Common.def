@@ -23,7 +23,7 @@
 #endif
 
 #ifndef ConditionTypeDefine
-#define ConditionTypeDefine(x, v)
+#define ConditionTypeDefine(x, y, v)
 #endif
 
 #ifndef ARMv7aOpcodeDefine
@@ -110,21 +110,21 @@ ShiftTypeDefine(SF_ASR,  "ASR")
 ShiftTypeDefine(SF_ROR,  "ROR")
 ShiftTypeDefine(SF_RRX,  "RRX")
 
-ConditionTypeDefine(CT_EQ,  0)
-ConditionTypeDefine(CT_NE,  1)
-ConditionTypeDefine(CT_CS,  2)
-ConditionTypeDefine(CT_CC,  3)
-ConditionTypeDefine(CT_MI,  4)
-ConditionTypeDefine(CT_PL,  5)
-ConditionTypeDefine(CT_VS,  6)
-ConditionTypeDefine(CT_VC,  7)
-ConditionTypeDefine(CT_HI,  8)
-ConditionTypeDefine(CT_LS,  9)
-ConditionTypeDefine(CT_GE,  10)
-ConditionTypeDefine(CT_LT,  11)
-ConditionTypeDefine(CT_GT,  12)
-ConditionTypeDefine(CT_LE,  13)
-ConditionTypeDefine(CT_Any, 14)
+ConditionTypeDefine(CT_EQ,  "eq", 0)
+ConditionTypeDefine(CT_NE,  "ne", 1)
+ConditionTypeDefine(CT_CS,  "cs", 2)
+ConditionTypeDefine(CT_CC,  "cc", 3)
+ConditionTypeDefine(CT_MI,  "mi", 4)
+ConditionTypeDefine(CT_PL,  "pl", 5)
+ConditionTypeDefine(CT_VS,  "vs", 6)
+ConditionTypeDefine(CT_VC,  "vc", 7)
+ConditionTypeDefine(CT_HI,  "hi", 8)
+ConditionTypeDefine(CT_LS,  "ls", 9)
+ConditionTypeDefine(CT_GE,  "ge", 10)
+ConditionTypeDefine(CT_LT,  "lt", 11)
+ConditionTypeDefine(CT_GT,  "gt", 12)
+ConditionTypeDefine(CT_LE,  "le", 13)
+ConditionTypeDefine(CT_Any, "", 14)
 
 ARMv7aInsnFormatDefine(IF_Other)
 ARMv7aInsnFormatDefine(IF_RdRnRm)
@@ -163,8 +163,8 @@ ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
 ARMv7aOpcodeDefine(CPY,     "cpy",  IF_RdRm)
 ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2, pseudo cpy will be translated to mov
 ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
-ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd[31:16] = Imm
-ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd = zext(imm)
+ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd = zext(imm)
+ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd[31:16] = Imm
 ARMv7aOpcodeDefine(LDR,     "ldr",  IF_RdRnImm)
 ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef, may need .ltorg to allocate literal pools
 ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)

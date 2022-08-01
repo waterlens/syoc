@@ -15,6 +15,7 @@ add_subdirectory(Transformer)
 add_subdirectory(ThirdParty)
 add_subdirectory(Util)
 add_subdirectory(Pass)
+add_subdirectory(CodeGen)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -28,7 +29,7 @@ if (WIN32)
     target_link_options(syoc PRIVATE "-Wl,--stack,8388608")
 endif()
 
-set(ASAN on)
+set(ASAN off)
 
 if (ASAN)
     target_compile_options(syoc PRIVATE "-fsanitize=address")

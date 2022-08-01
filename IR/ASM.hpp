@@ -11,14 +11,6 @@
 
 namespace SyOC::ARMv7a {
 
-// 16 int + 32 float
-static const unsigned int RegCount = 48;
-
-static const char *RegisterNames[] = {
-#define TargetIntegralRegister(x, y, z) #x,
-#define TargetFloatRegister(x, y, z) #x,
-#include "Common/TargetInfo.def"
-};
 
 
 struct Register {
@@ -44,17 +36,18 @@ struct Register {
 #define FirstVirtualReg(x) VREG_BEGIN = x,
 #include "Common/TargetInfo.def"
   };
+  enum Type {
+    Int,
+    Float,
+  };
   int id = -1;
+  Type type = Int;
 
   inline bool isInvalid() const { return id == -1; }
   inline bool isVirtual() const { return !(isInteger() || isFloat() || !isStatus()) && id > 0; }
   inline bool isInteger() const { return id >= INTEGER_REG_BEGIN && id <= INTEGER_REG_END; }
   inline bool isFloat() const { return id >= VFP_REG_BEGIN && id <= VFP_REG_END; }
   inline bool isStatus() const { return id >= STATUS_REG_BEGIN && id <= STATUS_REG_END; }
-  static const char *getName(const Register &r) {
-    if (r.isInteger() || r.isFloat()) return RegisterNames[r.id];
-    return nullptr;
-  }
 };
 
 struct RegisterList {
@@ -63,7 +56,7 @@ struct RegisterList {
 };
 
 struct FrameObject {
-  size_t index; //  size of the current frame object in function.
+  size_t index = -1; //  size of the current frame object in function.
 };
 
 enum class Opcode : unsigned char {
@@ -105,7 +98,7 @@ struct Shift {
 };
 
 enum class Condition : unsigned char {
-#define ConditionTypeDefine(x, v) x = (v),
+#define ConditionTypeDefine(x, y, v) x = (v),
 #include "Common/Common.def"
 #undef ConditionTypeDefine
 };
@@ -127,6 +120,7 @@ struct Address {
 struct MInstruction : public ListNode<MInstruction> {
 #define assert_op_format(fmt) assert(get_op_format(op) == Format::fmt)
   MBasicBlock *parent = nullptr;
+  size_t id = 0; // used for possible register allocation.
   Opcode op = Opcode::NOP;
   Condition cond = Condition::CT_Any;
   Register ra = Register{-1};             // Rd, RdLo, Rn
@@ -282,36 +276,53 @@ struct MInstruction : public ListNode<MInstruction> {
 };
 
 struct MBasicBlock : public ListNode<MBasicBlock> {
-  List<Instruction> insn;
+  size_t id; // used for cfg linearization.
+  List<MInstruction> insn;
   std::vector<MBasicBlock *> succ;
   std::vector<MBasicBlock *> pred;
+
+  static MBasicBlock *create(MFunction *);
 };
 
 struct MFunction {
+  // Linearly Numbered BB
   List<MBasicBlock> block;
-  std::vector<size_t> frame; // stack frame sizes
+  // stack frame sizes
+  // 0 means temporary stack like push arguments.
+  std::vector<size_t> frame;
   std::string name;
+  bool external;
 
   int vregs_id = Register::VREG_BEGIN;
-  std::unordered_map<Value *, int> value_map; // IR Value to register id.
+  std::unordered_map<Value *, Register> value_map; // IR Value to register id.
   std::unordered_map<Value *, FrameObject> frame_info;
+  std::unordered_map<BasicBlock *, MBasicBlock *> bb_map;
 
-  MBasicBlock *CreateBasicBlock();
-  FrameObject *GetStackObject(Value *V);
-  FrameObject *CreateStackObject(Value *V, size_t size);
-  Register LookUpRegister(Value *);
-  Register LookUpFrame(Value *);
+  static MFunction *create(Function *, MModule *);
+  inline MBasicBlock *GetBasicBlock(BasicBlock *B) { return bb_map.at(B);}
+  inline FrameObject GetStackObject(Value *V) { return frame_info.at(V); }
+  inline FrameObject CreateStackObject(Value *V, size_t size) {
+    FrameObject fobj {frame.size()};
+    frame_info.insert({V, fobj});
+    frame.push_back(size);
+    return fobj;
+  }
 };
 
 struct MModule {
-  std::vector<MFunction> function;
-  std::vector<GlobalVariable> global;
+  std::vector<MFunction *> function;
+  std::vector<GlobalVariable *> global;
+
+
 };
 
 // \brief Hosting Lowered IR and MInsts after register allocation
 struct MInstHost {
   MModule *root;
   size_t label_cnt;
+
+  MInstHost() { root = new MModule; }
+  [[nodiscard]] MModule *getModule() const { return root; }
 
   // @TODO: Stack Frame Info, MInst Builder Helper Info, Liveness Analysis
 

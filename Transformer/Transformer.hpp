@@ -21,7 +21,7 @@ class Transformer {
 private:
   NodePtr tree;
   IRHost *host;
-  ::SyOC::ARMv7a::MInstHost *mhost;
+  ARMv7a::MInstHost *mhost;
 
   static void run(std::function<void()> &&func, std::string_view name) {
     auto t1 = std::chrono::steady_clock::now();
@@ -30,15 +30,9 @@ private:
     fmt::print("{}: {:%Q%q}\n", name, std::chrono::duration<double>(t2 - t1));
   }
 public:
-  enum TransformScope {
-    InstructionPass,
-    BasicBlockPass,
-    FunctionPass,
-    ModulePass,
-  };
-public:
   Transformer(NodePtr tree) : tree(tree) {}
-  IRHost *getTransformedIR() const { return host; }
+  IRHost *getIR() const { return host; }
+  ARMv7a::MInstHost *getMIR() const { return mhost; }
 
   template <typename T> void doTreeTransformation() {
     T f{};
@@ -53,6 +47,16 @@ public:
   template <typename T> void doTree2SSATransformation() {
     T f{};
     run([&]() { f(tree, host); }, f.getName());
+  }
+
+  template <typename T> void doSSA2MInstTransformation() {
+    T f{};
+    run([&]() { f(host, mhost); }, f.getName());
+  }
+
+  template <typename T> void doMInstTransformation() {
+    T f{};
+    run([&]() { f(*mhost); }, f.getName());
   }
 
   template <typename T1, typename T2, typename... Tail>
@@ -71,6 +75,18 @@ public:
   void doTree2SSATransformation() {
     doTree2SSATransformation<T1>();
     doTree2SSATransformation<T2, Tail...>();
+  }
+
+  template <typename T1, typename T2, typename... Tail>
+  void doSSA2MInstTransformation() {
+    doSSA2MInstTransformation<T1>();
+    doSSA2MInstTransformation<T2, Tail...>();
+  }
+
+  template <typename T1, typename T2, typename... Tail>
+  void doMInstTransformation() {
+    doMInstTransformation<T1>();
+    doMInstTransformation<T2, Tail...>();
   }
 };
 } // namespace SyOC
