@@ -1,2 +1,5 @@
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} ALL_PASS_SRC)
+file(GLOB ALL_PASS_SRC
+    *.hpp
+    *.cpp
+)
 target_sources(syoc PRIVATE ${ALL_PASS_SRC})
