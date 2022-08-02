@@ -2,7 +2,6 @@
 import os
 import subprocess
 import argparse
-import tomli
 
 test_dir = './Test/'
 output_dir = './Output/'
@@ -199,9 +198,11 @@ def filepath(path):
 def deploy(args):
     if os.path.isfile('manifest.txt'):
         with open('manifest.txt', "rb") as f:
+            import tomli
+            import shutil
+            
             config = tomli.load(f)
             sources = config['sources'].strip('\n').split('\n')
-            import shutil
             for source in sources:
                 dst = os.path.join("./Deploy", source)
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
