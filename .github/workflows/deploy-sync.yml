@@ -26,7 +26,7 @@ jobs:
       - name: Sync
         working-directory: ./Deploy
         run: |
-          git init
+          git init --initial-branch=main
           git config user.name "sync"
           git config user.email "sync@nothing"
           git remote add origin  ${{ secrets.REMOTE_URL }}
