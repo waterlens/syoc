@@ -24,12 +24,12 @@ jobs:
           python -m pip install tomli
           python ./x.py deploy
       - name: Sync
+        working-directory: ./Deploy
         run: |
-          cd Deploy \
-          git init \
-          git config user.name "sync" \
-          git config user.email "sync@nothing" \
-          git remote add origin  ${{ secrets.REMOTE_URL }} \
-          git add . \
-          git commit -m "sync files from origin repo" \
+          git init
+          git config user.name "sync"
+          git config user.email "sync@nothing"
+          git remote add origin  ${{ secrets.REMOTE_URL }}
+          git add .
+          git commit -m "sync files from origin repo"
           git push -u origin main --force
