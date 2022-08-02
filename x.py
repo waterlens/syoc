@@ -214,7 +214,7 @@ def deploy(args):
             for root, dirs, files in os.walk(deploy_dir, topdown=True):
                 files = [f for f in files if not f[0] == '.']
                 dirs[:] = [d for d in dirs if not d[0] == '.']
-                open(os.path.join(root, '._.h'), 'a').close()
+                open(os.path.join(root, '__placeholder__.h'), 'a').close()
     else:
         print('Please run CMake configuration first to generate a manifest.txt')
 
