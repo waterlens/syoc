@@ -25,4 +25,4 @@ jobs:
           python ./x.py deploy
       - name: Sync
         run: |
-          REMOTE_URL=${{ secrets.REMOTE_URL }} sh deploy.sh
+          REMOTE_URL=${{ secrets.REMOTE_URL }} sh sync.sh
