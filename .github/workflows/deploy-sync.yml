@@ -19,9 +19,16 @@ jobs:
                 -DCMAKE_CXX_COMPILER:FILEPATH=clang++ \
                 -S ${{github.workspace}} \
                 -B ${{github.workspace}}/build
-      - name: Build
+      - name: Deploy
         run: |
-          cmake --build ${{github.workspace}}/build --config Debug --target all
-      - name: Test
+          python ./x.py deploy
+      - name: Sync
         run: |
-          python ./x.py check --ignore-failed --output
+          cd Deploy \
+          git init \
+          git config user.name "sync" \
+          git config user.email "sync@nothing" \
+          git remote add origin  ${{ secrets.REMOTE_URL }} \
+          git add . \
+          git commit -m "sync files from origin repo" \
+          git push -u origin main --force
