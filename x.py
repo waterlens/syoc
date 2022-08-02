@@ -7,6 +7,7 @@ test_dir = './Test/'
 output_dir = './Output/'
 binary_dir = './Binary/'
 default_syoc_path = './build/syoc'
+deploy_dir = './Deploy'
 
 
 def get_test_source(name):
@@ -196,20 +197,27 @@ def filepath(path):
     else:
         raise argparse.ArgumentTypeError(f"{path} is not a valid binary")
 
+
 def deploy(args):
     if os.path.isfile('manifest.txt'):
-        with open('manifest.txt', "rb") as f:
+        with open('manifest.txt', 'rb') as f:
             import tomli
             import shutil
-            
+
             config = tomli.load(f)
             sources = config['sources'].strip('\n').split('\n')
+            shutil.rmtree(deploy_dir)
             for source in sources:
-                dst = os.path.join("./Deploy", source)
+                dst = os.path.join(deploy_dir, source)
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copy2(source, dst)
+            for root, dirs, files in os.walk(deploy_dir, topdown=True):
+                files = [f for f in files if not f[0] == '.']
+                dirs[:] = [d for d in dirs if not d[0] == '.']
+                open(os.path.join(root, '._.h'), 'a').close()
     else:
         print('Please run CMake configuration first to generate a manifest.txt')
+
 
 def main():
     parser = argparse.ArgumentParser(
