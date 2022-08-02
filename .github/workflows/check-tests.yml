@@ -1,11 +1,12 @@
-name: Deploy Sync
+name: Check tests
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+  pull_request:
 jobs:
-  deploy-sync:
+  check-tests:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
