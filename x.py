@@ -2,6 +2,7 @@
 import os
 import subprocess
 import argparse
+import tomli
 
 test_dir = './Test/'
 output_dir = './Output/'
@@ -101,7 +102,8 @@ def check(args):
                 if name.endswith('.sy'):
                     name = os.path.join(root, name)
                     print(f'Checking {name}')
-                    result = subprocess.run([cc_path, name], capture_output=True, text=True)
+                    result = subprocess.run(
+                        [cc_path, name], capture_output=True, text=True)
                     if args.output is True:
                         print(result.stdout)
                     if result.returncode != 0:
@@ -113,13 +115,15 @@ def check(args):
             check_test_name_valid(path)
             print(f'Checking {path}')
             path = get_test_source(path)
-            result = subprocess.run([cc_path, path], capture_output=True, text=True)
+            result = subprocess.run(
+                [cc_path, path], capture_output=True, text=True)
             if args.output is True:
                 print(result.stdout)
             if result.returncode != 0:
                 print(f'Error: {path}')
                 open('current.txt', 'wb').write(path.encode())
                 return
+
 
 def run(args):
     cc = args.cc
@@ -192,6 +196,18 @@ def filepath(path):
     else:
         raise argparse.ArgumentTypeError(f"{path} is not a valid binary")
 
+def deploy(args):
+    if os.path.isfile('manifest.txt'):
+        with open('manifest.txt', "rb") as f:
+            config = tomli.load(f)
+            sources = config['sources'].strip('\n').split('\n')
+            import shutil
+            for source in sources:
+                dst = os.path.join("./Deploy", source)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(source, dst)
+    else:
+        print('Please run CMake configuration first to generate a manifest.txt')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -221,6 +237,9 @@ def main():
                     help='the name of the test you want to check')
     ck.add_argument('--output', action="store_true")
 
+    dy = subparser.add_parser(
+        'deploy', help='generate the files for deployment')
+
     args = parser.parse_args()
 
     os.environ['ASAN_OPTIONS'] = 'detect_leaks=0'
@@ -233,6 +252,8 @@ def main():
         clean(args)
     elif args.command == 'run':
         run(args)
+    elif args.command == 'deploy':
+        deploy(args)
 
 
 if __name__ == "__main__":
