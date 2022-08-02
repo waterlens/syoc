@@ -1,4 +1,4 @@
-name: Deploy Sync
+name: Deploy & Sync
 on:
   workflow_dispatch:
   push:
@@ -24,12 +24,5 @@ jobs:
           python -m pip install tomli
           python ./x.py deploy
       - name: Sync
-        working-directory: ./Deploy
         run: |
-          git init --initial-branch=main
-          git config user.name "sync"
-          git config user.email "sync@nothing"
-          git remote add origin  ${{ secrets.REMOTE_URL }}
-          git add .
-          git commit -m "sync files from origin repo"
-          git push -u origin main --force
+          REMOTE_URL=${{ secrets.REMOTE_URL }} sh deploy.sh
