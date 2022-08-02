@@ -37,6 +37,8 @@ Misc/
 .vscode/
 .idea/
 current.txt
+manifest.txt
 Binary/
 Output/
 /dump.*
+Deploy/
