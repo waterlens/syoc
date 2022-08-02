@@ -4,11 +4,12 @@ project(syoc)
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(syoc)
-target_sources(syoc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Driver.cpp)
+target_sources(syoc PRIVATE Driver.cpp Placeholder.hpp)
 
 target_include_directories(syoc PRIVATE ThirdParty/fmt/include)
 target_include_directories(syoc PRIVATE .)
 
+add_subdirectory(Common)
 add_subdirectory(IR)
 add_subdirectory(Parser)
 add_subdirectory(Tree)
