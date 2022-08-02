@@ -7,7 +7,11 @@ on:
   pull_request:
 jobs:
   check-tests:
+<<<<<<< HEAD
     runs-on: ubuntu-latest
+=======
+    runs-on: ubuntu-20.04
+>>>>>>> 2fdadaf (correct jobs' name)
     steps:
       - name: Checkout
         uses: actions/checkout@v3
