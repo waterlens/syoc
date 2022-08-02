@@ -205,7 +205,7 @@ def deploy(args):
 
             config = tomli.load(f)
             sources = config['sources'].strip('\n').split('\n')
-            shutil.rmtree(deploy_dir)
+            shutil.rmtree(deploy_dir, ignore_errors=True)
             for source in sources:
                 dst = os.path.join(deploy_dir, source)
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
