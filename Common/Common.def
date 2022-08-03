@@ -188,6 +188,7 @@ ARMv7aOpcodeDefine(SEL,     "sel",  IF_RdRnRm)
 ARMv7aOpcodeDefine(B,       "b",    IF_Label) // b{cond}
 ARMv7aOpcodeDefine(BL,      "bl",   IF_Label)
 ARMv7aOpcodeDefine(BX,      "bx",   IF_Rm) // bx{s} jump to rd and switch arm/thumb mode
+ARMv7aOpcodeDefine(BLX,     "blx",  IF_Label)
 
 ARMv7aOpcodeDefine(PUSH,    "push", IF_Reglist)
 ARMv7aOpcodeDefine(POP,     "pop",  IF_Reglist)

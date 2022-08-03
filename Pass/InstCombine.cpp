@@ -2,7 +2,7 @@
 
 namespace SyOC {
 
-
+// negate the comparison.
 static OpType conjugateComparison(OpType Op) {
   switch (Op) {
   case OP_Ge: return OP_Lt;
@@ -11,6 +11,19 @@ static OpType conjugateComparison(OpType Op) {
   case OP_Lt: return OP_Ge;
   case OP_Eq: return OP_Ne;
   case OP_Ne: return OP_Eq;
+  default: return OP_None;
+  }
+}
+
+// switch operands.
+static OpType reverseComparison(OpType Op) {
+  switch (Op) {
+  case OP_Ge: return OP_Le;
+  case OP_Gt: return OP_Lt;
+  case OP_Le: return OP_Ge;
+  case OP_Lt: return OP_Gt;
+  case OP_Eq: return OP_Eq;
+  case OP_Ne: return OP_Ne;
   default: return OP_None;
   }
 }
@@ -53,12 +66,26 @@ void InstCombine::switchOperands(IRHost &host) {
   for (Function *F : host.getModule()->func) {
     for (BasicBlock &BB : F->block) {
       for (auto I = BB.begin(), E = BB.end(); I != E; ++I) {
-        if (I->isBinaryArithmeticInst() || I->isCompareInst()) {
+        if (I->op == OP_Add || I->op == OP_Sub || I->op == OP_Mul) {
           // We assume after Constant-Folding, Binary Operators
           // has at most 1 constant operand, this pass guarantees
           // the constant operand is the second operand.
-          if (I->getOperand(1)->is<ConstantInteger>())
+          if (I->getOperand(0)->is<ConstantInteger>() &&
+              !I->getOperand(1)->is<ConstantInteger>())
             std::swap(I->getInput(0), I->getInput(1));
+        }
+        if (I->isCompareInst()) {
+          if (I->getOperand(0)->is<ConstantInteger>() &&
+              !I->getOperand(1)->is<ConstantInteger>())
+          {
+            OpType rev_op = reverseComparison(I->op);
+            assert(rev_op != OP_None);
+            auto deduced_inst = Instruction::create(rev_op, I->type,
+                                                    {I->getOperand(1), I->getOperand(0)});
+            I->insert_before(deduced_inst);
+            I->replaceAllUsesWith(deduced_inst);
+            work_list.push_back(I);
+          }
         }
       }
     }
