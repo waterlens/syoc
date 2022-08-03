@@ -89,7 +89,11 @@ void stoptime();
   // instruction selection
   // transformer.doSSA2MInstTransformation<SyOC::MEISel>();
   std::string asmFileName;
-  asmFileName = optParser["-o"].as<std::string_view>();
+  if (optParser.has("-o")) {
+    asmFileName = optParser["-o"].as<std::string_view>();
+  } else {
+    asmFileName = fileName + ".s";
+  }
   SyOC::ARMv7a::AsmPrinter out(asmFileName);
   // out << *transformer.getMIR();
   return 0;

@@ -51,12 +51,16 @@ struct Register {
 };
 
 struct RegisterList {
+  static const int RegCount = 32;
   uint32_t ls = 0; // vmov, vpush requires 32 bit.
   // std::bitset<RegCount> ls;
 };
 
 struct FrameObject {
-  size_t index = -1; //  size of the current frame object in function.
+  int32_t offset;
+  size_t size;
+  const Instruction* alloca;
+  bool is_spill;
 };
 
 enum class Opcode : unsigned char {
@@ -110,11 +114,12 @@ struct MModule;
 
 struct Address {
   std::variant<Register, FrameObject> base; // global / stack object
-  std::variant<int32_t, Register, Shift, RegisterList, MBasicBlock *, MFunction *>
+  std::variant<int32_t, Register, Shift, RegisterList, MBasicBlock *, MFunction *, GlobalVariable *>
     offset_or_else;
 
   bool isPointerOrGlobal() const { return std::holds_alternative<Register>(base); }
   bool isStack() const { return std::holds_alternative<FrameObject>(base); }
+  bool hasElseReg() const { return std::holds_alternative<Register>(offset_or_else); }
 };
 
 struct MInstruction : public ListNode<MInstruction> {
@@ -168,6 +173,7 @@ struct MInstruction : public ListNode<MInstruction> {
     return p;
   }
 
+  // load common imm.
   static MInstruction *RdImm(Opcode op, Register rd, int32_t imm,
                              Condition cond = Condition::CT_Any) {
     assert_op_format(IF_RdImm);
@@ -175,6 +181,18 @@ struct MInstruction : public ListNode<MInstruction> {
     p->op = op;
     p->ra = rd;
     p->rc.offset_or_else = imm;
+    p->cond = cond;
+    return p;
+  }
+
+  // load global variable 32bit address.
+  static MInstruction *RdImm(Opcode op, Register rd, GlobalVariable *globv,
+                             Condition cond = Condition::CT_Any) {
+    assert_op_format(IF_RdImm);
+    auto p = create();
+    p->op = op;
+    p->ra = rd;
+    p->rc.offset_or_else = globv;
     p->cond = cond;
     return p;
   }
@@ -272,6 +290,16 @@ struct MInstruction : public ListNode<MInstruction> {
     p->cond = cond;
     return p;
   }
+
+  static MInstruction *Reglist(Opcode op, RegisterList list,
+                               Condition cond = Condition::CT_Any) {
+    assert_op_format(IF_Reglist);
+    auto p = create();
+    p->op = op;
+    p->rc.offset_or_else = list;
+    p->cond = cond;
+    return p;
+  }
 #undef assert_op_format
 };
 
@@ -287,26 +315,25 @@ struct MBasicBlock : public ListNode<MBasicBlock> {
 struct MFunction {
   // Linearly Numbered BB
   List<MBasicBlock> block;
+  std::string name;
   // stack frame sizes
   // 0 means temporary stack like push arguments.
-  std::vector<size_t> frame;
-  std::string name;
-  bool external;
+  std::vector<FrameObject> frame;
+  std::unordered_map<Value *, FrameObject *> frame_info;
+  uint32_t num_fix_object;
+  RegisterList prologue  { 0x8FF0 }; // r4, r5, r6, r7, r8, r9, r11, lr
 
   int vregs_id = Register::VREG_BEGIN;
   std::unordered_map<Value *, Register> value_map; // IR Value to register id.
-  std::unordered_map<Value *, FrameObject> frame_info;
   std::unordered_map<BasicBlock *, MBasicBlock *> bb_map;
 
   static MFunction *create(Function *, MModule *);
   inline MBasicBlock *GetBasicBlock(BasicBlock *B) { return bb_map.at(B);}
-  inline FrameObject GetStackObject(Value *V) { return frame_info.at(V); }
-  inline FrameObject CreateStackObject(Value *V, size_t size) {
-    FrameObject fobj {frame.size()};
-    frame_info.insert({V, fobj});
-    frame.push_back(size);
-    return fobj;
-  }
+  // Return the id of frame object.
+  int GetFrameObject(Value *V);
+  // See LLVM MachineFrameInfo: FixedObject / StackObject.
+  int CreateStackObject(Value *V, size_t size, bool isSpill = false);
+  int CreateFixObject(Value *V, size_t size);
 };
 
 struct MModule {

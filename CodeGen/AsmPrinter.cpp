@@ -156,10 +156,19 @@ static std::string dumpIF_RdImm(MInstruction *minst) {
     return fmt::format("\t\tldr{}\t{}, .L{:d}",
                        getCondName(minst->cond), minst->ra.id, literal_pool->id);
   }
-  int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
-  return fmt::format("\t\t{}{}\t{}, #{:d}\n",
-                     getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], imm);
+  // Load GlobalVariable.
+  using SyOC::GlobalVariable;
+  if (std::holds_alternative<int32_t>(minst->rc.offset_or_else)) {
+    int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
+    return fmt::format("\t\t{}{}\t{}, #{:d}\n", getMInstName(minst->op),
+                       getCondName(minst->cond), RegNames[minst->ra.id], imm);
+  }
+  auto *globv = std::get<GlobalVariable *>(minst->rc.offset_or_else);
+  if (minst->op == Opcode::MOVW)
+    return fmt::format("\t\t{}{}\t{}, #:lower16:{}\n", getMInstName(minst->op),
+                      getCondName(minst->cond), RegNames[minst->ra.id], globv->name);
+  return fmt::format("\t\t{}{}\t{}, #:upper16:{}\n", getMInstName(minst->op),
+                     getCondName(minst->cond), RegNames[minst->ra.id], globv->name);
 }
 
 static std::string dumpIF_RdRm(MInstruction *minst) {
@@ -172,6 +181,21 @@ static std::string dumpIF_RdRm(MInstruction *minst) {
 static std::string dumpIF_Rm(MInstruction *minst) {
   assert(minst->op == Opcode::BX);
   return fmt::format("\t\tbx\tlr\n");
+}
+
+static std::string dumpIF_Reglist(MInstruction *minst) {
+  RegisterList list = std::get<RegisterList>(minst->rc.offset_or_else);
+  bool first_reg = true;
+  std::string asm_format = fmt::format("\t\t{}\t{", getMInstName(minst->op));
+  for (int i = 0; i < RegisterList::RegCount; ++i) {
+    if (list.ls & (1 << i)) {
+      if (first_reg) { asm_format += RegNames[i]; first_reg = false; }
+      asm_format = asm_format + " ," + RegNames[i];
+    }
+  }
+  asm_format += "}\n";
+  assert(!first_reg);
+  return asm_format;
 }
 
 void AsmPrinter::dumpMInst(MInstruction *minst) {
