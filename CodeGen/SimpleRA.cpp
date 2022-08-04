@@ -50,7 +50,7 @@ getUse(MInstruction *minst) {
 void SimpleRA::operator()(MInstHost &mhost) {
   for (MFunction *mf : mhost.root->function) {
     for (auto mbb = mf->block.begin(); mbb != mf->block.end(); ++mbb) {
-      for (auto minst = mbb->insn.begin(); minst != mbb->insn.end(); ++mbb) {
+      for (auto minst = mbb->insn.begin(); minst != mbb->insn.end(); ++minst) {
         auto Uses = getUse(&*minst);
         for (Register *reg : Uses) {
           if (!reg->isVirtual())

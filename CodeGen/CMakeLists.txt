@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE MEISel.cpp AsmPrinter.cpp)
+target_sources(syoc PRIVATE MEISel.cpp AsmPrinter.cpp SimpleRA.cpp)

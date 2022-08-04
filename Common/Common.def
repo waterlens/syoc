@@ -124,7 +124,7 @@ ConditionTypeDefine(CT_GE,  "ge", 10)
 ConditionTypeDefine(CT_LT,  "lt", 11)
 ConditionTypeDefine(CT_GT,  "gt", 12)
 ConditionTypeDefine(CT_LE,  "le", 13)
-ConditionTypeDefine(CT_Any, "", 14)
+ConditionTypeDefine(CT_Any, " ", 14)
 
 ARMv7aInsnFormatDefine(IF_Other)
 ARMv7aInsnFormatDefine(IF_RdRnRm)
@@ -192,6 +192,10 @@ ARMv7aOpcodeDefine(BLX,     "blx",  IF_Label)
 
 ARMv7aOpcodeDefine(PUSH,    "push", IF_Reglist)
 ARMv7aOpcodeDefine(POP,     "pop",  IF_Reglist)
+
+
+// Special Opcode need lowering later
+ARMv7aOpcodeDefine(FRAME,   "frame", IF_Other)
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine

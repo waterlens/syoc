@@ -13,31 +13,30 @@ private:
   ARMv7a::MInstHost *machine;
   ARMv7a::MFunction *function;
   ARMv7a::MBasicBlock *basic_block;
-private:
-  /// Return the register loaded with given Imm.
-  ARMv7a::Register CreatePseudoImmLoad(Value *V);
-  /// Expand offset, call, br, ret, memset0 to appropriate MInsts.
-  bool expandInst(Instruction *I);
+
+  bool selectMemoryAccess(Instruction *I);
+  bool selectComparison(Instruction *I);
   bool copyPhiNodesRegs(BasicBlock *SyOCBB);
   bool selectRdRnOperand2(Instruction *I);
   bool selectRdRnRm(Instruction *I);
   bool selectRdRnImm(Instruction *I);
-  // Branch Instructions, Label, lr
-  bool selectLabelOrRd(Instruction *I);
+#define OpcodeDefine(type, name) \
+  bool select##type(Instruction *I);
+#include "Common/Common.def"
 
-  ARMv7a::Register CreateVirtualRegister(Value *V);
+
+  ARMv7a::Register CreateVirtualRegister(Value *V); // for definitions.
   /// Return a register of given IR Value;
   /// may create ldr/mov the load imm into a virtual register.
-  ARMv7a::Register RegisterOrImm(Value *V);
+  ARMv7a::Register RegisterOrImm(Value *V); // for operands.
+
 public:
   MEISel() = default;
-  MEISel(IRHost *);
-  void operator()(IRHost &host);
+  void operator()(IRHost *host, ARMv7a::MInstHost *&mhost);
+  [[nodiscard]] static std::string_view getName() { return "Macro Expansion ISel";}
   bool selectInstruction(Instruction *I);
+  void setInsertPoint(ARMv7a::MBasicBlock *mbb) { basic_block = mbb; }
 
-
-  // ARMv7a::MInstruction *CreateMachineInst();
-  ARMv7a::MFunction CreateISelFunction(Function *F);
 };
 
 } // end namespace SyOC

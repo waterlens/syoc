@@ -57,10 +57,13 @@ struct RegisterList {
 };
 
 struct FrameObject {
-  int32_t offset;
-  size_t size;
-  const Instruction* alloca;
-  bool is_spill;
+  int32_t Offset;
+  size_t Size;
+  const Instruction* Alloca;
+  bool isSpill;
+  FrameObject(int32_t Offset, size_t Size,
+              Instruction *Alloca = nullptr, bool isSpill = false) :
+    Offset(Offset), Size(Size), Alloca(Alloca), isSpill(isSpill) { }
 };
 
 enum class Opcode : unsigned char {
@@ -90,14 +93,14 @@ struct Shift {
 #include "Common/Common.def"
 #undef ShiftTypeDefine
   } type;
-  int32_t imm; // pure Imm or shift bits
   Register reg;
+  int32_t imm; // pure Imm or shift bits
 
   static Shift GetDefaultShift(Register r) {
-    return Shift {Type::SF_None, 0, r};
+    return Shift {Type::SF_None, r, 0};
   }
   static Shift GetImm(int32_t Imm) {
-    return Shift {Type::SF_None, Imm, -1};
+    return Shift {Type::SF_None, Register{-1}, Imm};
   }
 };
 
@@ -113,12 +116,12 @@ struct MFunction;
 struct MModule;
 
 struct Address {
-  std::variant<Register, FrameObject> base; // global / stack object
+  std::variant<Register, int> base; // global / stack object
   std::variant<int32_t, Register, Shift, RegisterList, MBasicBlock *, MFunction *, GlobalVariable *>
     offset_or_else;
 
   bool isPointerOrGlobal() const { return std::holds_alternative<Register>(base); }
-  bool isStack() const { return std::holds_alternative<FrameObject>(base); }
+  bool isStack() const { return std::holds_alternative<int>(base); }
   bool hasElseReg() const { return std::holds_alternative<Register>(offset_or_else); }
 };
 
@@ -132,8 +135,9 @@ struct MInstruction : public ListNode<MInstruction> {
   Register rb = Register{-1};             // Rm, Rn, RdHi
   Address rc = Address{Register{-1}, -1}; // Rs, Rm, Rn, imm, Operand2, label, function (esp. only declaration)
 
-
-  static MInstruction *create() { return new MInstruction; }
+  static MBasicBlock *mbb;
+  static void setInsertPoint(MBasicBlock *);
+  static MInstruction *create();
   static MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
                               Condition cond = Condition::CT_Any) {
     assert_op_format(IF_RdRnRm);
@@ -161,13 +165,13 @@ struct MInstruction : public ListNode<MInstruction> {
 
   // stack memory access with intermediate FrameObject representation,
   // will be lowered to [sp, #offset] afterward.
-  static MInstruction *RdRnImm(Opcode op, Register rd, FrameObject rn, int32_t imm,
+  static MInstruction *RdRnImm(Opcode op, Register rd, int frame_idx, int32_t imm,
                                Condition cond = Condition::CT_Any) {
     assert_op_format(IF_RdRnImm);
     auto p = create();
     p->op = op;
     p->ra = rd;
-    p->rc.base = rn;
+    p->rc.base = frame_idx;
     p->rc.offset_or_else = imm;
     p->cond = cond;
     return p;
@@ -318,8 +322,8 @@ struct MFunction {
   std::string name;
   // stack frame sizes
   // 0 means temporary stack like push arguments.
-  std::vector<FrameObject> frame;
-  std::unordered_map<Value *, FrameObject *> frame_info;
+  std::vector<FrameObject> objects;
+  std::unordered_map<Value *, int> frame_info;
   uint32_t num_fix_object;
   RegisterList prologue  { 0x8FF0 }; // r4, r5, r6, r7, r8, r9, r11, lr
 
@@ -331,6 +335,7 @@ struct MFunction {
   inline MBasicBlock *GetBasicBlock(BasicBlock *B) { return bb_map.at(B);}
   // Return the id of frame object.
   int GetFrameObject(Value *V);
+  FrameObject *GetFrameByIndex(int index);
   // See LLVM MachineFrameInfo: FixedObject / StackObject.
   int CreateStackObject(Value *V, size_t size, bool isSpill = false);
   int CreateFixObject(Value *V, size_t size);

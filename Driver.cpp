@@ -7,6 +7,7 @@
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "CodeGen/MEISel.hpp"
+#include "CodeGen/SimpleRA.hpp"
 #include "CodeGen/AsmPrinter.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/RuntimeStackUtil.hpp"
@@ -81,20 +82,21 @@ void stoptime();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
   // opt passes
   transformer
-    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+    .doSSATransformation<SyOC::SimplifyCFG,
                          SyOC::SimpleAllocationElimination,
                          // SyOC::PromoteMem2Reg,
                          SyOC::InstCombine, SyOC::DeadCodeElimination,
-                         SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
+                         SyOC::SimplifyCFG, SyOC::IRDump>();
   // instruction selection
-  // transformer.doSSA2MInstTransformation<SyOC::MEISel>();
+  transformer.doSSA2MInstTransformation<SyOC::MEISel>();
+  // transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA>();
   std::string asmFileName;
   if (optParser.has("-o")) {
     asmFileName = optParser["-o"].as<std::string_view>();
   } else {
-    asmFileName = fileName + ".s";
+    asmFileName = "a.s";
   }
   SyOC::ARMv7a::AsmPrinter out(asmFileName);
-  // out << *transformer.getMIR();
+  out << *transformer.getMIR();
   return 0;
 }

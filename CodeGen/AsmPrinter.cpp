@@ -1,6 +1,8 @@
 #include "CodeGen/AsmPrinter.hpp"
 #include "Pass/AssignIdentityHelper.hpp"
-
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/os.h>
 using namespace SyOC::ARMv7a;
 
 // register names
@@ -34,6 +36,12 @@ static const char *getShiftName(Shift::Type stype) {
   }
 }
 
+static std::string getRegName(Register &reg) {
+  static int vreg = 0;
+  if (reg.isInvalid()) return fmt::format("%{:d}:gpr", vreg);
+  else return getRegName(reg);
+}
+
 static std::string dumpIF_Other(MInstruction *minst) {
   assert(minst->op == Opcode::NOP);
   return "nop\t";
@@ -45,20 +53,20 @@ static std::string dumpIF_RdRnOperand2(MInstruction *minst) {
   if (shift.reg.isInvalid()) {
     return fmt::format("\t\t{}{}\t{}, {}, #{:d}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->ra.id], RegNames[minst->rb.id],
+                       getRegName(minst->ra), getRegName(minst->rb),
                        shift.imm);
   }
   // shift
   if (shift.imm == 0) {
     return fmt::format("\t\t{}{}\t{}, {}, {}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->ra.id], RegNames[minst->rb.id],
-                       RegNames[shift.reg.id]);
+                       getRegName(minst->ra), getRegName(minst->rb),
+                       getRegName(shift.reg));
   }
   return fmt::format("\t\t{}{}\t{}, {}, {}, {}, #{:d}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], RegNames[minst->rb.id],
-                     RegNames[shift.reg.id], getShiftName(shift.type), shift.imm);
+                     getRegName(minst->ra), getRegName(minst->rb),
+                     getRegName(shift.reg), getShiftName(shift.type), shift.imm);
 }
 
 static std::string dumpIF_RdRnImm(MInstruction *minst) {
@@ -67,8 +75,8 @@ static std::string dumpIF_RdRnImm(MInstruction *minst) {
   int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
   return fmt::format("\t\t{}{}\t{}, [{}, #{:d}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id],
-                     RegNames[base.id], imm);
+                     getRegName(minst->ra),
+                     getRegName(base), imm);
 }
 
 static std::string dumpIF_RdOperand2(MInstruction *minst) {
@@ -77,18 +85,18 @@ static std::string dumpIF_RdOperand2(MInstruction *minst) {
   if (shift.reg.isInvalid()) {
     return fmt::format("\t\t{}{}\t{}, #{:d}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->ra.id], shift.imm);
+                       getRegName(minst->ra), shift.imm);
   }
   // shift
   if (shift.imm == 0) {
     return fmt::format("\t\t{}{}\t{}, {}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->ra.id], RegNames[shift.reg.id]);
+                       getRegName(minst->ra), getRegName(shift.reg));
   }
   return fmt::format("\t\t{}{}\t{}, {}, {}, #{:d}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id],
-                     RegNames[shift.reg.id], getShiftName(shift.type), shift.imm);
+                     getRegName(minst->ra),
+                     getRegName(shift.reg), getShiftName(shift.type), shift.imm);
 }
 
 static std::string dumpIF_RnOperand2(MInstruction *minst) {
@@ -97,25 +105,25 @@ static std::string dumpIF_RnOperand2(MInstruction *minst) {
   if (shift.reg.isInvalid()) {
     return fmt::format("\t\t{}{}\t{}, #{:d}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->rb.id], shift.imm);
+                       getRegName(minst->rb), shift.imm);
   }
   // shift
   if (shift.imm == 0) {
     return fmt::format("\t\t{}{}\t{}, {}\n",
                        getMInstName(minst->op), getCondName(minst->cond),
-                       RegNames[minst->rb.id], RegNames[shift.reg.id]);
+                       getRegName(minst->rb), getRegName(shift.reg));
   }
   return fmt::format("\t\t{}{}\t{}, {}, {}, #{:d}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->rb.id],
-                     RegNames[shift.reg.id], getShiftName(shift.type), shift.imm);
+                     getRegName(minst->rb),
+                     getRegName(shift.reg), getShiftName(shift.type), shift.imm);
 }
 
 static std::string dumpIF_RdRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.base);
   return fmt::format("\t\t{}{}\t{}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], RegNames[minst->rb.id], rm.id);
+                     getRegName(minst->ra), getRegName(minst->rb), rm.id);
 }
 
 static std::string dumpIF_RdRmRnRa(MInstruction *minst) {
@@ -123,7 +131,7 @@ static std::string dumpIF_RdRmRnRa(MInstruction *minst) {
   Register ra = std::get<Register>(minst->rc.offset_or_else);
   return fmt::format("\t\t{}{}\t{}, {}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], RegNames[minst->rb.id], rn.id, ra.id);
+                     getRegName(minst->ra), getRegName(minst->rb), rn.id, ra.id);
 }
 
 static std::string dumpIF_RdLoRdHiRnRm(MInstruction *minst) {
@@ -131,7 +139,7 @@ static std::string dumpIF_RdLoRdHiRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.offset_or_else);
   return fmt::format("\t\t{}{}\t{}, {}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], RegNames[minst->rb.id], rn.id, rm.id);
+                     getRegName(minst->ra), getRegName(minst->rb), rn.id, rm.id);
 }
 
 static std::string dumpIF_Label(MInstruction *minst) {
@@ -161,21 +169,21 @@ static std::string dumpIF_RdImm(MInstruction *minst) {
   if (std::holds_alternative<int32_t>(minst->rc.offset_or_else)) {
     int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
     return fmt::format("\t\t{}{}\t{}, #{:d}\n", getMInstName(minst->op),
-                       getCondName(minst->cond), RegNames[minst->ra.id], imm);
+                       getCondName(minst->cond), getRegName(minst->ra), imm);
   }
   auto *globv = std::get<GlobalVariable *>(minst->rc.offset_or_else);
   if (minst->op == Opcode::MOVW)
     return fmt::format("\t\t{}{}\t{}, #:lower16:{}\n", getMInstName(minst->op),
-                      getCondName(minst->cond), RegNames[minst->ra.id], globv->name);
+                      getCondName(minst->cond), getRegName(minst->ra), globv->name);
   return fmt::format("\t\t{}{}\t{}, #:upper16:{}\n", getMInstName(minst->op),
-                     getCondName(minst->cond), RegNames[minst->ra.id], globv->name);
+                     getCondName(minst->cond), getRegName(minst->ra), globv->name);
 }
 
 static std::string dumpIF_RdRm(MInstruction *minst) {
-  assert(minst->op == Opcode::CLZ);
+  assert(minst->op == Opcode::CLZ || minst->op == Opcode::CPY);
   return fmt::format("\t\t{}{}\t{}, {}",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     RegNames[minst->ra.id], RegNames[minst->rb.id]);
+                     getRegName(minst->ra), getRegName(minst->rb));
 }
 
 static std::string dumpIF_Rm(MInstruction *minst) {
@@ -226,7 +234,7 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
             "\t\t.arm\n";
   buffer += fmt::format("\t\t.type\t{}, %function\n", mfunc->name);
   buffer += fmt::format("{}:\n", mfunc->name);
-  buffer += "\t.fnstart";
+  buffer += "\t\t.fnstart\n";
   for (auto &mbb : mfunc->block) {
     dumpMBasicBlock(&mbb);
   }
@@ -259,10 +267,11 @@ void AsmPrinter::dumpAsm(MInstHost &host) {
   // dump global variable.
   dumpGlobalVariable(host);
   // declare stack
-  buffer += "\tsection        .note.GNU-stack,\"\",%progbits";
+  buffer += "\t\t.section        .note.GNU-stack,\"\",%progbits";
   auto out =
     fmt::buffered_file(filename, "wb");
   out.print("{}", buffer);
+  fmt::print("Dump Asm '{}'\n", filename);
 }
 
 AsmPrinter &AsmPrinter::operator<<(MInstHost &host) {

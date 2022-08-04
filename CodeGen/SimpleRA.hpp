@@ -23,6 +23,7 @@ private:
   void insertSpill();
 public:
   SimpleRA() = default;
+  static std::string_view getName() { return "Simple Register Allocation"; }
   void operator()(MInstHost &);
 };
 
