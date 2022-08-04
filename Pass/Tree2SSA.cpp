@@ -4,7 +4,7 @@
 namespace SyOC {
 void Tree2SSA::setupGlobalInitializerFunction() {
   auto *init =
-    Function::create(PredefinedType::Void, "__syoc@init", host->getModule());
+    Function::create(PredefinedType::Void, "__syoc_init", host->getModule());
   auto *bb = BasicBlock::create(init);
 
   init->refExternal() = false;

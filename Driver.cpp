@@ -24,6 +24,7 @@ int main(int argc, char *argv[]) {
   optParser.add(Option<bool>("--help", "-h").setDefault("false"),
                 Option<bool>("--version", "-v").setDefault("false"),
                 Option<bool>("--debug-opt-parser").setDefault("false"),
+                Option<bool>("--implicit-runtime").setDefault("false"),
                 Option<std::string_view>("--output", "-o"),
                 Option<std::string_view>("filename"));
 
@@ -57,9 +58,13 @@ int main(int argc, char *argv[]) {
   fileName = optParser["filename"].as<std::string_view>();
   if (fileName.empty())
     getline(ifstream("current.txt"), fileName, '\0');
-  getline(ifstream(fileName), fileContent, '\0');
 
-  fileContent = R"(
+  ifstream inputStream(fileName);
+  assert(inputStream.good());
+  getline(inputStream, fileContent, '\0');
+
+  if (optParser["--implicit-runtime"].as<bool>()) {
+    fileContent = R"(
 int getint(),getch(),getarray(int a[]);
 float getfloat();
 int getfarray(float a[]);
@@ -71,6 +76,7 @@ void putfarray(int n, float a[]);
 void starttime();
 void stoptime();
 )" + fileContent;
+  }
 
   SyOC::Parser parser(fileContent);
   parser.tokenize();
@@ -89,12 +95,13 @@ void stoptime();
                          SyOC::SimplifyCFG, SyOC::IRDump>();
   // instruction selection
   transformer.doSSA2MInstTransformation<SyOC::MEISel>();
-  // transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA>();
+  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA>();
   std::string asmFileName;
+  static int asm_count = 0;
   if (optParser.has("-o")) {
     asmFileName = optParser["-o"].as<std::string_view>();
   } else {
-    asmFileName = "a.s";
+    asmFileName = fmt::format("dump-asm-{:d}.s", asm_count);
   }
   SyOC::ARMv7a::AsmPrinter out(asmFileName);
   out << *transformer.getMIR();

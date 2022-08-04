@@ -44,7 +44,7 @@ struct Register {
   Type type = Int;
 
   inline bool isInvalid() const { return id == -1; }
-  inline bool isVirtual() const { return !(isInteger() || isFloat() || !isStatus()) && id > 0; }
+  inline bool isVirtual() const { return !(isInteger() || isFloat() || isStatus()) && id > 0; }
   inline bool isInteger() const { return id >= INTEGER_REG_BEGIN && id <= INTEGER_REG_END; }
   inline bool isFloat() const { return id >= VFP_REG_BEGIN && id <= VFP_REG_END; }
   inline bool isStatus() const { return id >= STATUS_REG_BEGIN && id <= STATUS_REG_END; }
