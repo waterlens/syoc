@@ -92,6 +92,45 @@ void InstCombine::switchOperands(IRHost &host) {
   }
 }
 
+void InstCombine::mergeOffset(IRHost &host) {
+  for (Function *F : host.getModule()->func) {
+    for (BasicBlock &BB : F->block) {
+      for (auto I = BB.begin(), E = BB.end(); I != E; ++I) {
+        if (I->op == OP_Offset) {
+          auto *Addr = I->getOperand(0);
+          if (auto BaseOff = Addr->as<Instruction *>()) {
+            if (BaseOff->op != OP_Offset) continue;
+            std::vector<Value *> Inputs;
+            size_t BaseNum = BaseOff->getNumOperands();
+            size_t INum = I->getNumOperands();
+            // a single 1 dimension offset.
+            assert(INum == 4);
+            // exclude width of base offset.
+            for (size_t i = 0; i < BaseNum - 1; ++i)
+              Inputs.push_back(BaseOff->getOperand(i));
+            /// @attention This feature is a ad hoc targeting
+            /// current offset method.
+            uint64_t BaseWidth = BaseOff->getOperand(BaseNum - 1)
+                                   ->as<ConstantInteger *>()->value;
+            uint64_t IWidth = I->getOperand(INum - 1)
+                                  ->as<ConstantInteger *>()->value;
+            uint64_t I1DSize = I->getOperand(1)
+                                  ->as<ConstantInteger *>()->value;
+            assert(BaseWidth == IWidth * I1DSize);
+            for (size_t i = 1; i < INum; ++i)
+              Inputs.push_back(I->getOperand(i));
+            /// @attention May have future casting problem
+            auto *NewOff = Instruction::create(OP_Offset, I->type, Inputs);
+            I->insert_before(NewOff);
+            I->replaceAllUsesWith(NewOff);
+            if (I->hasNoEdge()) work_list.push_back(I);
+          }
+        }
+      }
+    }
+  }
+}
+
 void InstCombine::deadCodeElimination(IRHost &host) {
   for (auto inst_iter : work_list)
     inst_iter.release(true);

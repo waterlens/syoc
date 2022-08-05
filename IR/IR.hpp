@@ -177,6 +177,9 @@ struct Instruction : public Value, public ListNode<Instruction> {
   static Instruction *create(OpType op, Type type,
                              std::initializer_list<Value *> inputs = {},
                              BasicBlock *bb = nullptr);
+  static Instruction *create(OpType op, Type type,
+                             const std::vector<Value *> &Vec,
+                             BasicBlock *bb = nullptr);
   [[nodiscard]] const auto &getInput() const { return input; }
   auto &getInput() { return input; }
   UseEdge &getInput(size_t num) { return input[num]; }

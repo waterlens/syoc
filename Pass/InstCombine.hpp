@@ -14,6 +14,7 @@ private:
   void switchOperands(IRHost &host);
   void groupBitwiseOperators(IRHost &host);
   void deadCodeElimination(IRHost &host);
+  void mergeOffset(IRHost &host);
 public:
   InstCombine() = default;
   [[nodiscard]] static std::string_view getName() { return "Combine Redundant Instructions";}
@@ -21,6 +22,7 @@ public:
     // @TODO
     comparisonSimplify(host);
     switchOperands(host);
+    mergeOffset(host);
     deadCodeElimination(host);
   }
 };
