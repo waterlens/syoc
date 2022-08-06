@@ -6,32 +6,6 @@ using namespace SyOC;
 using namespace SyOC::ARMv7a;
 
 
-// Operand2 Imm8
-static bool test_Imm8(int32_t Imm) {
-  auto uImm = static_cast<uint32_t>(Imm);
-  if (uImm < 0xffU) return true;
-  for (int i = 1; i < 16; ++i) {
-    uint32_t ror_uImm = (uImm << (i * 2)) | (uImm >> (32 - i * 2));
-    if (ror_uImm < 0xffU) return true;
-  }
-  return false;
-}
-
-// mov/movw/movt Imm16
-static bool test_Imm16(int32_t Imm) {
-  auto uImm = static_cast<uint32_t>(Imm);
-  return uImm < 0xffffU;
-}
-
-static bool test_LDR_STR_Imm_Offset(int32_t Imm) {
-  return Imm >= -4095 && Imm <= 4095;
-}
-
-static bool test_Imm_Pow2(int32_t Imm) {
-  if (Imm == 0) return false;
-  return (Imm & (Imm - 1)) == 0;
-}
-
 // return Armv7-a Opcode with Integer value Inst.
 static Opcode getMachineIntOpcode(OpType Op) {
   switch (Op) {
@@ -113,7 +87,7 @@ static Register::Type getRegType(Value *V) {
   return Register::Type::Int;
 }
 
-Register MEISel::CreateVirtualRegister(Value *V) {
+Register MEISel::CreateVirtualRegister(Value *V, int RegHint) {
   // cannot map the IR Value into a register,
   // need produce extra machine instructions.
   if (V == nullptr) {
@@ -124,43 +98,45 @@ Register MEISel::CreateVirtualRegister(Value *V) {
     return map_iter->second;
   }
   // create new virtual reg.
-  Register new_reg {function->vregs_id++, getRegType(V)};
+  int new_vreg_id = (RegHint == -1) ? function->vregs_id++ : RegHint;
+  Register new_reg {new_vreg_id, getRegType(V)};
   function->value_map.insert(
     std::make_pair(V, new_reg));
   return new_reg;
 }
 
-Register MEISel::RegisterOrImm(Value *V) {
+Register MEISel::RegisterOrImm(Value *V, int RegHint) {
   // We expect Value V is a certain operand or instruction result.
   assert(V);
+
   if (auto *const_int = V->as<ConstantInteger *>()) {
     // mov or ldr
     // Pseudo asm ldr, =0xdeadbeef
     // Or generate movw/movt pair to load long imm.
     // ldr with [PC + offset] has only around 4KB search space
     // assembler auto-generated literal pool may out of range.
-    Register Rd = CreateVirtualRegister(V);
+    Register Rd = CreateVirtualRegister(V, RegHint);
     uint32_t Imm = V->as<ConstantInteger *>()->value;
     if (test_Imm8(Imm)) {
-      auto *inst = MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
+      auto *inst = machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
       basic_block->insn.push_back(inst);
     } else {
-      // MInstruction::RdImm(Opcode::LDR_PC, Rd, Imm);
-      MInstruction::RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
-      MInstruction::RdImm(Opcode::MOVT, Rd, Imm >> 16);
+      // machine->RdImm(Opcode::LDR_PC, Rd, Imm);
+      machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
+      machine->RdImm(Opcode::MOVT, Rd, Imm >> 16);
     }
     return Rd;
   }
   if (auto *globv = V->as<GlobalVariable *>()) {
     Register Rd = CreateVirtualRegister(nullptr);
-    MInstruction::RdImm(Opcode::MOVW, Rd, globv);
-    MInstruction::RdImm(Opcode::MOVT, Rd, globv);
+    machine->RdImm(Opcode::MOVW, Rd, globv);
+    machine->RdImm(Opcode::MOVT, Rd, globv);
     return Rd;
   }
   if (auto *arg = V->as<Argument *>()) {
-    Register Rd = CreateVirtualRegister(V);
-    int frame_idx = function->GetFrameObject(arg);
-    MInstruction::RdRnImm(Opcode::LDR, Rd, frame_idx, 0);
+    Register Rd = CreateVirtualRegister(V, RegHint);
+    int frame_fi = function->GetFrameObject(arg);
+    machine->RdRnImm(Opcode::LDR, Rd, frame_fi, 0);
     return Rd;
   }
   return function->value_map.at(V);
@@ -189,12 +165,12 @@ bool MEISel::selectRdRnOperand2(Instruction *I) {
   if (auto *Op2 = I->getOperand(1)->as<ConstantInteger *>()) {
     int32_t Imm = static_cast<int32_t>(Op2->value & 0xFFFFFFFFFU);
     if (test_Imm8(Imm)) {
-      MInstruction::RdRnOperand2(opcode, Rd, Rn, Shift::GetImm(Imm));
+      machine->RdRnOperand2(opcode, Rd, Rn, Shift::GetImm(Imm));
       return true;
     }
   }
   Register Operand2 = RegisterOrImm(I->getOperand(1));
-  MInstruction::RdRnOperand2(opcode, Rd, Rn, Shift::GetDefaultShift(Operand2));
+  machine->RdRnOperand2(opcode, Rd, Rn, Shift::GetDefaultShift(Operand2));
   return true;
 }
 
@@ -204,7 +180,7 @@ bool MEISel::selectRdRnRm(Instruction *I) {
   Register Rn = RegisterOrImm(I->getOperand(0));
   Register Rm = RegisterOrImm(I->getOperand(1));
   Opcode opcode = getMachineOpcode(I->op, I->type);
-  MInstruction::RdRnRm(opcode, Rd, Rn, Rm);
+  machine->RdRnRm(opcode, Rd, Rn, Rm);
   return true;
 }
 
@@ -231,17 +207,14 @@ bool MEISel::selectMemoryAccess(Instruction *I) {
   } else {
     Rd = CreateVirtualRegister(I); // value = load addr
   }
-/*
-  FrameObject Stack = function->GetStackObject(Address);
-  // is a local variable.
-  if (Stack.index != -1) {
-    auto *inst = MInstruction::RdRnImm(opcode, Rd, Stack, 0);
-    basic_block->insn.push_back(inst);
+
+  if (function->isFrameObject(Address)) {
+    int stack_fi = function->GetFrameObject(Address);
+    machine->RdRnImm(opcode, Rd, stack_fi, 0);
   } else {
-    Register Rn = RegisterOrImm(Address);
-    auto *inst = MInstruction::RdRnImm(opcode, Rd, Rn, 0);
-    basic_block->insn.push_back(inst);
-  }*/
+    Register AddrReg = RegisterOrImm(Address);
+    machine->RdRnImm(opcode, Rd, AddrReg, 0);
+  }
   return true;
 }
 
@@ -250,13 +223,13 @@ bool MEISel::selectComparison(Instruction *I) {
   // compare
   Register Op1 = RegisterOrImm(I->getOperand(0));
   Register Op2 = RegisterOrImm(I->getOperand(1));
-  MInstruction::RdOperand2(Opcode::CMP, Op1, Shift::GetDefaultShift(Op2));
+  machine->RdOperand2(Opcode::CMP, Op1, Shift::GetDefaultShift(Op2));
   // move
   Register Rd = CreateVirtualRegister(I);
   Condition pos = getMachineCondition(I->op);
   Condition neg = conjugateCondition(I->op);
-  MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(1), pos);
-  MInstruction::RdOperand2(Opcode::MOV, Rd, Shift::GetImm(0), pos);
+  machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(1), pos);
+  machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(0), pos);
   return true;
 }
 
@@ -272,7 +245,7 @@ bool MEISel::copyPhiNodesRegs(BasicBlock *SyOCBB) {
         // @TODO
         BasicBlock *Pred = I->getOperand(i * 2)->as<BasicBlock *>();
         Register SrcReg = RegisterOrImm(I->getOperand(i * 2 + 1));
-        MInstruction::RdRm(Opcode::CPY, Rd, SrcReg);
+        machine->RdRm(Opcode::CPY, Rd, SrcReg);
       }
     }
   }
@@ -301,7 +274,7 @@ bool MEISel::selectOP_Neg(Instruction *I) {
   // rsb rd, src, #0: rd = #0 - src
   Register SrcReg = RegisterOrImm(I->getOperand(0));
   Register Rd = CreateVirtualRegister(I);
-  MInstruction::RdRnOperand2(Opcode::RSB, Rd, SrcReg, Shift::GetImm(0));
+  machine->RdRnOperand2(Opcode::RSB, Rd, SrcReg, Shift::GetImm(0));
   return true;
 }
 
@@ -326,7 +299,7 @@ bool MEISel::selectOP_Allocate(Instruction *I) {
 bool MEISel::selectOP_Jump(Instruction *I) {
   auto *jmp_bb = I->getOperand(0)->as<BasicBlock *>();
   MBasicBlock *jmp_mbb = function->GetBasicBlock(jmp_bb);
-  MInstruction::Label(Opcode::B, jmp_mbb);
+  machine->Label(Opcode::B, jmp_mbb);
   return true;
 }
 
@@ -336,10 +309,10 @@ bool MEISel::selectOP_Return(Instruction *I) {
     ->refParent()->as<Function *>();
   if (F->return_type.primitive_type != Type::PrimitiveType::Void) {
     // get return value.
-    Register Rd = CreateVirtualRegister(I->getOperand(0));
-    MInstruction::RdRm(Opcode::CPY, Register{Register::r0}, Rd);
+    Register Rd = RegisterOrImm(I->getOperand(0), Register::r0);
+    machine->RdRm(Opcode::CPY, Register{Register::r0}, Rd);
   }
-  MInstruction::Rm(Opcode::BX, Register{Register::lr});
+  machine->Rm(Opcode::BX, Register{Register::lr});
   return true;
 }
 
@@ -351,7 +324,7 @@ bool MEISel::selectOP_Mod(Instruction *I) {
   if (auto *Operand2 = I->getOperand(1)->as<ConstantInteger *>()) {
     int32_t Modulo = Operand2->value;
     if (test_Imm_Pow2(Modulo)) {
-      MInstruction::RdRnOperand2(Opcode::AND,
+      machine->RdRnOperand2(Opcode::AND,
                                  Rd, Dividend, Shift::GetImm(Modulo));
       return true;
     }
@@ -360,10 +333,10 @@ bool MEISel::selectOP_Mod(Instruction *I) {
   Register Modulo = RegisterOrImm(I->getOperand(1));
   // create a temp reg as quotient.
   Register Temp = CreateVirtualRegister(nullptr);
-  MInstruction::RdRnRm(Opcode::SDIV,
+  machine->RdRnRm(Opcode::SDIV,
                        Temp, Dividend, Modulo);
   // Rd = Dividend - Temp * Modulo.
-  MInstruction::RdRmRnRa(Opcode::MLS,
+  machine->RdRmRnRa(Opcode::MLS,
                          Rd, Dividend, Temp, Modulo);
   return true;
 }
@@ -384,36 +357,38 @@ bool MEISel::selectOP_Branch(Instruction *I) {
     if (Cmp->isCompareInst()) {
       Register lhs = RegisterOrImm(Cmp->getOperand(0));
       Register rhs = RegisterOrImm(Cmp->getOperand(1));
-      MInstruction::RnOperand2(Opcode::CMP,
+      machine->RnOperand2(Opcode::CMP,
                                lhs, Shift::GetDefaultShift(rhs));
       Condition false_cond = conjugateCondition(I->op);
       auto *false_mbb = function->GetBasicBlock(I->getOperand(2)->as<BasicBlock *>());
-      MInstruction::Label(Opcode::B, false_mbb, false_cond);
+      machine->Label(Opcode::B, false_mbb, false_cond);
       auto *true_mbb = function->GetBasicBlock(I->getOperand(1)->as<BasicBlock *>());
-      MInstruction::Label(Opcode::B, true_mbb);
+      machine->Label(Opcode::B, true_mbb);
       return 0;
     }
   }
   Register lhs = RegisterOrImm(Cond);
-  MInstruction::RnOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
+  machine->RnOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
   // lowering jump
   auto *false_mbb = function->GetBasicBlock(I->getOperand(2)->as<BasicBlock *>());
-  MInstruction::Label(Opcode::B, false_mbb, Condition::CT_NE);
+  machine->Label(Opcode::B, false_mbb, Condition::CT_NE);
   auto *true_mbb = function->GetBasicBlock(I->getOperand(1)->as<BasicBlock *>());
-  MInstruction::Label(Opcode::B, true_mbb);
+  machine->Label(Opcode::B, true_mbb);
   return true;
 }
 
 bool MEISel::selectOP_Call(Instruction *I) {
   // follow calling conventions.
   auto *Callee = I->getOperand(0)->as<Function *>();
+  // SysY compiles sylib in thumb code.
+  Opcode opcode = isRuntimeFunction(Callee->name) ? Opcode::BLX : Opcode::BL;
   // Pass argument by r0~r3
   int RegId = Register::r0;
   for (size_t i = 1; i < std::max((size_t)4, I->getNumOperands()); ++i) {
     Value *Arg = I->getOperand(i);
     Register tmp = RegisterOrImm(Arg);
     // Copy args to r0~r3
-    MInstruction::RdRm(Opcode::CPY, Register{RegId}, tmp);
+    machine->RdRm(Opcode::CPY, Register{RegId}, tmp);
     RegId++;
   }
   // more than 4 args, spill to stack;
@@ -424,7 +399,7 @@ bool MEISel::selectOP_Call(Instruction *I) {
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {
     Register Rd = CreateVirtualRegister(I);
-    MInstruction::RdRm(Opcode::CPY, Rd, Register{Register::r0});
+    machine->RdRm(Opcode::CPY, Rd, Register{Register::r0});
   }
   // more than 4 args, recover the spilled args in the stack.
   // and recover volatile registers.
@@ -457,24 +432,31 @@ bool MEISel::selectOP_Offset(Instruction *I) {
     Value *Limit = I->getOperand(i * 2 - 1);
     Value *Index = I->getOperand(i * 2);
     assert(Limit->is<ConstantInteger>());
-    MInstruction::RdRnRm(Opcode::MUL, Rd, Rd,
+    machine->RdRnRm(Opcode::MUL, Rd, Rd,
                          RegisterOrImm(Limit));
     if (auto *Imm = Index->as<ConstantInteger *>()) {
       if (test_Imm8(static_cast<int32_t>(Imm->value))) {
-        MInstruction::RdRnOperand2(Opcode::ADD, Rd, Rd,
+        machine->RdRnOperand2(Opcode::ADD, Rd, Rd,
           Shift::GetImm(Index->as<ConstantInteger *>()->value));
         continue;
       }
     }
     Register Rm = RegisterOrImm(Index);
     assert(!Rm.isInvalid());
-    MInstruction::RdRnOperand2(Opcode::ADD, Rd, Rd,
+    machine->RdRnOperand2(Opcode::ADD, Rd, Rd,
                                Shift::GetDefaultShift(Rm));
   }
-  Register Base = RegisterOrImm(Ptr);
-  MInstruction::RdRnOperand2(Opcode::ADD, Rd, Base,
-                             Shift{Shift::Type::SF_LSL, Rd, log2_width});
+  if (function->isFrameObject(Ptr)) {
+    int stack_fi = function->GetFrameObject(Ptr);
+    machine->RdRnImm(Opcode::LSL, Rd, Rd, log2_width);
+    machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, Rd, 0);
+  } else {
+    Register Base = RegisterOrImm(Ptr);
+    machine->RdRnOperand2(Opcode::ADD, Rd, Base,
+                               Shift{Shift::Type::SF_LSL, Rd, log2_width});
+  }
   // Now Rd holds the final address.
+  CreateVirtualRegister(I, Rd.id);
   return true;
 }
 
@@ -498,11 +480,18 @@ void MEISel::operator()(IRHost *host, MInstHost *&mhost) {
   // Build skeleton of MModule, MFunctions.
   // Note that MBasicBlocks would be created with
   // the same order of IR BasicBlocks
+  for (GlobalVariable *globv : host->root->global)
+    machine->root->global.push_back(globv);
   for (Function *func : host->getModule()->func) {
-      fmt::print("{}\n", func->name);
       MFunction *MF = MFunction::create(func, machine->root);
+      if (func->name == "__syoc_init")
+        machine->syoc_init_func = MF;
       function = MF;
       // dealing with calling convention.
+      // SimpleAllocationElimination guarantees that no unused local variables,
+      // but argument is not.
+      // r0~r3 is volatile, we consider store r0~r3 in stack object; other args will
+      // store in fix object.
       for (auto *Arg : func->arg) {
         // @TODO:
         int RegId = Register::r0;
@@ -512,10 +501,18 @@ void MEISel::operator()(IRHost *host, MInstHost *&mhost) {
         MF->CreateFixObject(func->arg[i], 4); // pointer, int, float has the same 4 byte size.
       for (auto &BB : func->block) {
         basic_block = function->GetBasicBlock(&BB);
-        MInstruction::setInsertPoint(basic_block);
+        machine->setInsertPoint(basic_block);
         // select instructions
         for (auto I = BB.begin(), E = BB.end(); I != E; ++I)
           assert(selectInstruction(I.base()));
+      }
+      /// @attention for __syoc_init style only
+      /// add a jump from main to __syoc_init
+      if (func->name == "main") {
+        auto FirstMInst = MF->block.begin()->insn.begin();
+        machine->clearInsertPoint();
+        auto *call_syoc_init = machine->Label(Opcode::BL, machine->syoc_init_func);
+        FirstMInst->insert_before(call_syoc_init);
       }
   }
   mhost = machine;

@@ -51,8 +51,9 @@ struct Register {
 };
 
 struct RegisterList {
+  typedef uint32_t RegVector;
   static const int RegCount = 32;
-  uint32_t ls = 0; // vmov, vpush requires 32 bit.
+  RegVector ls = 0; // vmov, vpush requires 32 bit.
   // std::bitset<RegCount> ls;
 };
 
@@ -64,6 +65,22 @@ struct FrameObject {
   FrameObject(int32_t Offset, size_t Size,
               Instruction *Alloca = nullptr, bool isSpill = false) :
     Offset(Offset), Size(Size), Alloca(Alloca), isSpill(isSpill) { }
+};
+
+// llvm MachineFrameInfo.
+struct CalleeSaved {
+  Register Reg;
+  union {
+    int FrameIdx;
+    unsigned DstReg;
+  };
+  bool SpilledToReg = false;
+};
+
+// 4 byte literal pool
+struct LiteralPool {
+  int id;
+  uint32_t Literal;
 };
 
 enum class Opcode : unsigned char {
@@ -123,11 +140,11 @@ struct Address {
   bool isPointerOrGlobal() const { return std::holds_alternative<Register>(base); }
   bool isStack() const { return std::holds_alternative<int>(base); }
   bool hasElseReg() const { return std::holds_alternative<Register>(offset_or_else); }
+  bool hasShift() const { return std::holds_alternative<Shift>(offset_or_else); }
 };
 
 struct MInstruction : public ListNode<MInstruction> {
-#define assert_op_format(fmt) assert(get_op_format(op) == Format::fmt)
-  MBasicBlock *parent = nullptr;
+  // MBasicBlock *parent = nullptr;
   size_t id = 0; // used for possible register allocation.
   Opcode op = Opcode::NOP;
   Condition cond = Condition::CT_Any;
@@ -135,176 +152,7 @@ struct MInstruction : public ListNode<MInstruction> {
   Register rb = Register{-1};             // Rm, Rn, RdHi
   Address rc = Address{Register{-1}, -1}; // Rs, Rm, Rn, imm, Operand2, label, function (esp. only declaration)
 
-  static MBasicBlock *mbb;
-  static void setInsertPoint(MBasicBlock *);
   static MInstruction *create();
-  static MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
-                              Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnRm);
-    auto &p = *create();
-    p.op = op;
-    p.ra = rd;
-    p.rb = rn;
-    p.rc.base = rm;
-    p.cond = cond;
-    return &p;
-  }
-
-  // pointer or global memory access with definite register
-  static MInstruction *RdRnImm(Opcode op, Register rd, Register rn, int imm,
-                               Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.base = rn;
-    p->rc.offset_or_else = imm;
-    p->cond = cond;
-    return p;
-  }
-
-  // stack memory access with intermediate FrameObject representation,
-  // will be lowered to [sp, #offset] afterward.
-  static MInstruction *RdRnImm(Opcode op, Register rd, int frame_idx, int32_t imm,
-                               Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.base = frame_idx;
-    p->rc.offset_or_else = imm;
-    p->cond = cond;
-    return p;
-  }
-
-  // load common imm.
-  static MInstruction *RdImm(Opcode op, Register rd, int32_t imm,
-                             Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.offset_or_else = imm;
-    p->cond = cond;
-    return p;
-  }
-
-  // load global variable 32bit address.
-  static MInstruction *RdImm(Opcode op, Register rd, GlobalVariable *globv,
-                             Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdImm);
-    auto p = create();
-    p->op = op;
-    p->ra = rd;
-    p->rc.offset_or_else = globv;
-    p->cond = cond;
-    return p;
-  }
-
-  static MInstruction *RdRm(Opcode op, Register rd, Register rm,
-                            Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRm);
-    auto &p = *create();
-    p.op = op;
-    p.ra = rd;
-    p.rb = rm;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *RdRmRnRa(Opcode op, Register rd, Register rm,
-                                Register rs, Register rn,
-                                Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRmRnRa);
-    auto &p = *create();
-    p.op = op;
-    p.ra = rd;
-    p.rb = rm;
-    p.rc.base = rs;
-    p.rc.offset_or_else = rn;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *RdLoRdHiRnRm(Opcode op, Register lo, Register hi,
-                                    Register rm, Register rs,
-                                    Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdLoRdHiRnRm);
-    auto &p = *create();
-    p.op = op;
-    p.ra = lo;
-    p.rb = hi;
-    p.rc.base = rm;
-    p.rc.offset_or_else = rs;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *RdRnOperand2(Opcode op, Register rd, Register rm,
-                                    Shift sf,
-                                    Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdRnOperand2);
-    auto &p = *create();
-    p.op = op;
-    p.ra = rd;
-    p.rb = rm;
-    p.rc.offset_or_else = sf;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *RdOperand2(Opcode op, Register rd, Shift sf,
-                                  Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RdOperand2);
-    auto &p = *create();
-    p.op = op;
-    p.ra = rd;
-    p.rc.offset_or_else = sf;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *RnOperand2(Opcode op, Register rn, Shift sf,
-                                  Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_RnOperand2);
-    auto &p = *create();
-    p.op = op;
-    p.rb = rn;
-    p.rc.offset_or_else = sf;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *Label(Opcode op, MBasicBlock *label,
-                             Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_Label);
-    auto &p = *create();
-    p.op = op;
-    p.rc.offset_or_else = label;
-    p.cond = cond;
-    return &p;
-  }
-
-  static MInstruction *Rm(Opcode op, Register rm,
-                          Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_Rm);
-    auto p = create();
-    p->op = op;
-    p->rb = rm;
-    p->cond = cond;
-    return p;
-  }
-
-  static MInstruction *Reglist(Opcode op, RegisterList list,
-                               Condition cond = Condition::CT_Any) {
-    assert_op_format(IF_Reglist);
-    auto p = create();
-    p->op = op;
-    p->rc.offset_or_else = list;
-    p->cond = cond;
-    return p;
-  }
-#undef assert_op_format
 };
 
 struct MBasicBlock : public ListNode<MBasicBlock> {
@@ -324,8 +172,8 @@ struct MFunction {
   // 0 means temporary stack like push arguments.
   std::vector<FrameObject> objects;
   std::unordered_map<Value *, int> frame_info;
-  uint32_t num_fix_object;
-  RegisterList prologue  { 0x8FF0 }; // r4, r5, r6, r7, r8, r9, r11, lr
+  uint32_t num_fix_object { 0 };
+  std::vector<CalleeSaved> callee_saved; // r4, r5, r6, r7, r8, r9, r11, lr
 
   int vregs_id = Register::VREG_BEGIN;
   std::unordered_map<Value *, Register> value_map; // IR Value to register id.
@@ -335,6 +183,8 @@ struct MFunction {
   inline MBasicBlock *GetBasicBlock(BasicBlock *B) { return bb_map.at(B);}
   // Return the id of frame object.
   int GetFrameObject(Value *V);
+  // Return a given IR value is Alloca, Argument that have created a frame object.
+  bool isFrameObject(Value *V);
   FrameObject *GetFrameByIndex(int index);
   // See LLVM MachineFrameInfo: FixedObject / StackObject.
   int CreateStackObject(Value *V, size_t size, bool isSpill = false);
@@ -351,13 +201,86 @@ struct MModule {
 // \brief Hosting Lowered IR and MInsts after register allocation
 struct MInstHost {
   MModule *root;
-  size_t label_cnt;
-
+  MBasicBlock *machine_basic_block;
+  MFunction *syoc_init_func;
   MInstHost() { root = new MModule; }
   [[nodiscard]] MModule *getModule() const { return root; }
 
-  // @TODO: Stack Frame Info, MInst Builder Helper Info, Liveness Analysis
+  void setInsertPoint(MBasicBlock *mbb) { machine_basic_block = mbb; }
+  void clearInsertPoint() { machine_basic_block = nullptr; }
+  MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
+                       Condition cond = Condition::CT_Any);
+  // pointer or global memory access with definite register
+ MInstruction *RdRnImm(Opcode op, Register rd, Register rn, int imm,
+                       Condition cond = Condition::CT_Any);
+  // stack memory access with intermediate FrameObject representation,
+  // will be lowered to [sp, #offset] afterward.
+  MInstruction *RdRnImm(Opcode op, Register rd, int frame_idx, int32_t imm,
+                        Condition cond = Condition::CT_Any);
+  // load common imm.
+  MInstruction *RdImm(Opcode op, Register rd, int32_t imm,
+                      Condition cond = Condition::CT_Any);
+  // load global variable 32bit address.
+  MInstruction *RdImm(Opcode op, Register rd, GlobalVariable *globv,
+                      Condition cond = Condition::CT_Any);
+  MInstruction *RdRm(Opcode op, Register rd, Register rm,
+                     Condition cond = Condition::CT_Any);
+  MInstruction *RdRmRnRa(Opcode op, Register rd, Register rm,
+                         Register rs, Register rn,
+                         Condition cond = Condition::CT_Any);
+  MInstruction *RdLoRdHiRnRm(Opcode op, Register lo, Register hi,
+                             Register rm, Register rs,
+                             Condition cond = Condition::CT_Any);
+  MInstruction *RdRnOperand2(Opcode op, Register rd, Register rm,
+                             Shift sf,
+                             Condition cond = Condition::CT_Any);
+  MInstruction *RdOperand2(Opcode op, Register rd, Shift sf,
+                           Condition cond = Condition::CT_Any);
+  MInstruction *RnOperand2(Opcode op, Register rn, Shift sf,
+                           Condition cond = Condition::CT_Any);
+  MInstruction *Label(Opcode op, MBasicBlock *label,
+                      Condition cond = Condition::CT_Any);
+  MInstruction *Label(Opcode op, MFunction *mfunc,
+                      Condition cond = Condition::CT_Any);
+  MInstruction *Rm(Opcode op, Register rm,
+                   Condition cond = Condition::CT_Any);
+  MInstruction *Reglist(Opcode op, RegisterList list,
+                        Condition cond = Condition::CT_Any);
+  MInstruction *FrameAddr(Opcode op, Register rd, int frame_fi,
+                          Register offset_reg, int32_t offset_imm,
+                          Condition cond = Condition::CT_Any);
 
 };
+
+// Operand2 Imm8
+inline bool test_Imm8(int32_t Imm) {
+  auto uImm = static_cast<uint32_t>(Imm);
+  if (uImm < 0xffU) return true;
+  for (int i = 1; i < 16; ++i) {
+    uint32_t ror_uImm = (uImm << (i * 2)) | (uImm >> (32 - i * 2));
+    if (ror_uImm < 0xffU) return true;
+  }
+  return false;
+}
+
+// mov/movw/movt Imm16
+inline bool test_Imm16(int32_t Imm) {
+  auto uImm = static_cast<uint32_t>(Imm);
+  return uImm < 0xffffU;
+}
+
+inline bool test_LDR_STR_Imm_Offset(int32_t Imm) {
+  return Imm >= -4095 && Imm <= 4095;
+}
+
+inline bool test_Imm_Pow2(int32_t Imm) {
+  if (Imm == 0) return false;
+  return (Imm & (Imm - 1)) == 0;
+}
+
+inline int32_t Imm_Lowbit(int32_t Imm) {
+  return Imm & (-Imm);
+}
+
 
 } // namespace SyOC::ARMv7a

@@ -15,9 +15,9 @@ class AsmPrinter {
   void dumpGlobalVariable(MInstHost &);
   void dumpAsm(MInstHost &);
 public:
-  AsmPrinter() = delete;
+  AsmPrinter() = default;
   AsmPrinter(const std::string& filename) : filename(filename) {}
-  AsmPrinter &operator <<(MInstHost &host);
+  void print(std::string_view outfile, MInstHost *host);
 };
 
 }

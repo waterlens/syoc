@@ -37,9 +37,10 @@ static const char *getShiftName(Shift::Type stype) {
 }
 
 static std::string getRegName(Register &reg) {
-  static int vreg = 0;
-  if (reg.isVirtual()) return fmt::format("%{:d}:gpr", vreg);
-  else return RegNames[reg.id];
+  if (reg.isInvalid()) return "%invalid:gpr";
+  if (reg.isVirtual())
+    return fmt::format("%{:d}:gpr", reg.id - Register::VREG_BEGIN);
+  return RegNames[reg.id];
 }
 
 static std::string dumpIF_Other(MInstruction *minst) {
@@ -70,10 +71,14 @@ static std::string dumpIF_RdRnOperand2(MInstruction *minst) {
 }
 
 static std::string dumpIF_RdRnImm(MInstruction *minst) {
-  assert(minst->op == Opcode::LDR || minst->op == Opcode::STR);
   Register base = std::get<Register>(minst->rc.base);
   int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
-  return fmt::format("\t{}{}\t{}, [{}, #{:d}\n",
+  if (minst->op == Opcode::LDR || minst->op == Opcode::STR)
+    return fmt::format("\t{}{}\t{}, [{}, #{:d}]\n",
+                       getMInstName(minst->op), getCondName(minst->cond),
+                       getRegName(minst->ra),
+                       getRegName(base), imm);
+  return fmt::format("\t{}{}\t{}, {} #{:d}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
                      getRegName(minst->ra),
                      getRegName(base), imm);
@@ -148,7 +153,7 @@ static std::string dumpIF_Label(MInstruction *minst) {
     return fmt::format("\t{}{}\t.L{:d}\n", getMInstName(minst->op),
                        getCondName(minst->cond), mbb->id);
   }
-  if (minst->op == Opcode::BL) {
+  if (minst->op == Opcode::BL || minst->op == Opcode::BLX) {
     MFunction *mfunc = std::get<MFunction *>(minst->rc.offset_or_else);
     return fmt::format("\t{}{}\t{}\n", getMInstName(minst->op),
                        getCondName(minst->cond), mfunc->name);
@@ -198,12 +203,21 @@ static std::string dumpIF_Reglist(MInstruction *minst) {
   for (int i = 0; i < RegisterList::RegCount; ++i) {
     if (list.ls & (1 << i)) {
       if (first_reg) { asm_format += RegNames[i]; first_reg = false; }
-      asm_format = asm_format + " ," + RegNames[i];
+      asm_format.append(" ,");
+      asm_format.append(RegNames[i]);
     }
   }
   asm_format += "}\n";
   assert(!first_reg);
   return asm_format;
+}
+
+static std::string dumpIF_FrameAddr(MInstruction *minst) {
+  return fmt::format("\tframe\t{}, #fi:{:d} offset {}, {:d}\n",
+                     getRegName(minst->ra),
+                     std::get<int>(minst->rc.base),
+                     getRegName(minst->rb),
+                     std::get<int32_t>(minst->rc.offset_or_else));
 }
 
 void AsmPrinter::dumpMInst(MInstruction *minst) {
@@ -234,6 +248,11 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
             "\t.arm\n";
   buffer += fmt::format("\t.type\t{}, %function\n", mfunc->name);
   buffer += fmt::format("{}:\n", mfunc->name);
+  // print frame info.
+  for (int i = 0; i < mfunc->objects.size(); ++i)
+    buffer += fmt::format("// #fi:{:d} stack:%{:d}, size = {:d}\n",
+                          i - mfunc->num_fix_object, i, mfunc->objects[i].Size);
+  // dump Machine BB.
   for (auto &mbb : mfunc->block) {
     dumpMBasicBlock(&mbb);
   }
@@ -258,10 +277,8 @@ void AsmPrinter::dumpAsm(MInstHost &host) {
             "\t.fpu neon\n";
   // dump instructions.
   buffer += "\t.text\n";
-  for (auto mfunc : host.root->function) {
-    fmt::print("dump {}\n", mfunc->name);
+  for (auto *mfunc : host.root->function) {
     dumpMFunction(mfunc);
-    fmt::print("end dump {}\n", mfunc->name);
   }
   // dump global variable.
   dumpGlobalVariable(host);
@@ -274,8 +291,9 @@ void AsmPrinter::dumpAsm(MInstHost &host) {
   fmt::print("Dump Asm '{}'\n", filename);
 }
 
-AsmPrinter &AsmPrinter::operator<<(MInstHost &host) {
-  assignMIdentity(host);
-  dumpAsm(host);
-  return *this;
+void AsmPrinter::print(std::string_view outfile, MInstHost *host) {
+  buffer.clear();
+  filename = outfile;
+  assignMIdentity(*host);
+  dumpAsm(*host);
 }

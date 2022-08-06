@@ -140,6 +140,7 @@ ARMv7aInsnFormatDefine(IF_RdImm)
 ARMv7aInsnFormatDefine(IF_Rm) // bx(s)
 ARMv7aInsnFormatDefine(IF_RdRnImm) // temporarily no pre-index/post-index
 ARMv7aInsnFormatDefine(IF_Reglist)
+ARMv7aInsnFormatDefine(IF_FrameAddr)
 
 // arithmetic operations
 ARMv7aOpcodeDefine(NOP,     "nop",  IF_Other)
@@ -168,6 +169,7 @@ ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd = zext(imm)
 ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd[31:16] = Imm
 ARMv7aOpcodeDefine(LDR,     "ldr",  IF_RdRnImm)
 ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef, may need .ltorg to allocate literal pools
+ARMv7aOpcodeDefine(LDR_REG, "ldr",  IF_RdRnRm) // e.g. ldr r0, [r0, r1]
 ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)
 
 
@@ -195,7 +197,17 @@ ARMv7aOpcodeDefine(POP,     "pop",  IF_Reglist)
 
 
 // Special Opcode need lowering later
-ARMv7aOpcodeDefine(FRAME,   "frame", IF_Other)
+ARMv7aOpcodeDefine(FRAME,   "frame", IF_FrameAddr)
+/// Get Stack Addrs: Rd = Reg + FrameObject + Imm
+/// @example scalar local variable/argument (argument need add manual ldr)
+///     Rd = FrameObject
+///     1. embedded in ldr/str
+///     2. pass Rd as a pointer argument
+/// @example array local variable/argument + Imm offset
+///     Rd = FrameObject + Imm
+///     after constant folding, IR Offset Node can produce this type
+/// @example array local variable/argument + Reg offset
+///     Rd = FrameObject + Reg
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine

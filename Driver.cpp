@@ -8,7 +8,9 @@
 #include "Tree/Tree.hpp"
 #include "CodeGen/MEISel.hpp"
 #include "CodeGen/SimpleRA.hpp"
+#include "CodeGen/FrameLowering.hpp"
 #include "CodeGen/AsmPrinter.hpp"
+#include "Pass/MachineDCE.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
@@ -94,16 +96,20 @@ void stoptime();
                          SyOC::InstCombine, SyOC::DeadCodeElimination,
                          SyOC::SimplifyCFG, SyOC::IRDump>();
   // instruction selection
-  transformer.doSSA2MInstTransformation<SyOC::MEISel>();
-  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA>();
-  std::string asmFileName;
+  SyOC::ARMv7a::AsmPrinter out;
   static int asm_count = 0;
+  transformer.doSSA2MInstTransformation<SyOC::MEISel>();
+  out.print("mir.s", transformer.getMIR());
+
+  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA,
+                                    SyOC::ARMv7a::MachineDCE,
+                                    SyOC::ARMv7a::FrameLowering>();
+  std::string asmFileName;
   if (optParser.has("-o")) {
     asmFileName = optParser["-o"].as<std::string_view>();
   } else {
     asmFileName = fmt::format("dump-asm-{:d}.s", asm_count);
   }
-  SyOC::ARMv7a::AsmPrinter out(asmFileName);
-  out << *transformer.getMIR();
+  out.print(asmFileName, transformer.getMIR());
   return 0;
 }

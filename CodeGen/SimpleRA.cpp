@@ -44,6 +44,10 @@ getUse(MInstruction *minst) {
     Result.push_back(&std::get<Register>(minst->rc.base));
   if (minst->rc.hasElseReg())
     Result.push_back(&std::get<Register>(minst->rc.offset_or_else));
+  if (minst->rc.hasShift()) {
+    Register &shift_base = std::get<Shift>(minst->rc.offset_or_else).reg;
+    if (!shift_base.isInvalid()) Result.push_back(&shift_base);
+  }
   return Result;
 }
 
@@ -60,14 +64,18 @@ void SimpleRA::operator()(MInstHost &mhost) {
             reg->id = map_iter->second;
           } else {
             int alloc_id = getAvailableReg(reg->type);
+            reg_map.insert(std::make_pair(reg->id, alloc_id));
+            fmt::print("allocate vreg:{:d} to id:{:d}\n", reg->id, alloc_id);
             assert(alloc_id != -1);
             reg->id = alloc_id;
           }
         }
         // We assume after select mem SSA, store means assign a value,
         // all intermediate result will not be used again.
-        if (minst->op == Opcode::STR || minst->op == Opcode::CMP)
+        if (minst->op == Opcode::STR || minst->op == Opcode::CMP) {
           setAllAvailable();
+          reg_map.clear();
+        }
       }
     }
   }

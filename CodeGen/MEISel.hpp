@@ -25,10 +25,10 @@ private:
 #include "Common/Common.def"
 
 
-  ARMv7a::Register CreateVirtualRegister(Value *V); // for definitions.
+  ARMv7a::Register CreateVirtualRegister(Value *V, int RegHint = -1); // for definitions.
   /// Return a register of given IR Value;
   /// may create ldr/mov the load imm into a virtual register.
-  ARMv7a::Register RegisterOrImm(Value *V); // for operands.
+  ARMv7a::Register RegisterOrImm(Value *V, int RegHint = -1); // for operands.
 
 public:
   MEISel() = default;
