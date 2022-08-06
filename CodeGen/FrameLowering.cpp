@@ -12,6 +12,8 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
 
   // callee saved register.
   total_stack_offset = num_callee_saved * 4;
+  // Add call stack args
+  total_stack_offset += mfunc->call_stack_args * 4;
   // stack local variables.
   for (size_t i = mfunc->num_fix_object; i < num_frames; ++i) {
     total_stack_offset += mfunc->objects[i].Size;
@@ -84,6 +86,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
       }
     }
   }
+  final_stack_size = total_stack_offset;
 }
 
 // push callee saved register and sub sp.
@@ -96,16 +99,21 @@ void FrameLowering::emitPrologue(MFunction *mfunc, MInstHost *host) {
   auto FirstMInst = mfunc->block.begin()->insn.begin();
   Register Fp {Register::fp, Register::Type::Int};
   Register Sp {Register::sp, Register::Type::Int};
+  // push {rxx, rxx}
   if (list != 0) {
     auto *push = host->Reglist(Opcode::PUSH, RegisterList{list});
-
     FirstMInst->insert_before(push);
   }
+  // add r11, sp, #imm
   if (mfunc->num_fix_object != 0) {
     auto *get_fp = host->RdRnOperand2(
       Opcode::ADD, Fp, Sp, Shift::GetImm(mfunc->callee_saved.size() * 4));
     FirstMInst->insert_before(get_fp);
   }
+  // sub sp, sp #imm
+  auto *reduce_sp = host->RdRnOperand2(
+    Opcode::SUB, Sp, Sp, Shift::GetImm(final_stack_size));
+  FirstMInst->insert_before(reduce_sp);
 }
 
 // pop callee saved register and add sp.
@@ -132,8 +140,8 @@ void FrameLowering::operator()(MInstHost &host) {
   host.clearInsertPoint();
   for (auto *mfunc : host.root->function) {
     lowering(mfunc, &host);
+    deadCodeElimination();
     emitPrologue(mfunc, &host);
     emitEpilogue(mfunc, &host);
   }
-  deadCodeElimination();
 }

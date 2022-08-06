@@ -29,7 +29,8 @@ private:
   /// Return a register of given IR Value;
   /// may create ldr/mov the load imm into a virtual register.
   ARMv7a::Register RegisterOrImm(Value *V, int RegHint = -1); // for operands.
-
+  ARMv7a::Register CreateImmLoad(uint32_t Imm, int RegHint,
+                                 ARMv7a::Register::Type RegType = ARMv7a::Register::Type::Int);
 public:
   MEISel() = default;
   void operator()(IRHost *host, ARMv7a::MInstHost *&mhost);

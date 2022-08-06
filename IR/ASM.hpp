@@ -119,6 +119,8 @@ struct Shift {
   static Shift GetImm(int32_t Imm) {
     return Shift {Type::SF_None, Register{-1}, Imm};
   }
+  bool isPureReg() const { return reg.id != -1 && imm == 0;}
+  bool isPureImm() const { return reg.id == -1; }
 };
 
 enum class Condition : unsigned char {
@@ -173,6 +175,7 @@ struct MFunction {
   std::vector<FrameObject> objects;
   std::unordered_map<Value *, int> frame_info;
   uint32_t num_fix_object { 0 };
+  size_t call_stack_args { 0 };
   std::vector<CalleeSaved> callee_saved; // r4, r5, r6, r7, r8, r9, r11, lr
 
   int vregs_id = Register::VREG_BEGIN;
@@ -283,5 +286,27 @@ inline int32_t Imm_Lowbit(int32_t Imm) {
   return Imm & (-Imm);
 }
 
+
+// Get Register Uses and Defs.
+inline void
+getUse(MInstruction *inst_iter, std::vector<Register *> &reg_use) {
+  if (!inst_iter->ra.isInvalid() && inst_iter->op == Opcode::STR)
+    reg_use.push_back(&inst_iter->ra);
+  if (!inst_iter->rb.isInvalid()) reg_use.push_back(&inst_iter->rb);
+  if (inst_iter->rc.isPointerOrGlobal())
+    reg_use.push_back(&std::get<Register>(inst_iter->rc.base));
+  if (inst_iter->rc.hasElseReg())
+    reg_use.push_back(&std::get<Register>(inst_iter->rc.offset_or_else));
+  if (inst_iter->rc.hasShift()) {
+    Register &shift_base = std::get<Shift>(inst_iter->rc.offset_or_else).reg;
+    if (!shift_base.isInvalid()) reg_use.push_back(&shift_base);
+  }
+}
+
+inline void
+getDef(MInstruction *inst_iter, std::vector<Register *> &reg_def) {
+  if (!inst_iter->ra.isInvalid() && inst_iter->op != Opcode::STR)
+    reg_def.push_back(&inst_iter->ra);
+}
 
 } // namespace SyOC::ARMv7a

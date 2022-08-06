@@ -12,6 +12,7 @@
 #include "CodeGen/FrameLowering.hpp"
 #include "CodeGen/AsmPrinter.hpp"
 #include "Pass/MachineDCE.hpp"
+#include "Pass/PeepHole.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
@@ -104,9 +105,11 @@ void stoptime();
   transformer.doSSA2MInstTransformation<SyOC::MEISel>();
   out.print("mir.s", transformer.getMIR());
 
-  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA,
+  transformer.doMInstTransformation<SyOC::ARMv7a::PeepHole,
                                     SyOC::ARMv7a::MachineDCE,
-                                    SyOC::ARMv7a::FrameLowering>();
+                                    SyOC::ARMv7a::SimpleRA,
+                                    SyOC::ARMv7a::FrameLowering
+                                    >();
   std::string asmFileName;
   if (optParser.has("-o")) {
     asmFileName = optParser["-o"].as<std::string_view>();

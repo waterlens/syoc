@@ -105,6 +105,19 @@ Register MEISel::CreateVirtualRegister(Value *V, int RegHint) {
   return new_reg;
 }
 
+Register MEISel::CreateImmLoad(uint32_t Imm, int RegHint, Register::Type type) {
+  assert(RegHint != -1);
+  Register Rd {RegHint, type};
+  if (test_Imm8(Imm)) {
+    machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
+  } else {
+    // machine->RdImm(Opcode::LDR_PC, Rd, Imm);
+    machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
+    machine->RdImm(Opcode::MOVT, Rd, Imm >> 16);
+  }
+  return Rd;
+}
+
 Register MEISel::RegisterOrImm(Value *V, int RegHint) {
   // We expect Value V is a certain operand or instruction result.
   assert(V);
@@ -116,16 +129,7 @@ Register MEISel::RegisterOrImm(Value *V, int RegHint) {
     // ldr with [PC + offset] has only around 4KB search space
     // assembler auto-generated literal pool may out of range.
     Register Rd = CreateVirtualRegister(V, RegHint);
-    uint32_t Imm = V->as<ConstantInteger *>()->value;
-    if (test_Imm8(Imm)) {
-      auto *inst = machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
-      basic_block->insn.push_back(inst);
-    } else {
-      // machine->RdImm(Opcode::LDR_PC, Rd, Imm);
-      machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
-      machine->RdImm(Opcode::MOVT, Rd, Imm >> 16);
-    }
-    return Rd;
+    return CreateImmLoad(const_int->value, Rd.id);
   }
   if (auto *globv = V->as<GlobalVariable *>()) {
     Register Rd = CreateVirtualRegister(nullptr);
@@ -224,13 +228,13 @@ bool MEISel::selectComparison(Instruction *I) {
   // compare
   Register Op1 = RegisterOrImm(I->getOperand(0));
   Register Op2 = RegisterOrImm(I->getOperand(1));
-  machine->RdOperand2(Opcode::CMP, Op1, Shift::GetDefaultShift(Op2));
+  machine->RnOperand2(Opcode::CMP, Op1, Shift::GetDefaultShift(Op2));
   // move
   Register Rd = CreateVirtualRegister(I);
   Condition pos = getMachineCondition(I->op);
   Condition neg = conjugateCondition(I->op);
   machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(1), pos);
-  machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(0), pos);
+  machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(0), neg);
   return true;
 }
 
@@ -360,12 +364,12 @@ bool MEISel::selectOP_Branch(Instruction *I) {
       Register rhs = RegisterOrImm(Cmp->getOperand(1));
       machine->RnOperand2(Opcode::CMP,
                                lhs, Shift::GetDefaultShift(rhs));
-      Condition false_cond = conjugateCondition(I->op);
+      Condition false_cond = conjugateCondition(Cmp->op);
       auto *false_mbb = function->GetBasicBlock(I->getOperand(2)->as<BasicBlock *>());
       machine->Label(Opcode::B, false_mbb, false_cond);
       auto *true_mbb = function->GetBasicBlock(I->getOperand(1)->as<BasicBlock *>());
       machine->Label(Opcode::B, true_mbb);
-      return 0;
+      return true;
     }
   }
   Register lhs = RegisterOrImm(Cond);
@@ -403,7 +407,9 @@ bool MEISel::selectOP_Call(Instruction *I) {
     int32_t Offset = (i - 4) * 4;
     machine->RdRnOperand2(Opcode::STR, SrcReg, Sp, Shift::GetImm(Offset));
   }
+  // Update stack size needed for push argument.
   MFunction *mfunc = machine->root->GetMFunction(Callee);
+  mfunc->call_stack_args = std::max(mfunc->call_stack_args, Callee->arg.size() - 4);
   machine->Label(opcode, mfunc);
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {
@@ -424,33 +430,46 @@ bool MEISel::selectOP_Offset(Instruction *I) {
   assert(test_Imm_Pow2(width));
   int32_t log2_width = 0;
   while (!(width & (1 << log2_width))) log2_width++;
-  // Ptr can be argument, global value,
+  // Ptr can be argument, global value, alloca
 
-  size_t Offset = 0;
-  // Initialize.
-  Value *Limit0 = I->getOperand(1);
-  Value *Index0 = I->getOperand(2);
-  Register Rd = RegisterOrImm(Index0);
 
-  // [Limit, Index] : [3, 4], [5, 6] ...
-  for (size_t i = 2; i * 2 < Size; ++i) {
-    Value *Limit = I->getOperand(i * 2 - 1);
-    Value *Index = I->getOperand(i * 2);
-    assert(Limit->is<ConstantInteger>());
-    machine->RdRnRm(Opcode::MUL, Rd, Rd,
-                         RegisterOrImm(Limit));
-    if (auto *Imm = Index->as<ConstantInteger *>()) {
-      if (test_Imm8(static_cast<int32_t>(Imm->value))) {
-        machine->RdRnOperand2(Opcode::ADD, Rd, Rd,
-          Shift::GetImm(Index->as<ConstantInteger *>()->value));
-        continue;
-      }
-    }
-    Register Rm = RegisterOrImm(Index);
-    assert(!Rm.isInvalid());
-    machine->RdRnOperand2(Opcode::ADD, Rd, Rd,
-                               Shift::GetDefaultShift(Rm));
+  uint32_t TotalImmOffset = 0;
+  uint64_t TotalSize = 1;
+  std::vector<uint64_t> Sizes;
+  std::vector<Value *> Indexes;
+  for (size_t i = 1; i * 2 < Size; ++i) {
+    Sizes.push_back(I->getOperand(i * 2 - 1)->as<ConstantInteger *>()->value);
+    Indexes.push_back(I->getOperand(i * 2));
   }
+  for (size_t i = Sizes.size(); i-- > 0;) {
+    TotalSize *= Sizes[i];
+    Sizes[i] = TotalSize;
+  }
+  // collecting constant imm offsets.
+  Register SizeTemp = CreateVirtualRegister(nullptr);
+  Register IndexTemp = CreateVirtualRegister(nullptr);
+  Register Rd = CreateVirtualRegister(I);
+  Sizes.push_back(1);
+  bool FirstIndex = false;
+  for (size_t i = 0; i < Indexes.size(); ++i) {
+    if (auto *ImmIndex = Indexes[i]->as<ConstantInteger *>()) {
+      TotalImmOffset += ImmIndex->value * Sizes[i + 1];
+    } else {
+      if (!FirstIndex) {
+        Rd = CreateImmLoad(0, Rd.id);
+        FirstIndex = false;
+      }
+      IndexTemp = RegisterOrImm(Indexes[i], IndexTemp.id);
+      if (Sizes[i + 1] != 1) {
+        // Hint Load non-constant index into our temp register.
+        SizeTemp = CreateImmLoad(Sizes[i + 1], SizeTemp.id);
+        machine->RdRmRnRa(Opcode::MLA, Rd, SizeTemp, IndexTemp, Rd);
+      }
+      machine->RdRnOperand2(Opcode::ADD, Rd, Rd, Shift::GetDefaultShift(IndexTemp));
+
+    }
+  }
+
   if (function->isFrameObject(Ptr)) {
     int stack_fi = function->GetFrameObject(Ptr);
     machine->RdRnImm(Opcode::LSL, Rd, Rd, log2_width);

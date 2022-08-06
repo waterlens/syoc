@@ -8,6 +8,7 @@ namespace ARMv7a {
 class FrameLowering {
 private:
   std::vector<MInstruction *> work_list;
+  size_t final_stack_size;
 
   void emitPrologue(MFunction *, MInstHost *);
   void emitEpilogue(MFunction *, MInstHost *);
