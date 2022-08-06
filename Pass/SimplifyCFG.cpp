@@ -66,9 +66,49 @@ void SimplifyCFG::removeDanglingBB(Function *f) {
   }
 }
 
+void SimplifyCFG::removeUnreachable(Function *f, IRHost &host) {
+  if (f->refExternal())
+    return;
+  std::vector<BasicBlock *> bb_work_list;
+  std::vector<Instruction *> inst_work_list;
+  for (auto &bb : f->block) {
+    auto &br = bb.getInstruction().back();
+    if (br.op == OP_Branch) {
+      if (auto *Cond = br.getOperand(0)->as<ConstantInteger *>()) {
+        BasicBlock *DeadBB = nullptr;
+        BasicBlock *LiveBB = nullptr;
+        if (Cond->value != 0) {
+          LiveBB = br.getOperand(1)->as<BasicBlock *>();
+          DeadBB = br.getOperand(2)->as<BasicBlock *>();
+        } else {
+          LiveBB = br.getOperand(2)->as<BasicBlock *>();
+          DeadBB = br.getOperand(1)->as<BasicBlock *>();
+        }
+        bb_work_list.push_back(DeadBB);
+        // replace conditional branch with a unconditional jump.
+        auto *direct_jmp = host.createInstruction(OP_Jump, br.type,
+                                                  {LiveBB}, &bb);
+        inst_work_list.push_back(&br);
+      }
+    }
+  }
+  for (auto *dead_bb : bb_work_list) {
+    for (auto inst_iter = dead_bb->begin();
+         inst_iter != dead_bb->end(); ++inst_iter) {
+      inst_iter->replaceAllUsesWith(nullptr);
+      inst_work_list.push_back(inst_iter.base());
+    }
+    dead_bb->release(true);
+  }
+  for (auto *dead_inst : inst_work_list)
+    dead_inst->release(true);
+}
+
 void SimplifyCFG::operator()(IRHost &host) {
-  for (auto *func : host.getModule()->func)
+  for (auto *func : host.getModule()->func) {
+    removeUnreachable(func, host);
     for (auto &bb : func->block) clearExtraJump(&bb);
+  }
   CFGAnalysis{}(host);
   for (auto *func : host.getModule()->func) removeDanglingBB(func);
   for (auto *func : host.getModule()->func) straighten(func);

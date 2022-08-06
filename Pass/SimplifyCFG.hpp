@@ -12,7 +12,7 @@ class SimplifyCFG final {
   static void removeDanglingBB(Function *f);
   static void fuseBasicBlock(BasicBlock *bb1, BasicBlock *bb2);
   static void straighten(Function *f);
-
+  static void removeUnreachable(Function *f, IRHost &host);
 public:
   SimplifyCFG() = default;
   [[nodiscard]] static std::string_view getName() { return "Simplify CFG"; }

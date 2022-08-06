@@ -71,6 +71,13 @@ static std::string dumpIF_RdRnOperand2(MInstruction *minst) {
 }
 
 static std::string dumpIF_RdRnImm(MInstruction *minst) {
+  // unlowered fram addressing.
+  if (minst->rc.isStack()) {
+    return fmt::format("\t{}{}\t{}, #fi:{:d}, {:d}\n",
+                       getMInstName(minst->op), getCondName(minst->cond),
+                       getRegName(minst->ra),
+                       std::get<int>(minst->rc.base), std::get<int32_t>(minst->rc.offset_or_else));
+  }
   Register base = std::get<Register>(minst->rc.base);
   int32_t imm = std::get<int32_t>(minst->rc.offset_or_else);
   if (minst->op == Opcode::LDR || minst->op == Opcode::STR)

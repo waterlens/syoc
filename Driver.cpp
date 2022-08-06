@@ -4,6 +4,7 @@
 #include "Pass/PassCollection.hpp"
 #include "Pass/SimplifyCFG.hpp"
 #include "Pass/InstCombine.hpp"
+#include "Pass/ConstantFolding.hpp"
 #include "Transformer/Transformer.hpp"
 #include "Tree/Tree.hpp"
 #include "CodeGen/MEISel.hpp"
@@ -93,8 +94,10 @@ void stoptime();
     .doSSATransformation<SyOC::SimplifyCFG,
                          SyOC::SimpleAllocationElimination,
                          // SyOC::PromoteMem2Reg,
-                         SyOC::InstCombine, SyOC::DeadCodeElimination,
-                         SyOC::SimplifyCFG, SyOC::IRDump>();
+                         SyOC::InstCombine, SyOC::ConstantFolding, SyOC::SimplifyCFG,
+                         SyOC::SimpleAllocationElimination,
+                         SyOC::DeadCodeElimination,
+                         SyOC::IRDump>();
   // instruction selection
   SyOC::ARMv7a::AsmPrinter out;
   static int asm_count = 0;

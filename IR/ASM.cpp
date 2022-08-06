@@ -32,8 +32,8 @@ int MFunction::CreateStackObject(Value *V, size_t size, bool isSpill) {
   assert(V->is<Instruction>());
   auto *alloca = V->as<Instruction *>();
   assert(alloca->op == OP_Allocate);
-  int index = (int)objects.size() - num_fix_object - 1;
   objects.emplace_back(0, size, alloca, isSpill);
+  int index = (int)objects.size() - num_fix_object - 1;
   frame_info.insert(std::make_pair(V, index));
   return index;
 }
