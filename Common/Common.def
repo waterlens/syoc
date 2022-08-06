@@ -208,6 +208,9 @@ ARMv7aOpcodeDefine(FRAME,   "frame", IF_FrameAddr)
 ///     after constant folding, IR Offset Node can produce this type
 /// @example array local variable/argument + Reg offset
 ///     Rd = FrameObject + Reg
+ARMv7aOpcodeDefine(CLEARUSE, "clearuse", IF_Other)
+/// a hint that inform Register Allocator at this program point
+/// other volatile registers is free now.
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine

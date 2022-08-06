@@ -12,13 +12,16 @@ namespace ARMv7a {
 struct SpillInfo {
 };
 
+
+
 class SimpleRA {
 private:
   // alloc
   std::unordered_map<int, int> reg_map;
   // spills.
-  std::set<Register> spilled;
+  std::set<int> spilled;
   std::vector<SpillInfo> spiller;
+  std::unordered_map<int, bool> loaded;
 
   void insertSpill();
 public:

@@ -73,7 +73,7 @@ struct CalleeSaved {
   union {
     int FrameIdx;
     unsigned DstReg;
-  };
+  } Locate;
   bool SpilledToReg = false;
 };
 
@@ -194,8 +194,8 @@ struct MFunction {
 struct MModule {
   std::vector<MFunction *> function;
   std::vector<GlobalVariable *> global;
-
-
+  std::unordered_map<Function *, MFunction *> func_map;
+  MFunction *GetMFunction(Function *);
 };
 
 // \brief Hosting Lowered IR and MInsts after register allocation
@@ -208,6 +208,7 @@ struct MInstHost {
 
   void setInsertPoint(MBasicBlock *mbb) { machine_basic_block = mbb; }
   void clearInsertPoint() { machine_basic_block = nullptr; }
+  MInstruction *Other(Opcode op);
   MInstruction *RdRnRm(Opcode op, Register rd, Register rn, Register rm,
                        Condition cond = Condition::CT_Any);
   // pointer or global memory access with definite register

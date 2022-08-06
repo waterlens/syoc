@@ -6,6 +6,7 @@ using namespace SyOC::ARMv7a;
 
 
 static bool used[RegisterList::RegCount] = { false };
+static bool needCalleeSave[RegisterList::RegCount] = { false };
 
 static void spill();
 
@@ -13,10 +14,16 @@ static void setAllAvailable() {
   memset(used, 0, sizeof(used));
 }
 
+static void setNonVolatileAvailable() {
+  for (int i = Register::r4; i <= Register::r10; ++i)
+    used[i] = false;
+}
+
 static int getAvailableIntReg() {
   for (int i = Register::r4; i <= Register::r10; ++i)
     if (!used[i]) {
       used[i] = true;
+      needCalleeSave[i] = true;
       return i;
     }
   return -1;
@@ -30,6 +37,7 @@ static int getAvailableFloatReg() {
     }
   return -1;
 }
+
 
 static int getAvailableReg(Register::Type type) {
   return type == Register::Int ? getAvailableIntReg() : getAvailableFloatReg();
@@ -53,8 +61,14 @@ getUse(MInstruction *minst) {
 
 void SimpleRA::operator()(MInstHost &mhost) {
   for (MFunction *mf : mhost.root->function) {
+    setAllAvailable();
+    memset(needCalleeSave, 0, sizeof(needCalleeSave));
     for (auto mbb = mf->block.begin(); mbb != mf->block.end(); ++mbb) {
       for (auto minst = mbb->insn.begin(); minst != mbb->insn.end(); ++minst) {
+        if (minst->op == Opcode::CLEARUSE) {
+          setNonVolatileAvailable();
+          continue;
+        }
         auto Uses = getUse(&*minst);
         for (Register *reg : Uses) {
           if (!reg->isVirtual())
@@ -78,5 +92,13 @@ void SimpleRA::operator()(MInstHost &mhost) {
         }
       }
     }
+    // A no-use CalleeSaved Info.
+    for (int i = 0; i < RegisterList::RegCount; ++i)
+      if (needCalleeSave[i] && i > Register::r3) {
+        CalleeSaved Info;
+        Info.Reg = {i};
+        Info.Locate.FrameIdx = 0;
+        mf->callee_saved.push_back(Info);
+      }
   }
 }

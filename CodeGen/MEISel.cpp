@@ -134,6 +134,7 @@ Register MEISel::RegisterOrImm(Value *V, int RegHint) {
     return Rd;
   }
   if (auto *arg = V->as<Argument *>()) {
+    // We've created frame object in operator().
     Register Rd = CreateVirtualRegister(V, RegHint);
     int frame_fi = function->GetFrameObject(arg);
     machine->RdRnImm(Opcode::LDR, Rd, frame_fi, 0);
@@ -377,35 +378,39 @@ bool MEISel::selectOP_Branch(Instruction *I) {
   return true;
 }
 
+/// @attention: although we may need push argument into
+/// stack, there's no need to create frame object here.
+/// We can just use direct [sp, #imm]
 bool MEISel::selectOP_Call(Instruction *I) {
   // follow calling conventions.
   auto *Callee = I->getOperand(0)->as<Function *>();
   // SysY compiles sylib in thumb code.
   Opcode opcode = isRuntimeFunction(Callee->name) ? Opcode::BLX : Opcode::BL;
   // Pass argument by r0~r3
-  int RegId = Register::r0;
-  for (size_t i = 1; i < std::max((size_t)4, I->getNumOperands()); ++i) {
-    Value *Arg = I->getOperand(i);
-    Register tmp = RegisterOrImm(Arg);
+  for (size_t i = std::min((size_t)4, Callee->arg.size());
+       i-- > 0;) {
+    Value *Arg = I->getOperand(i + 1);
+    Register SrcReg = RegisterOrImm(Arg);
     // Copy args to r0~r3
-    machine->RdRm(Opcode::CPY, Register{RegId}, tmp);
-    RegId++;
+    machine->RdRm(Opcode::CPY, Register{(int)i}, SrcReg);
+    machine->Other(Opcode::CLEARUSE);
   }
   // more than 4 args, spill to stack;
   // and protect volatile registers.
-  if (Callee->arg.size() > 4) {
-    // @TODO
+  Register Sp {Register::sp, Register::Type::Int};
+  for (size_t i = Callee->arg.size(); i-- > 4;) {
+    Register SrcReg = RegisterOrImm(I->getOperand(i + 1));
+    int32_t Offset = (i - 4) * 4;
+    machine->RdRnOperand2(Opcode::STR, SrcReg, Sp, Shift::GetImm(Offset));
   }
+  MFunction *mfunc = machine->root->GetMFunction(Callee);
+  machine->Label(opcode, mfunc);
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {
     Register Rd = CreateVirtualRegister(I);
     machine->RdRm(Opcode::CPY, Rd, Register{Register::r0});
   }
-  // more than 4 args, recover the spilled args in the stack.
-  // and recover volatile registers.
-  if (Callee->arg.size() > 4) {
-    // @TODO
-  }
+  // There's no need to recover volatile registers
   return true;
 }
 
@@ -492,13 +497,18 @@ void MEISel::operator()(IRHost *host, MInstHost *&mhost) {
       // but argument is not.
       // r0~r3 is volatile, we consider store r0~r3 in stack object; other args will
       // store in fix object.
-      for (auto *Arg : func->arg) {
-        // @TODO:
-        int RegId = Register::r0;
 
+      // store used r0~r3 in the entry BB.
+      machine->setInsertPoint(function->GetBasicBlock(func->block.begin().base()));
+      for (size_t i = 0; i < 4 && i < func->arg.size(); ++i) {
+        if (!func->arg[i]->hasNoEdge()) {
+          int FrameIndex = MF->CreateStackObject(func->arg[i], 4);
+          machine->RdRnImm(Opcode::STR, Register{(int)i, Register::Type::Int}, FrameIndex, 0);
+        }
       }
       for (size_t i = 4; i < func->arg.size(); ++i)
         MF->CreateFixObject(func->arg[i], 4); // pointer, int, float has the same 4 byte size.
+      // Generate other
       for (auto &BB : func->block) {
         basic_block = function->GetBasicBlock(&BB);
         machine->setInsertPoint(basic_block);

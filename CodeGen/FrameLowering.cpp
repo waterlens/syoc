@@ -4,6 +4,7 @@
 using namespace SyOC;
 using namespace SyOC::ARMv7a;
 
+
 void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
   size_t num_frames = mfunc->objects.size();
   size_t num_callee_saved = mfunc->callee_saved.size();
@@ -33,27 +34,40 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
       if (I->op == Opcode::FRAME) {
         Register Rd = I->ra;
         Register RegOffset = I->rb;
-        Register Sp {Register::sp, Register::Type::Int};
+        // calculate final offsets.
         int FrameIndex = std::get<int>(I->rc.base);
-        int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
-        Imm += mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset
-               + total_stack_offset;
+        int32_t BaseImm = std::get<int32_t>(I->rc.offset_or_else);
+        int32_t SpImm = BaseImm +
+          mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset +
+          total_stack_offset;
+        int32_t FpImm = BaseImm +
+           mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset -
+           total_stack_offset;
+        // choose the nearest sp/fp as the addressing base reg.
+        Register StackBase {(abs(SpImm) > abs(FpImm)) ? Register::fp : Register::sp,
+                          Register::Type::Int};
+        int32_t Imm = (abs(SpImm) > abs(FpImm)) ? FpImm : SpImm;
+
+
+        // insert new addressing offsets.
         if (Imm == 0 && RegOffset.isInvalid()) {
-          auto *minst = host->RdRm(Opcode::CPY, Rd, Sp);
+          auto *minst = host->RdRm(Opcode::CPY, Rd, StackBase);
           I->insert_before(minst);
         }
         if (Imm != 0) {
           auto *minst = host->RdRnOperand2(Opcode::ADD, Rd,
-                                           Sp, Shift::GetImm(Imm));
+                                           StackBase, Shift::GetImm(Imm));
           I->insert_before(minst);
         }
         if (!RegOffset.isInvalid()) {
           auto *minst = host->RdRnOperand2(Opcode::ADD, Rd,
-                                           Sp, Shift::GetDefaultShift(RegOffset));
+                                           StackBase, Shift::GetDefaultShift(RegOffset));
           I->insert_before(minst);
         }
         work_list.push_back(&*I);
       }
+
+      // ad-hoc addressing with STR, LDR with a frame object.
       if ((I->op == Opcode::STR || I->op == Opcode::LDR) &&
           I->rc.isStack())
       {

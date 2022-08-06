@@ -25,14 +25,16 @@ MFunction *MFunction::create(Function *func, MModule *module) {
     F->bb_map.insert({B.base(), MBB});
   }
   module->function.push_back(F);
+  module->func_map.insert(std::make_pair(func, F));
   return F;
 }
 
 int MFunction::CreateStackObject(Value *V, size_t size, bool isSpill) {
-  assert(V->is<Instruction>());
-  auto *alloca = V->as<Instruction *>();
-  assert(alloca->op == OP_Allocate);
-  objects.emplace_back(0, size, alloca, isSpill);
+  assert(V->is<Instruction>() || V->is<Argument>());
+  if (V->is<Instruction>())
+    objects.emplace_back(0, size, V->as<Instruction *>(), isSpill);
+  else
+    objects.emplace_back(0, size, nullptr, isSpill);
   int index = (int)objects.size() - num_fix_object - 1;
   frame_info.insert(std::make_pair(V, index));
   return index;
@@ -61,7 +63,19 @@ FrameObject *MFunction::GetFrameByIndex(int index) {
   return &objects[num_fix_object + index];
 }
 
+MFunction *MModule::GetMFunction(Function *F) {
+  return func_map.at(F);
+}
+
 #define assert_op_format(fmt) assert(get_op_format(op) == Format::fmt)
+MInstruction *MInstHost::Other(Opcode op) {
+  assert_op_format(IF_Other);
+  auto *p = MInstruction::create();
+  p->op = op;
+  return p;
+}
+
+
 MInstruction *MInstHost::RdRnRm(Opcode op, Register rd, Register rn, Register rm,
                                 Condition cond) {
   assert_op_format(IF_RdRnRm);
