@@ -510,6 +510,8 @@ void MEISel::operator()(IRHost *host, MInstHost *&mhost) {
       MFunction *MF = MFunction::create(func, machine->root);
       if (func->name == "__syoc_init")
         machine->syoc_init_func = MF;
+      if (func->refExternal())
+        continue;
       function = MF;
       // dealing with calling convention.
       // SimpleAllocationElimination guarantees that no unused local variables,

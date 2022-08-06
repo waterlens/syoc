@@ -45,7 +45,7 @@ static std::string getRegName(Register &reg) {
 
 static std::string dumpIF_Other(MInstruction *minst) {
   assert(minst->op == Opcode::NOP || minst->op == Opcode::CLEARUSE);
-  return "nop\t";
+  return "\tnop\n";
 }
 
 static std::string dumpIF_RdRnOperand2(MInstruction *minst) {

@@ -161,7 +161,8 @@ BasicBlock::~BasicBlock() {
     // then to node will destruct the edge
     // which will call removeSuccessor of this
   }
-  remove_from_list();
+  /// @attention duplicated remove from list.
+  // remove_from_list();
 }
 
 Argument *Argument::create(Type type, std::string_view name,

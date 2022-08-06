@@ -66,7 +66,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
                                            StackBase, Shift::GetDefaultShift(RegOffset));
           I->insert_before(minst);
         }
-        work_list.push_back(&*I);
+        work_list.push_back(I.base());
       }
 
       // ad-hoc addressing with STR, LDR with a frame object.
@@ -82,7 +82,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
               + total_stack_offset;
         auto *minst = host->RdRnImm(I->op, Rd, Sp, Imm);
         I->insert_before(minst);
-        work_list.push_back(&*I);
+        work_list.push_back(I.base());
       }
     }
   }
@@ -128,6 +128,7 @@ void FrameLowering::emitEpilogue(MFunction *mfunc, MInstHost *host) {
     auto *pop = host->Reglist(Opcode::POP, RegisterList{list});
     LastMInst.insert_before(pop);
   }
+
 }
 
 void FrameLowering::deadCodeElimination() {

@@ -94,9 +94,9 @@ void SimplifyCFG::removeUnreachable(Function *f, IRHost &host) {
   }
   for (auto *dead_bb : bb_work_list) {
     for (auto inst_iter = dead_bb->begin();
-         inst_iter != dead_bb->end(); ++inst_iter) {
+         inst_iter != dead_bb->end(); ) {
       inst_iter->replaceAllUsesWith(nullptr);
-      inst_work_list.push_back(inst_iter.base());
+      inst_iter.release_and_increase(true);
     }
     dead_bb->release(true);
   }
@@ -106,7 +106,7 @@ void SimplifyCFG::removeUnreachable(Function *f, IRHost &host) {
 
 void SimplifyCFG::operator()(IRHost &host) {
   for (auto *func : host.getModule()->func) {
-    removeUnreachable(func, host);
+    // removeUnreachable(func, host);
     for (auto &bb : func->block) clearExtraJump(&bb);
   }
   CFGAnalysis{}(host);
