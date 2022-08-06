@@ -66,7 +66,7 @@ void InstCombine::switchOperands(IRHost &host) {
   for (Function *F : host.getModule()->func) {
     for (BasicBlock &BB : F->block) {
       for (auto I = BB.begin(), E = BB.end(); I != E; ++I) {
-        if (I->op == OP_Add || I->op == OP_Sub || I->op == OP_Mul) {
+        if (I->op == OP_Add || I->op == OP_Mul) {
           // We assume after Constant-Folding, Binary Operators
           // has at most 1 constant operand, this pass guarantees
           // the constant operand is the second operand.

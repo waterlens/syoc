@@ -45,7 +45,7 @@ std::string IRDump::dumpInstructionInput(Value *value) {
   if (value == nullptr)
     return "<nullptr>";
   if (auto *ci = value->as<ConstantInteger *>())
-    return fmt::format("{}", ci->value);
+    return fmt::format("{:d}", static_cast<int64_t>(ci->value));
   if (auto *insn = value->as<Instruction *>())
     return fmt::format("{} %{}", dumpType(insn->type), insn->getIdentity());
   if (auto *arg = value->as<Argument *>())
