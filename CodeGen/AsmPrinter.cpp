@@ -135,7 +135,7 @@ static std::string dumpIF_RdRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.base);
   return fmt::format("\t{}{}\t{}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     getRegName(minst->ra), getRegName(minst->rb), rm.id);
+                     getRegName(minst->ra), getRegName(minst->rb), getRegName(rm));
 }
 
 static std::string dumpIF_RdRmRnRa(MInstruction *minst) {
@@ -151,7 +151,8 @@ static std::string dumpIF_RdLoRdHiRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.offset_or_else);
   return fmt::format("\t{}{}\t{}, {}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     getRegName(minst->ra), getRegName(minst->rb), rn.id, rm.id);
+                     getRegName(minst->ra), getRegName(minst->rb),
+                     getRegName(rn), getRegName(rm));
 }
 
 static std::string dumpIF_Label(MInstruction *minst) {

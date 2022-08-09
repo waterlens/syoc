@@ -19,6 +19,7 @@ MBasicBlock *MBasicBlock::create(MFunction *F) {
 MFunction *MFunction::create(Function *func, MModule *module) {
   MFunction *F = new MFunction;
   F->name = func->name;
+  F->refExternal = func->refExternal();
   for (auto B = func->block.begin(), BE = func->block.end();
        B != BE; ++B) {
     auto MBB = MBasicBlock::create(F);
@@ -30,8 +31,8 @@ MFunction *MFunction::create(Function *func, MModule *module) {
 }
 
 int MFunction::CreateStackObject(Value *V, size_t size, bool isSpill) {
-  assert(V->is<Instruction>() || V->is<Argument>());
-  if (V->is<Instruction>())
+  // assert(V->is<Instruction>() || V->is<Argument>());
+  if (V != nullptr && V->is<Instruction>())
     objects.emplace_back(0, size, V->as<Instruction *>(), isSpill);
   else
     objects.emplace_back(0, size, nullptr, isSpill);

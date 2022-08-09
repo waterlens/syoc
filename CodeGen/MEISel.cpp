@@ -110,7 +110,11 @@ Register MEISel::CreateImmLoad(uint32_t Imm, int RegHint, Register::Type type) {
   Register Rd {RegHint, type};
   if (test_Imm8(Imm)) {
     machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
-  } else {
+  }
+  else if (test_Imm16(Imm)) {
+    machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
+  }
+  else {
     // machine->RdImm(Opcode::LDR_PC, Rd, Imm);
     machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
     machine->RdImm(Opcode::MOVT, Rd, Imm >> 16);
@@ -143,6 +147,14 @@ Register MEISel::RegisterOrImm(Value *V, int RegHint) {
     int frame_fi = function->GetFrameObject(arg);
     machine->RdRnImm(Opcode::LDR, Rd, frame_fi, 0);
     return Rd;
+  }
+  if (auto *alloca = V->as<Instruction *>()) {
+    if (alloca->op == OP_Allocate) {
+      Register Rd = CreateVirtualRegister(V, RegHint);
+      int frame_fi = function->GetFrameObject(alloca);
+      machine->FrameAddr(Opcode::FRAME, Rd, frame_fi, Register{-1}, 0);
+      return Rd;
+    }
   }
   return function->value_map.at(V);
 }
@@ -264,8 +276,8 @@ bool MEISel::selectOP_End(Instruction *I) { return false; }
 bool MEISel::selectOP_Phi(Instruction *I) { return true; }
 
 // RdRnImm
-bool MEISel::selectOP_Mul(Instruction *I) { return selectRdRnImm(I); }
-bool MEISel::selectOP_Div(Instruction *I) { return selectRdRnImm(I); }
+bool MEISel::selectOP_Mul(Instruction *I) { return selectRdRnRm(I); }
+bool MEISel::selectOP_Div(Instruction *I) { return selectRdRnRm(I); }
 
 // RdRnOperand2
 bool MEISel::selectOP_Add(Instruction *I) { return selectRdRnOperand2(I); }
@@ -273,12 +285,15 @@ bool MEISel::selectOP_Sub(Instruction *I) { return selectRdRnOperand2(I); }
 bool MEISel::selectOP_Land(Instruction *I) { return selectRdRnOperand2(I); }
 bool MEISel::selectOP_Lor(Instruction *I)  { return selectRdRnOperand2(I); }
 bool MEISel::selectOP_Lnot(Instruction *I) {
-  return false;
+  Register Rd = CreateVirtualRegister(I);
+  Register SrcReg = RegisterOrImm(I->getOperand(0));
+  machine->RdRnOperand2(Opcode::RSB, Rd, SrcReg, Shift::GetImm(0));
+  return true;
 }
 bool MEISel::selectOP_Neg(Instruction *I) {
   // rsb rd, src, #0: rd = #0 - src
   Register SrcReg = RegisterOrImm(I->getOperand(0));
-  Register Rd = CreateVirtualRegister(I);
+  Register Rd = CreateVirtualRegister(I, SrcReg.id);
   machine->RdRnOperand2(Opcode::RSB, Rd, SrcReg, Shift::GetImm(0));
   return true;
 }
@@ -405,7 +420,7 @@ bool MEISel::selectOP_Call(Instruction *I) {
   for (size_t i = Callee->arg.size(); i-- > 4;) {
     Register SrcReg = RegisterOrImm(I->getOperand(i + 1));
     int32_t Offset = (i - 4) * 4;
-    machine->RdRnOperand2(Opcode::STR, SrcReg, Sp, Shift::GetImm(Offset));
+    machine->RdRnImm(Opcode::STR, SrcReg, Sp, Offset);
   }
   // Update stack size needed for push argument.
   MFunction *mfunc = machine->root->GetMFunction(Callee);
@@ -426,12 +441,11 @@ bool MEISel::selectOP_Offset(Instruction *I) {
   Value *Width = I->getOperand(Size - 1);
   // Assistant assertions.
   assert(Width->is<ConstantInteger>());
-  int32_t width = Width->as<ConstantInteger *>()->value;
-  assert(test_Imm_Pow2(width));
-  int32_t log2_width = 0;
-  while (!(width & (1 << log2_width))) log2_width++;
+  uint32_t width = Width->as<ConstantInteger *>()->value;
+//  assert(test_Imm_Pow2(width));
+//  int32_t log2_width = 0;
+//  while (!(width & (1 << log2_width))) log2_width++;
   // Ptr can be argument, global value, alloca
-
 
   uint32_t TotalImmOffset = 0;
   uint64_t TotalSize = 1;
@@ -457,7 +471,7 @@ bool MEISel::selectOP_Offset(Instruction *I) {
     } else {
       if (!FirstIndex) {
         Rd = CreateImmLoad(0, Rd.id);
-        FirstIndex = false;
+        FirstIndex = true;
       }
       IndexTemp = RegisterOrImm(Indexes[i], IndexTemp.id);
       if (Sizes[i + 1] != 1) {
@@ -466,18 +480,22 @@ bool MEISel::selectOP_Offset(Instruction *I) {
         machine->RdRmRnRa(Opcode::MLA, Rd, SizeTemp, IndexTemp, Rd);
       }
       machine->RdRnOperand2(Opcode::ADD, Rd, Rd, Shift::GetDefaultShift(IndexTemp));
-
     }
+  }
+  // considering pure Imm offset and variable offsets.
+  Register OffsetReg {(FirstIndex) ? Rd.id : -1, Register::Type::Int};
+  if (FirstIndex) {
+    Register WidthReg = RegisterOrImm(Width);
+    machine->RdRnRm(Opcode::MUL, Rd, Rd, WidthReg);
   }
 
   if (function->isFrameObject(Ptr)) {
     int stack_fi = function->GetFrameObject(Ptr);
-    machine->RdRnImm(Opcode::LSL, Rd, Rd, log2_width);
-    machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, Rd, 0);
+    machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, OffsetReg, TotalImmOffset * width);
   } else {
     Register Base = RegisterOrImm(Ptr);
     machine->RdRnOperand2(Opcode::ADD, Rd, Base,
-                               Shift{Shift::Type::SF_LSL, Rd, log2_width});
+                               Shift::GetDefaultShift(OffsetReg));
   }
   // Now Rd holds the final address.
   CreateVirtualRegister(I, Rd.id);

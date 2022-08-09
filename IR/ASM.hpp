@@ -119,6 +119,8 @@ struct Shift {
   static Shift GetImm(int32_t Imm) {
     return Shift {Type::SF_None, Register{-1}, Imm};
   }
+
+
   bool isPureReg() const { return reg.id != -1 && imm == 0;}
   bool isPureImm() const { return reg.id == -1; }
 };
@@ -170,6 +172,7 @@ struct MFunction {
   // Linearly Numbered BB
   List<MBasicBlock> block;
   std::string name;
+  bool refExternal;
   // stack frame sizes
   // 0 means temporary stack like push arguments.
   std::vector<FrameObject> objects;
@@ -290,6 +293,7 @@ inline int32_t Imm_Lowbit(int32_t Imm) {
 // Get Register Uses and Defs.
 inline void
 getUse(MInstruction *inst_iter, std::vector<Register *> &reg_use) {
+  reg_use.clear();
   if (!inst_iter->ra.isInvalid() && inst_iter->op == Opcode::STR)
     reg_use.push_back(&inst_iter->ra);
   if (!inst_iter->rb.isInvalid()) reg_use.push_back(&inst_iter->rb);
@@ -305,6 +309,7 @@ getUse(MInstruction *inst_iter, std::vector<Register *> &reg_use) {
 
 inline void
 getDef(MInstruction *inst_iter, std::vector<Register *> &reg_def) {
+  reg_def.clear();
   if (!inst_iter->ra.isInvalid() && inst_iter->op != Opcode::STR)
     reg_def.push_back(&inst_iter->ra);
 }

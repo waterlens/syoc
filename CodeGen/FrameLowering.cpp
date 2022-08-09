@@ -12,7 +12,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
 
   // callee saved register.
   total_stack_offset = num_callee_saved * 4;
-  // Add call stack args
+  // save call stack args
   total_stack_offset += mfunc->call_stack_args * 4;
   // stack local variables.
   for (size_t i = mfunc->num_fix_object; i < num_frames; ++i) {
@@ -26,6 +26,9 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
     total_fix_offset += mfunc->objects[i].Size;
   }
 
+  // GNUEABI requires Stack Pointer aligned at 8 byte;
+  // round up stack size aligned at 8 byte.
+  total_stack_offset = (total_fix_offset + stack_align - 1) & ~(stack_align - 1);
 
   // lowering frame info to stack
   for (auto &BB : mfunc->block) {
@@ -140,6 +143,8 @@ void FrameLowering::deadCodeElimination() {
 void FrameLowering::operator()(MInstHost &host) {
   host.clearInsertPoint();
   for (auto *mfunc : host.root->function) {
+    if (mfunc->refExternal)
+      continue;
     lowering(mfunc, &host);
     deadCodeElimination();
     emitPrologue(mfunc, &host);

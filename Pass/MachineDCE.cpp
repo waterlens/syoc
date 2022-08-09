@@ -4,6 +4,8 @@ using namespace SyOC::ARMv7a;
 
 void MachineDCE::removeDeadMov(MInstHost &host) {
   for (auto *mfunc : host.root->function) {
+    if (mfunc->refExternal)
+      continue;
     for (auto &mbb : mfunc->block) {
       for (auto inst_iter = mbb.insn.begin(), inst_end = mbb.insn.end();
            inst_iter != inst_end; ++inst_iter)

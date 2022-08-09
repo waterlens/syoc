@@ -35,7 +35,8 @@ void InstCombine::comparisonSimplify(IRHost &host) {
       for (auto I = BB.begin(), E = BB.end(); I != E; ++I) {
         if (I->op == OP_Lnot) {
             Instruction *Expr = I->getOperand(0)->as<Instruction *>();
-            assert(Expr);
+            if (!Expr)
+              continue ;
             // If lnot a comparison like:
             //  %8 = lt %7, 10 -> Expr
             //  %9 = lnot %8 -> I

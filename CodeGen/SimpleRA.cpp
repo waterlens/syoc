@@ -1,97 +1,147 @@
 
 #include "SimpleRA.hpp"
+#include "Pass/AssignIdentityHelper.hpp"
+#include "Pass/TraversalHelper.hpp"
 #include <vector>
+#include <limits>
+
 
 using namespace SyOC::ARMv7a;
 
-
-static bool used[RegisterList::RegCount] = { false };
+// Used to
+static int preg2vreg[RegisterList::RegCount];
 static bool needCalleeSave[RegisterList::RegCount] = { false };
+static std::vector<int> default_free_int_reg = {
+  Register::r4, Register::r5, Register::r6, Register::r7, Register::r8,
+  Register::r9, Register::r10
+};
 
-static void spill();
-
-static void setAllAvailable() {
-  memset(used, 0, sizeof(used));
+static bool checkReDef(const std::vector<Register *> &reg_def,
+                const std::vector<Register *> &reg_use)
+{
+  for (auto *used : reg_use)
+    for (auto *defed : reg_def)
+      if (used->id == defed->id) return true;
+  return false;
 }
 
-static void setNonVolatileAvailable() {
-  for (int i = Register::r4; i <= Register::r10; ++i)
-    used[i] = false;
-}
 
-static int getAvailableIntReg() {
-  for (int i = Register::r4; i <= Register::r10; ++i)
-    if (!used[i]) {
-      used[i] = true;
-      needCalleeSave[i] = true;
-      return i;
+void SimpleRA::rewrite(MFunction *MF, MInstHost *MHost) {
+  std::vector<Register *> reg_use;
+  std::vector<Register *> reg_def;
+  MHost->clearInsertPoint();
+  for (auto &MBB : MF->block) {
+    Register AuxReg {Register::r0, Register::Type::Int};
+    for (auto &MI : MBB.insn) {
+      getUse(&MI, reg_use);
+      for (auto *reg : reg_use) {
+        // spilled, reload
+        auto spill_iter = spiller.find(reg->id);
+        if (spill_iter != spiller.end()) {
+          auto *Reload = MHost->RdRnImm(Opcode::STR, AuxReg,
+                                        spill_iter->second.FrameIndex, 0);
+          MI.insert_before(Reload);
+          reg->id = AuxReg.id;
+          AuxReg.id++;
+        } else reg->id = vreg2preg[reg->id];
+      }
+
+      getDef(&MI, reg_def);
+      for (auto *reg : reg_def) {
+        // spilled, spill to memory
+        auto spill_iter = spiller.find(reg->id);
+        if (spill_iter != spiller.end()) {
+          auto *Reload = MHost->RdRnImm(Opcode::STR, AuxReg,
+                                        spill_iter->second.FrameIndex, 0);
+          MI.insert_after(Reload);
+          reg->id = AuxReg.id;
+          AuxReg.id++;
+        } else reg->id = vreg2preg[reg->id];
+      }
     }
-  return -1;
-}
-
-static int getAvailableFloatReg() {
-  for (int i = Register::s4; i <= Register::s31; ++i)
-    if (!used[i]) {
-      used[i] = true;
-      return i;
-    }
-  return -1;
-}
-
-
-static int getAvailableReg(Register::Type type) {
-  return type == Register::Int ? getAvailableIntReg() : getAvailableFloatReg();
-}
-
-static std::vector<Register *>
-getUse(MInstruction *minst) {
-  std::vector<Register *> Result;
-  if (!minst->ra.isInvalid()) Result.push_back(&minst->ra);
-  if (!minst->rb.isInvalid()) Result.push_back(&minst->rb);
-  if (minst->rc.isPointerOrGlobal())
-    Result.push_back(&std::get<Register>(minst->rc.base));
-  if (minst->rc.hasElseReg())
-    Result.push_back(&std::get<Register>(minst->rc.offset_or_else));
-  if (minst->rc.hasShift()) {
-    Register &shift_base = std::get<Shift>(minst->rc.offset_or_else).reg;
-    if (!shift_base.isInvalid()) Result.push_back(&shift_base);
   }
-  return Result;
+}
+
+void SimpleRA::trySpill(int RegId, LiveInterval Interval, MFunction *MF) {
+  auto FurtherLive = occupied_intervals.begin();
+  // Spill a reg in use.
+  if (Interval.Out < FurtherLive->first.Out) {
+    vreg2preg[RegId] = vreg2preg[FurtherLive->second];
+    int FrameIndex = MF->CreateStackObject(nullptr, 4, true);
+    spiller.insert(std::make_pair(FurtherLive->second,
+                                  SpillInfo{FrameIndex}));
+    occupied_intervals.erase(FurtherLive);
+    occupied_intervals.insert(std::make_pair(Interval, RegId));
+  } else {
+    int FrameIndex = MF->CreateStackObject(nullptr, 4, true);
+    spiller.insert(std::make_pair(RegId, SpillInfo{FrameIndex}));
+  }
+}
+
+int SimpleRA::getFreeReg(Register::Type type) {
+  if (type == Register::Type::Int || !free_int_reg.empty()) {
+    auto int_reg_iter = free_int_reg.begin();
+    int int_reg_id = *int_reg_iter;
+    free_int_reg.erase(int_reg_iter);
+    return int_reg_id;
+  }
+  if (type == Register::Type::Float || !free_float_reg.empty()){
+    auto float_reg_iter = free_float_reg.begin();
+    int float_reg_id = *float_reg_iter;
+    free_float_reg.erase(float_reg_iter);
+    return float_reg_id;
+  }
+  return -1;
+}
+
+void SimpleRA::collectFreeReg(int RegId, Register::Type type) {
+  if (RegId == -1) return;
+  if (type == Register::Type::Int) free_int_reg.insert(RegId);
+  else free_float_reg.insert(RegId);
 }
 
 void SimpleRA::operator()(MInstHost &mhost) {
+  CFGLinearization(mhost);
+  assignMIdentity(mhost);
+  std::vector<Register *> reg_uses;
+  std::vector<Register *> reg_defs;
+  /// @attention: We assume after select mem SSA, store means assign a value,
+  /// all intermediate result will not be preg2vreg again.
+  /// But it's wrong.
+  /// @code
+  ///     void %7 <- store i32* %4, i32 #p //
+  ///     i32 %8 <- sub i32 #p, 1 // %10 %9
+  ///     void %9 <- store i32* %4, i32 %8 //
+  ///     void %10 <- ret i32 %8 //
   for (MFunction *mf : mhost.root->function) {
-    setAllAvailable();
-    memset(needCalleeSave, 0, sizeof(needCalleeSave));
-    for (auto mbb = mf->block.begin(); mbb != mf->block.end(); ++mbb) {
-      for (auto minst = mbb->insn.begin(); minst != mbb->insn.end(); ++minst) {
-        if (minst->op == Opcode::CLEARUSE) {
-          setNonVolatileAvailable();
-          continue;
+    if (mf->refExternal)
+      continue;
+    occupied_intervals.clear();
+    free_intervals.clear();
+    free_int_reg.clear();
+    free_int_reg.insert(default_free_int_reg.begin(),
+                        default_free_int_reg.end());
+    getRawLiveness(mf);
+    for (const auto &live : free_intervals) {
+      int reg_in = live.first.In;
+      for (auto occupy_iter = occupied_intervals.begin();
+           occupy_iter != occupied_intervals.end(); ++occupy_iter)
+      {
+        // a dead vreg.
+        if (occupy_iter->first.Out <= reg_in)  {
+          int reg_id = vreg2preg.at(occupy_iter->second);
+          collectFreeReg(reg_id, Register::Type::Int);
+          occupied_intervals.erase(occupy_iter);
         }
-        auto Uses = getUse(&*minst);
-        for (Register *reg : Uses) {
-          if (!reg->isVirtual())
-            continue ;
-          auto map_iter = reg_map.find(reg->id);
-          if (map_iter != reg_map.end()) {
-            reg->id = map_iter->second;
-          } else {
-            int alloc_id = getAvailableReg(reg->type);
-            reg_map.insert(std::make_pair(reg->id, alloc_id));
-            fmt::print("allocate vreg:{:d} to id:{:d}\n", reg->id, alloc_id);
-            assert(alloc_id != -1);
-            reg->id = alloc_id;
-          }
-        }
-        // We assume after select mem SSA, store means assign a value,
-        // all intermediate result will not be used again.
-        if (minst->op == Opcode::STR || minst->op == Opcode::CMP) {
-          setAllAvailable();
-          reg_map.clear();
-        }
+        int free_reg_id = getFreeReg(Register::Type::Int);
+        if (free_reg_id != -1) {
+          vreg2preg[live.second] = free_reg_id;
+          occupied_intervals.insert(live);
+        } else
+          trySpill(live.second, live.first, mf);
       }
     }
+    rewrite(mf, &mhost);
     // A no-use CalleeSaved Info.
     for (int i = 0; i < RegisterList::RegCount; ++i)
       if (needCalleeSave[i] && i > Register::r3) {
@@ -101,4 +151,48 @@ void SimpleRA::operator()(MInstHost &mhost) {
         mf->callee_saved.push_back(Info);
       }
   }
+}
+
+void SimpleRA::getRawLiveness(MFunction *mfunc) {
+  std::unordered_map<int, LiveInterval> temp_liveness;
+  std::vector<Register *> reg_uses;
+  std::vector<Register *> reg_defs;
+  for (auto &mbb : mfunc->block) {
+    for (auto inst_iter = mbb.insn.begin(), end_iter = mbb.insn.end();
+         inst_iter != end_iter; ++ inst_iter)
+    {
+      getUse(inst_iter.base(), reg_uses);
+      for (auto *reg : reg_uses) {
+        if (!reg->isVirtual())
+          continue;
+        auto map_iter = temp_liveness.find(reg->id);
+        assert(map_iter != temp_liveness.end());
+        int cur_out = map_iter->second.Out;
+        if (cur_out < inst_iter->id)
+          map_iter->second.Out = inst_iter->id;
+      }
+      getDef(inst_iter.base(), reg_defs);
+      for (auto *reg : reg_defs) {
+        if (!reg->isVirtual())
+          continue;
+        auto map_iter = temp_liveness.find(reg->id);
+        if (map_iter != temp_liveness.end()) {
+          int cur_in = map_iter->second.In;
+          if (cur_in > inst_iter->id)
+            map_iter->second.In = inst_iter->id;
+        } else
+          temp_liveness.insert(std::make_pair(reg->id,
+                        LiveInterval{inst_iter->id,0}));
+      }
+    }
+  }
+  for (auto &iter : temp_liveness) {
+    free_intervals.push_back(std::make_pair(iter.second, iter.first));
+  }
+  std::sort(free_intervals.begin(), free_intervals.end(),
+            [](const auto &lhs, const auto &rhs) { return lhs.first.In < rhs.first.In;});
+}
+
+void SimpleRA::CFGLinearization(MInstHost &host) {
+    /// @TODO
 }
