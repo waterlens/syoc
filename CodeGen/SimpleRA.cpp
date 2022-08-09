@@ -141,15 +141,20 @@ void SimpleRA::operator()(MInstHost &mhost) {
     getRawLiveness(mf);
     for (const auto &live : free_intervals) {
       int reg_in = live.first.In;
+      std::vector<decltype(occupied_intervals.begin())> work_list;
       for (auto occupy_iter = occupied_intervals.begin();
            occupy_iter != occupied_intervals.end(); ++occupy_iter) {
         // a dead vreg.
         if (occupy_iter->first.Out <= reg_in) {
           int reg_id = vreg2preg.at(occupy_iter->second);
           collectFreeReg(reg_id, Register::Type::Int);
-          occupied_intervals.erase(occupy_iter);
+          // occupied_intervals.erase(occupy_iter);
+          work_list.push_back(occupy_iter);
         }
       }
+      for (auto &dead_interval : work_list)
+        occupied_intervals.erase(dead_interval);
+
       int free_reg_id = getFreeReg(Register::Type::Int);
       if (free_reg_id != -1) {
         vreg2preg[live.second] = free_reg_id;

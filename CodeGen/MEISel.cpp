@@ -80,6 +80,7 @@ static Register::Type getRegType(Value *V) {
     return Register::Type::Int;
   }
   if (auto *I = V->as<Instruction *>()) {
+    if (I->type.pointer > 0) return Register::Type::Int;
     assert(!I->type.isVoid());
     if (I->type.isInt()) return Register::Type::Int;
     if (I->type.isFloat()) return Register::Type::Float;
