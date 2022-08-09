@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
                 Option<bool>("--version", "-v").setDefault("false"),
                 Option<bool>("--debug-opt-parser").setDefault("false"),
                 Option<bool>("--implicit-runtime").setDefault("true"),
+                Option<bool>("-S").setDefault("true"),
+                Option<bool>("-O2").setDefault("true"),
                 Option<std::string_view>("--output", "-o"),
                 Option<std::string_view>("filename"));
 
