@@ -25,3 +25,4 @@ class DeadCodeElimination;
 #include "IteratedDominanceFrontierAnalysis.hpp"
 #include "PromoteMem2Reg.hpp"
 #include "DeadCodeElimination.hpp"
+#include "FixTimeMeasurement.hpp"
