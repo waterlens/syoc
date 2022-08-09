@@ -66,6 +66,8 @@ void putfarray(int n, float a[]);
 
 void starttime();
 void stoptime();
+void _sysy_starttime(int lineno);
+void _sysy_stoptime(int lineno);
 )" + fileContent;
 
   SyOC::Parser parser(fileContent);
@@ -75,10 +77,10 @@ void stoptime();
   transformer
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
-  transformer
-    .doSSATransformation<SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
-                         SyOC::SimpleAllocationElimination,
-                         SyOC::PromoteMem2Reg, SyOC::DeadCodeElimination,
-                         SyOC::SimplifyCFG, SyOC::IRDump, SyOC::CFGDump>();
+  transformer.doSSATransformation<
+    SyOC::IRDump, SyOC::SimplifyCFG, SyOC::IRDump,
+    SyOC::SimpleAllocationElimination, SyOC::PromoteMem2Reg,
+    SyOC::DeadCodeElimination, SyOC::SimplifyCFG, SyOC::FixTimeMeasurement,
+    SyOC::IRDump, SyOC::CFGDump>();
   return 0;
 }

@@ -1,4 +1,5 @@
 #include "IR.hpp"
+#include <cassert>
 
 namespace SyOC {
 
@@ -12,6 +13,7 @@ UseEdge::UseEdge(Value *from, Value *to) {
 UseEdge::UseEdge(UseEdge &&edge) noexcept {
   from = edge.from;
   to = edge.to;
+  assert(from && to);
   edge.from = nullptr;
   edge.to = nullptr;
   from->removeEdge(&edge);
