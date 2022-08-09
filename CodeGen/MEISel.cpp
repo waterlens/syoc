@@ -159,15 +159,6 @@ Register MEISel::RegisterOrImm(Value *V, int RegHint) {
   return function->value_map.at(V);
 }
 
-// As compiled runtime library is compiled by thumb
-// We should use blx to make appropriate function call.
-static bool isRuntimeFunction(std::string_view name) {
-  return (name == "getint" || name == "getch" || name == "getfloat" ||
-      name == "getarray" || name == "getfarray" ||
-      name == "putint" || name == "putch" || name == "putfloat" ||
-      name == "putarray" || name == "putfarray" ||
-      name == "starttime" || name == "stoptime");
-}
 
 //===-- Instruction Selection Phase ----*- C++ -*-===//
 //===---------------------------------------------===//

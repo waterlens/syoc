@@ -252,8 +252,11 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
   buffer += fmt::format("\t.global {}\n", mfunc->name);
   // use unified GNU ARM asm syntax and arm code.
   // GCC generate thumb code by default.
-  buffer += "\t.syntax unified\n"
-            "\t.arm\n";
+  buffer += "\t.syntax unified\n";
+
+  if (isRuntimeFunction(mfunc->name)) buffer += "\t.thumb\n";
+  else buffer += "\t.arm\n";
+
   buffer += fmt::format("\t.type\t{}, %function\n", mfunc->name);
   buffer += fmt::format("{}:\n", mfunc->name);
   // print frame info.
@@ -261,8 +264,10 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
     buffer += fmt::format("// #fi:{:d} stack:%{:d}, size = {:d}\n",
                           i - mfunc->num_fix_object, i, mfunc->objects[i].Size);
   // dump Machine BB.
-  for (auto &mbb : mfunc->block) {
-    dumpMBasicBlock(&mbb);
+  if (!mfunc->refExternal) {
+    for (auto &mbb : mfunc->block) {
+      dumpMBasicBlock(&mbb);
+    }
   }
   buffer += fmt::format("\t.size\t{}, .-{}\n", mfunc->name, mfunc->name);
 }
