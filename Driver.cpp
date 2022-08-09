@@ -105,6 +105,7 @@ int __aeabi_idiv(int a, int b);
                          SyOC::SimpleAllocationElimination,
                          SyOC::DeadCodeElimination,
                          SyOC::IRLegalize,
+                         SyOC::FixTimeMeasurement,
                          SyOC::IRDump>();
   // instruction selection
   SyOC::ARMv7a::AsmPrinter out;

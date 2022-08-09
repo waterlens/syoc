@@ -167,6 +167,8 @@ void SimpleRA::operator()(MInstHost &mhost) {
     }
     rewrite(mf, &mhost);
     // A no-use CalleeSaved Info.
+    needCalleeSave[Register::fp] = true;
+    needCalleeSave[Register::lr] = true;
     for (int i = Register::r4; i < RegisterList::RegCount; ++i)
       if (needCalleeSave[i] && i > Register::r3) {
         CalleeSaved Info;
