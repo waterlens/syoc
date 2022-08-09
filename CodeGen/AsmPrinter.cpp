@@ -257,7 +257,7 @@ void AsmPrinter::dumpMBasicBlock(MBasicBlock *mbb) {
 }
 
 void AsmPrinter::dumpMFunction(MFunction *mfunc) {
-  if (isEABIFunction(mfunc->name))
+  if (isEABIFunction(mfunc->name) || mfunc->refExternal)
     return;
   static size_t func_count = 0;
   // align 2 targets arm 32bit
@@ -279,10 +279,8 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
     buffer += fmt::format("// #fi:{:d} stack:%{:d}, size = {:d}\n",
                           i - (int)mfunc->num_fix_object, i, mfunc->objects[i].Size);
   // dump Machine BB.
-  if (!mfunc->refExternal) {
-    for (auto &mbb : mfunc->block) {
-      dumpMBasicBlock(&mbb);
-    }
+  for (auto &mbb : mfunc->block) {
+    dumpMBasicBlock(&mbb);
   }
   buffer += fmt::format("\t.size\t{}, .-{}\n", mfunc->name, mfunc->name);
 }

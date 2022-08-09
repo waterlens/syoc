@@ -491,7 +491,7 @@ bool MEISel::selectOP_Offset(Instruction *I) {
   } else {
     Register Base = RegisterOrImm(Ptr);
     machine->RdRnOperand2(Opcode::ADD, Rd, Base,
-                               Shift::GetDefaultShift(OffsetReg));
+                               Shift::GetImm(TotalImmOffset * width));
   }
   // Now Rd holds the final address.
   CreateVirtualRegister(I, Rd.id);
