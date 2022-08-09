@@ -26,11 +26,13 @@ inline void assignMIdentity(MInstHost &host) {
   size_t id = 0;
   size_t bbid = 0;
   for (MFunction *func : host.root->function) {
+    if (func->refExternal)
+      continue;
     std::for_each(func->block.begin(), func->block.end(), [&](auto &mbb) {
       mbb.id = bbid++;
       std::for_each(mbb.insn.begin(), mbb.insn.end(), [&](auto &minst) {
         minst.id = id++;
-      });
+     });
     });
   }
 }

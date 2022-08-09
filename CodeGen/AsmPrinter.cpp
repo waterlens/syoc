@@ -133,6 +133,10 @@ static std::string dumpIF_RnOperand2(MInstruction *minst) {
 
 static std::string dumpIF_RdRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.base);
+  if (minst->op == Opcode::STR_REG)
+    return fmt::format("\t{}{}\t{}, [{}, {}]\n",
+                       getMInstName(minst->op), getCondName(minst->cond),
+                       getRegName(minst->ra), getRegName(minst->rb), getRegName(rm));
   return fmt::format("\t{}{}\t{}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
                      getRegName(minst->ra), getRegName(minst->rb), getRegName(rm));
@@ -143,7 +147,8 @@ static std::string dumpIF_RdRmRnRa(MInstruction *minst) {
   Register ra = std::get<Register>(minst->rc.offset_or_else);
   return fmt::format("\t{}{}\t{}, {}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
-                     getRegName(minst->ra), getRegName(minst->rb), rn.id, ra.id);
+                     getRegName(minst->ra), getRegName(minst->rb),
+                     getRegName(rn), getRegName(ra));
 }
 
 static std::string dumpIF_RdLoRdHiRnRm(MInstruction *minst) {
@@ -207,7 +212,8 @@ static std::string dumpIF_Rm(MInstruction *minst) {
 static std::string dumpIF_Reglist(MInstruction *minst) {
   RegisterList list = std::get<RegisterList>(minst->rc.offset_or_else);
   bool first_reg = true;
-  std::string asm_format = fmt::format("\t{}\t{", getMInstName(minst->op));
+  std::string asm_format = fmt::format("\t{}\t", getMInstName(minst->op));
+  asm_format += "{";
   for (int i = 0; i < RegisterList::RegCount; ++i) {
     if (list.ls & (1 << i)) {
       if (first_reg) { asm_format += RegNames[i]; first_reg = false; }

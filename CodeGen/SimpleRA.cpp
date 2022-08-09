@@ -35,19 +35,28 @@ void SimpleRA::rewrite(MFunction *MF, MInstHost *MHost) {
     for (auto &MI : MBB.insn) {
       getUse(&MI, reg_use);
       for (auto *reg : reg_use) {
+        if (!reg->isVirtual())
+          continue;
         // spilled, reload
         auto spill_iter = spiller.find(reg->id);
         if (spill_iter != spiller.end()) {
-          auto *Reload = MHost->RdRnImm(Opcode::STR, AuxReg,
+          auto *Reload = MHost->RdRnImm(Opcode::LDR, AuxReg,
                                         spill_iter->second.FrameIndex, 0);
           MI.insert_before(Reload);
           reg->id = AuxReg.id;
           AuxReg.id++;
-        } else reg->id = vreg2preg[reg->id];
+        } else {
+          int preg_id = vreg2preg.at(reg->id);
+          if (!needCalleeSave[preg_id])
+            needCalleeSave[preg_id] = true;
+          reg->id = preg_id;
+        }
       }
 
       getDef(&MI, reg_def);
       for (auto *reg : reg_def) {
+        if (!reg->isVirtual())
+          continue;
         // spilled, spill to memory
         auto spill_iter = spiller.find(reg->id);
         if (spill_iter != spiller.end()) {
@@ -56,7 +65,12 @@ void SimpleRA::rewrite(MFunction *MF, MInstHost *MHost) {
           MI.insert_after(Reload);
           reg->id = AuxReg.id;
           AuxReg.id++;
-        } else reg->id = vreg2preg[reg->id];
+        } else {
+          int preg_id = vreg2preg.at(reg->id);
+          if (!needCalleeSave[preg_id])
+            needCalleeSave[preg_id] = true;
+          reg->id = preg_id;
+        }
       }
     }
   }
@@ -79,13 +93,13 @@ void SimpleRA::trySpill(int RegId, LiveInterval Interval, MFunction *MF) {
 }
 
 int SimpleRA::getFreeReg(Register::Type type) {
-  if (type == Register::Type::Int || !free_int_reg.empty()) {
+  if (type == Register::Type::Int && !free_int_reg.empty()) {
     auto int_reg_iter = free_int_reg.begin();
     int int_reg_id = *int_reg_iter;
     free_int_reg.erase(int_reg_iter);
     return int_reg_id;
   }
-  if (type == Register::Type::Float || !free_float_reg.empty()){
+  if (type == Register::Type::Float && !free_float_reg.empty()){
     auto float_reg_iter = free_float_reg.begin();
     int float_reg_id = *float_reg_iter;
     free_float_reg.erase(float_reg_iter);
@@ -116,34 +130,37 @@ void SimpleRA::operator()(MInstHost &mhost) {
   for (MFunction *mf : mhost.root->function) {
     if (mf->refExternal)
       continue;
+    memset(needCalleeSave, 0, sizeof(needCalleeSave));
     occupied_intervals.clear();
     free_intervals.clear();
     free_int_reg.clear();
     free_int_reg.insert(default_free_int_reg.begin(),
                         default_free_int_reg.end());
+    spiller.clear();
+
     getRawLiveness(mf);
     for (const auto &live : free_intervals) {
       int reg_in = live.first.In;
       for (auto occupy_iter = occupied_intervals.begin();
-           occupy_iter != occupied_intervals.end(); ++occupy_iter)
-      {
+           occupy_iter != occupied_intervals.end(); ++occupy_iter) {
         // a dead vreg.
-        if (occupy_iter->first.Out <= reg_in)  {
+        if (occupy_iter->first.Out <= reg_in) {
           int reg_id = vreg2preg.at(occupy_iter->second);
           collectFreeReg(reg_id, Register::Type::Int);
           occupied_intervals.erase(occupy_iter);
         }
-        int free_reg_id = getFreeReg(Register::Type::Int);
-        if (free_reg_id != -1) {
-          vreg2preg[live.second] = free_reg_id;
-          occupied_intervals.insert(live);
-        } else
-          trySpill(live.second, live.first, mf);
       }
+      int free_reg_id = getFreeReg(Register::Type::Int);
+      if (free_reg_id != -1) {
+        vreg2preg[live.second] = free_reg_id;
+        occupied_intervals.insert(live);
+      } else
+        trySpill(live.second, live.first, mf);
+
     }
     rewrite(mf, &mhost);
     // A no-use CalleeSaved Info.
-    for (int i = 0; i < RegisterList::RegCount; ++i)
+    for (int i = Register::r4; i < RegisterList::RegCount; ++i)
       if (needCalleeSave[i] && i > Register::r3) {
         CalleeSaved Info;
         Info.Reg = {i};

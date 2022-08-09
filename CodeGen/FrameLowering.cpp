@@ -10,15 +10,18 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
   size_t num_callee_saved = mfunc->callee_saved.size();
   int32_t total_stack_offset, total_fix_offset;
 
+  total_stack_offset = total_fix_offset = 0;
+
   // callee saved register.
   total_stack_offset = num_callee_saved * 4;
-  // save call stack args
-  total_stack_offset += mfunc->call_stack_args * 4;
   // stack local variables.
   for (size_t i = mfunc->num_fix_object; i < num_frames; ++i) {
     total_stack_offset += mfunc->objects[i].Size;
     mfunc->objects[i].Offset = -total_stack_offset;
   }
+  // save call stack args
+  total_stack_offset += mfunc->call_stack_args * 4;
+
   // fixed object, arguments.
   total_fix_offset = 0;
   for (size_t i = mfunc->num_fix_object; i-- > 0;) {
@@ -28,7 +31,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
 
   // GNUEABI requires Stack Pointer aligned at 8 byte;
   // round up stack size aligned at 8 byte.
-  total_stack_offset = (total_fix_offset + stack_align - 1) & ~(stack_align - 1);
+  total_stack_offset = (total_stack_offset + stack_align - 1) & ~(stack_align - 1);
 
   // lowering frame info to stack
   for (auto &BB : mfunc->block) {
@@ -149,5 +152,16 @@ void FrameLowering::operator()(MInstHost &host) {
     deadCodeElimination();
     emitPrologue(mfunc, &host);
     emitEpilogue(mfunc, &host);
+  }
+}
+
+void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
+  for (auto &BB : MF->block) {
+    for (auto I = BB.insn.begin(), E = BB.insn.end();
+         I != E; ++I)
+    {
+       if (I->op == Opcode::STR || I->op == Opcode::LDR) {
+       }
+    }
   }
 }

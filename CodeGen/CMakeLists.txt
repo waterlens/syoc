@@ -1,2 +1,5 @@
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} ALL_CODEGEN_SRC)
+file(GLOB ALL_CODEGEN_SRC
+        *.hpp
+        *.cpp
+        )
 target_sources(syoc PRIVATE ${ALL_CODEGEN_SRC})

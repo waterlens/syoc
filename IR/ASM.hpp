@@ -137,7 +137,7 @@ struct MFunction;
 struct MModule;
 
 struct Address {
-  std::variant<Register, int> base; // global / stack object
+  std::variant<int, Register> base; // global / stack object
   std::variant<int32_t, Register, Shift, RegisterList, MBasicBlock *, MFunction *, GlobalVariable *>
     offset_or_else;
 
@@ -306,9 +306,11 @@ getUse(MInstruction *inst_iter, std::vector<Register *> &reg_use) {
   if (!inst_iter->ra.isInvalid() && inst_iter->op == Opcode::STR)
     reg_use.push_back(&inst_iter->ra);
   if (!inst_iter->rb.isInvalid()) reg_use.push_back(&inst_iter->rb);
-  if (inst_iter->rc.isPointerOrGlobal())
+  if (inst_iter->rc.isPointerOrGlobal() &&
+      !std::get<Register>(inst_iter->rc.base).isInvalid())
     reg_use.push_back(&std::get<Register>(inst_iter->rc.base));
-  if (inst_iter->rc.hasElseReg())
+  if (inst_iter->rc.hasElseReg() &&
+      !std::get<Register>(inst_iter->rc.offset_or_else).isInvalid())
     reg_use.push_back(&std::get<Register>(inst_iter->rc.offset_or_else));
   if (inst_iter->rc.hasShift()) {
     Register &shift_base = std::get<Shift>(inst_iter->rc.offset_or_else).reg;

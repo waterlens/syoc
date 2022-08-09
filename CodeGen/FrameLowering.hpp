@@ -14,6 +14,7 @@ private:
   void emitPrologue(MFunction *, MInstHost *);
   void emitEpilogue(MFunction *, MInstHost *);
   void lowering(MFunction *, MInstHost *);
+  void legalizeOffset(MFunction *, MInstHost *);
   void deadCodeElimination();
 public:
   static std::string_view getName() { return "Frame Lowering";}
