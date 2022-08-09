@@ -289,6 +289,15 @@ inline int32_t Imm_Lowbit(int32_t Imm) {
   return Imm & (-Imm);
 }
 
+// As compiled runtime library is compiled by thumb
+// We should use blx to make appropriate function call.
+inline bool isRuntimeFunction(std::string_view name) {
+  return (name == "getint" || name == "getch" || name == "getfloat" ||
+          name == "getarray" || name == "getfarray" ||
+          name == "putint" || name == "putch" || name == "putfloat" ||
+          name == "putarray" || name == "putfarray" ||
+          name == "starttime" || name == "stoptime");
+}
 
 // Get Register Uses and Defs.
 inline void

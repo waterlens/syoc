@@ -94,6 +94,7 @@ void stoptime();
   transformer
     .doSSATransformation<SyOC::SimplifyCFG,
                          SyOC::SimpleAllocationElimination,
+                         SyOC::IRDump,
                          // SyOC::PromoteMem2Reg,
                          SyOC::InstCombine, SyOC::ConstantFolding, SyOC::SimplifyCFG,
                          SyOC::SimpleAllocationElimination,
@@ -105,9 +106,9 @@ void stoptime();
   transformer.doSSA2MInstTransformation<SyOC::MEISel>();
   out.print("mir.s", transformer.getMIR());
 
-  transformer.doMInstTransformation<SyOC::ARMv7a::PeepHole,
+  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA,
+                                    SyOC::ARMv7a::PeepHole,
                                     SyOC::ARMv7a::MachineDCE,
-                                    SyOC::ARMv7a::SimpleRA,
                                     SyOC::ARMv7a::FrameLowering
                                     >();
   std::string asmFileName;
