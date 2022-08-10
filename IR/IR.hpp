@@ -74,6 +74,7 @@ struct Type {
 
 struct PredefinedType {
   static constexpr Type Void = {Type::PrimitiveType::Void, 0, 0};
+  static constexpr Type VoidPtr = {Type::PrimitiveType::Void, 32, 1};
   static constexpr Type Int32 = {Type::PrimitiveType::Integer, 32, 0};
   static constexpr Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
   static constexpr Type Float = {Type::PrimitiveType::Float, 32, 0};

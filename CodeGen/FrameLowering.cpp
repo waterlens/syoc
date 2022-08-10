@@ -60,19 +60,37 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
 
 
         // insert new addressing offsets.
+        // pure frame
         if (Imm == 0 && RegOffset.isInvalid()) {
           auto *minst = host->RdRm(Opcode::CPY, Rd, StackBase);
           I->insert_before(minst);
         }
-        if (Imm != 0) {
-          auto *minst = host->RdRnOperand2(Opcode::ADD, Rd,
-                                           StackBase, Shift::GetImm(Imm));
+        // frame + reg + offset
+        if (Imm != 0 && !RegOffset.isInvalid()) {
+          /// @attention
+          /// frame	%11:gpr, #fi:2 offset %11:gpr, 0
+          /// may produce wrong code:
+          /// 	add 	r5, sp, #4
+          ///	add 	r5, r5, r5
+          auto *minst = host->RdRm(Opcode::CPY, Rd,
+                                           RegOffset);
           I->insert_before(minst);
-        }
-        if (!RegOffset.isInvalid()) {
-          auto *minst = host->RdRnOperand2(Opcode::ADD, Rd,
-                                           StackBase, Shift::GetDefaultShift(RegOffset));
+          minst = host->RdRnOperand2(Opcode::ADD, Rd,
+                                     StackBase, Shift::GetImm(Imm));
           I->insert_before(minst);
+        } else {
+          // frame + imm
+          if (Imm != 0) {
+            auto *minst = host->RdRnOperand2(Opcode::ADD, Rd, StackBase,
+                                             Shift::GetImm(Imm));
+            I->insert_before(minst);
+          }
+          // frame + reg
+          if (!RegOffset.isInvalid()) {
+            auto *minst = host->RdRnOperand2(Opcode::ADD, Rd, StackBase,
+                                             Shift::GetDefaultShift(RegOffset));
+            I->insert_before(minst);
+          }
         }
         work_list.push_back(I.base());
       }
@@ -117,7 +135,7 @@ void FrameLowering::emitPrologue(MFunction *mfunc, MInstHost *host) {
     Opcode::ADD, Fp, Sp, Shift::GetImm(mfunc->callee_saved.size() * 4));
   FirstMInst->insert_before(get_fp);
   // sub sp, sp #imm
-  if (list != 0) {
+  if (list != 0 && final_stack_size != 0) {
     auto *reduce_sp =
       host->RdRnOperand2(Opcode::SUB, Sp, Sp, Shift::GetImm(final_stack_size));
     FirstMInst->insert_before(reduce_sp);
@@ -133,16 +151,19 @@ void FrameLowering::emitEpilogue(MFunction *mfunc, MInstHost *host) {
   }
   auto &LastMInst = mfunc->block.back().insn.back();
   Register Sp {Register::sp, Register::Type::Int};
+  Register Fp {Register::fp, Register::Type::Int};
+  // add sp, sp #imm
+  if (list != 0 && final_stack_size != 0) {
+    auto *increase_sp =
+      host->RdRnOperand2(Opcode::ADD, Sp, Sp, Shift::GetImm(final_stack_size));
+    LastMInst.insert_before(increase_sp);
+
+  }
   if (list != 0) {
     auto *pop = host->Reglist(Opcode::POP, RegisterList{list});
     LastMInst.insert_before(pop);
   }
-  // add sp, sp #imm
-  if (list != 0) {
-    auto *increase_sp =
-      host->RdRnOperand2(Opcode::ADD, Sp, Sp, Shift::GetImm(final_stack_size));
-    LastMInst.insert_before(increase_sp);
-  }
+
 }
 
 void FrameLowering::deadCodeElimination() {

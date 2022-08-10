@@ -273,7 +273,7 @@ inline bool test_Imm8(int32_t Imm) {
 // mov/movw/movt Imm16
 inline bool test_Imm16(int32_t Imm) {
   auto uImm = static_cast<uint32_t>(Imm);
-  return uImm < 0xffffU;
+  return uImm <= 0xffffU;
 }
 
 inline bool test_LDR_STR_Imm_Offset(int32_t Imm) {

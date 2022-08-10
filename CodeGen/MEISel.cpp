@@ -212,6 +212,15 @@ static Type getAddressType(Value *V) {
 
 
 bool MEISel::selectComparison(Instruction *I) {
+  bool isPureCmp = true;
+  for (auto &User : Value::UserView {I->getEdgeHead()}) {
+    if (!I->as<Instruction *>()->isCompareInst()) {
+      isPureCmp = false;
+      break ;
+    }
+  }
+  if (!isPureCmp) return true;
+
   // compare
   Register Op1 = RegisterOrImm(I->getOperand(0));
   Register Op2 = RegisterOrImm(I->getOperand(1));
@@ -384,7 +393,7 @@ bool MEISel::selectOP_Branch(Instruction *I) {
   machine->RnOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
   // lowering jump
   auto *false_mbb = function->GetBasicBlock(I->getOperand(2)->as<BasicBlock *>());
-  machine->Label(Opcode::B, false_mbb, Condition::CT_NE);
+  machine->Label(Opcode::B, false_mbb, Condition::CT_EQ);
   auto *true_mbb = function->GetBasicBlock(I->getOperand(1)->as<BasicBlock *>());
   machine->Label(Opcode::B, true_mbb);
   return true;
@@ -425,7 +434,9 @@ bool MEISel::selectOP_Call(Instruction *I) {
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {
     Register Rd = CreateVirtualRegister(I);
-    machine->RdRm(Opcode::CPY, Rd, Register{Register::r0});
+    Register Return {Callee->name == "__aeabi_idivmod"? Register::r1 :Register::r0,
+                    Register::Type::Int};
+    machine->RdRm(Opcode::CPY, Rd, Return);
   }
   // There's no need to recover volatile registers
   return true;
@@ -485,7 +496,7 @@ bool MEISel::selectOP_Offset(Instruction *I) {
     machine->RdRnRm(Opcode::MUL, Rd, Rd, WidthReg);
   }
 
-  if (function->isFrameObject(Ptr)) {
+  if (function->isFrameObject(Ptr) && !Ptr->is<Argument>()) {
     int stack_fi = function->GetFrameObject(Ptr);
     machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, OffsetReg, TotalImmOffset * width);
   } else {
