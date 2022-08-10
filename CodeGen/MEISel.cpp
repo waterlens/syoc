@@ -53,6 +53,7 @@ static Condition getMachineCondition(OpType Op) {
   case OP_Le: return Condition::CT_LE;
   case OP_Eq: return Condition::CT_EQ;
   case OP_Ne: return Condition::CT_NE;
+  case OP_Lnot: return Condition::CT_NE;
   default: return Condition::CT_Any;
   }
 }
@@ -66,6 +67,7 @@ static Condition conjugateCondition(OpType Op) {
   case OP_Lt: return Condition::CT_GE;
   case OP_Eq: return Condition::CT_NE;
   case OP_Ne: return Condition::CT_EQ;
+  case OP_Lnot: return Condition::CT_EQ;
   default: return Condition::CT_Any;
   }
 }
@@ -388,6 +390,16 @@ bool MEISel::selectOP_Branch(Instruction *I) {
       machine->Label(Opcode::B, true_mbb);
       return true;
     }
+    if (Cmp->op == OP_Lnot) {
+      Register lhs = RegisterOrImm(Cond);
+      machine->RnOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
+      // lowering jump
+      auto *false_mbb = function->GetBasicBlock(I->getOperand(2)->as<BasicBlock *>());
+      machine->Label(Opcode::B, false_mbb, Condition::CT_NE);
+      auto *true_mbb = function->GetBasicBlock(I->getOperand(1)->as<BasicBlock *>());
+      machine->Label(Opcode::B, true_mbb);
+      return true;
+    }
   }
   Register lhs = RegisterOrImm(Cond);
   machine->RnOperand2(Opcode::CMP, lhs, Shift::GetImm(0));
@@ -425,11 +437,14 @@ bool MEISel::selectOP_Call(Instruction *I) {
     machine->Other(Opcode::CLEARUSE);
   }
   // Update stack size needed for push argument.
-  MFunction *mfunc = machine->root->GetMFunction(Callee);
+  MFunction *MFCaller =
+    machine->root->GetMFunction(
+    I->refParent()->as<BasicBlock *>()->refParent()->as<Function *>());
   if (Callee->arg.size() > 4) {
-    mfunc->call_stack_args =
-      std::max(mfunc->call_stack_args, Callee->arg.size() - 4);
+    MFCaller->call_stack_args =
+      std::max(MFCaller->call_stack_args, Callee->arg.size() - 4);
   }
+  MFunction *mfunc = machine->root->GetMFunction(Callee);
   machine->Label(opcode, mfunc);
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {
