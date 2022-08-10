@@ -19,6 +19,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
     total_stack_offset += mfunc->objects[i].Size;
     mfunc->objects[i].Offset = -total_stack_offset;
   }
+
   // save call stack args
   total_stack_offset += mfunc->call_stack_args * 4;
 
@@ -28,7 +29,9 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
     mfunc->objects[i].Offset = total_fix_offset;
     total_fix_offset += mfunc->objects[i].Size;
   }
-
+#ifndef NDEBUG
+  fmt::print("Function: {}, Stack Size: {}\n", mfunc->name, total_stack_offset);
+#endif
   // GNUEABI requires Stack Pointer aligned at 8 byte;
   // round up stack size aligned at 8 byte.
   total_stack_offset = (total_stack_offset + stack_align - 1) & ~(stack_align - 1);
@@ -117,9 +120,11 @@ void FrameLowering::emitPrologue(MFunction *mfunc, MInstHost *host) {
     FirstMInst->insert_before(get_fp);
   }
   // sub sp, sp #imm
-  auto *reduce_sp = host->RdRnOperand2(
-    Opcode::SUB, Sp, Sp, Shift::GetImm(final_stack_size));
-  FirstMInst->insert_before(reduce_sp);
+  if (list != 0) {
+    auto *reduce_sp =
+      host->RdRnOperand2(Opcode::SUB, Sp, Sp, Shift::GetImm(final_stack_size));
+    FirstMInst->insert_before(reduce_sp);
+  }
 }
 
 // pop callee saved register and add sp.
@@ -129,12 +134,18 @@ void FrameLowering::emitEpilogue(MFunction *mfunc, MInstHost *host) {
     if (!saved_info.SpilledToReg)
       list |= (1U << saved_info.Reg.id);
   }
-  auto LastMInst = mfunc->block.back().insn.back();
+  auto &LastMInst = mfunc->block.back().insn.back();
+  Register Sp {Register::sp, Register::Type::Int};
   if (list != 0) {
     auto *pop = host->Reglist(Opcode::POP, RegisterList{list});
     LastMInst.insert_before(pop);
   }
-
+  // add sp, sp #imm
+  if (list != 0) {
+    auto *increase_sp =
+      host->RdRnOperand2(Opcode::ADD, Sp, Sp, Shift::GetImm(final_stack_size));
+    LastMInst.insert_before(increase_sp);
+  }
 }
 
 void FrameLowering::deadCodeElimination() {
@@ -152,15 +163,60 @@ void FrameLowering::operator()(MInstHost &host) {
     deadCodeElimination();
     emitPrologue(mfunc, &host);
     emitEpilogue(mfunc, &host);
+    legalizeOffset(mfunc, &host);
+#ifndef NDEBUG
+    fmt::print("Function: {}, Stack Size: {}\n", mfunc->name, final_stack_size);
+#endif
+  }
+}
+
+void inline CreateLongImmLoad(uint32_t Imm, Register::Type type,
+                              MInstruction *I, MInstHost *MHost) {
+  Register Rd {Register::r12, type};
+  if (test_Imm16(Imm)) {
+    auto *Movw = MHost->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
+    I->insert_before(Movw);
+  }
+  else {
+    // machine->RdImm(Opcode::LDR_PC, Rd, Imm);
+    auto *MovW = MHost->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
+    I->insert_before(MovW);
+    auto *MovT = MHost->RdImm(Opcode::MOVT, Rd, Imm >> 16);
+    I->insert_before(MovT);
   }
 }
 
 void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
+  MHost->clearInsertPoint();
+  Register Aux {Register::r12, Register::Type::Int};
   for (auto &BB : MF->block) {
     for (auto I = BB.insn.begin(), E = BB.insn.end();
          I != E; ++I)
     {
-       if (I->op == Opcode::STR || I->op == Opcode::LDR) {
+       if (I->op == Opcode::STR &&
+         std::holds_alternative<int32_t>(I->rc.offset_or_else)) {
+         int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
+         if (!test_Imm8(Imm)) {
+           CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
+           I->op = Opcode::STR_REG;
+           I->rc.offset_or_else = Aux;
+         }
+       }
+       if (I->op == Opcode::LDR &&
+         std::holds_alternative<int32_t>(I->rc.offset_or_else)) {
+         int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
+         if (!test_Imm8(Imm)) {
+           CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
+           I->op = Opcode::LDR_REG;
+           I->rc.offset_or_else = Aux;
+         }
+       }
+       if (I->op == Opcode::ADD || I->op == Opcode::SUB) {
+         Shift SF = std::get<Shift>(I->rc.offset_or_else);
+         if (!test_Imm8(SF.imm)) {
+           CreateLongImmLoad(SF.imm, Register::Type::Int, I.base(), MHost);
+           I->rc.offset_or_else = Shift::GetDefaultShift(Aux);
+         }
        }
     }
   }

@@ -54,7 +54,7 @@ TargetIntegralRegister(r8, NonVolatile,     8)
 TargetIntegralRegister(r9, NonVolatile,     9)
 TargetIntegralRegister(r10, NonVolatile,    10)
 TargetIntegralRegister(fp, NonVolatile,     11) // r11
-TargetIntegralRegister(ip, Volatile,        12) // r12
+TargetIntegralRegister(r12, Volatile,        12) // r12
 TargetIntegralRegister(sp, NonVolatile,     13) // r13
 TargetIntegralRegister(lr, NonVolatile,     14) // r14
 TargetIntegralRegister(pc, NonVolatile,     15) // r15

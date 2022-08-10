@@ -40,6 +40,7 @@ static std::string getRegName(Register &reg) {
   if (reg.isInvalid()) return "%invalid:gpr";
   if (reg.isVirtual())
     return fmt::format("%{:d}:gpr", reg.id - Register::VREG_BEGIN);
+  assert(reg.id <= Register::INTEGER_REG_END);
   return RegNames[reg.id];
 }
 
@@ -216,9 +217,13 @@ static std::string dumpIF_Reglist(MInstruction *minst) {
   asm_format += "{";
   for (int i = 0; i < RegisterList::RegCount; ++i) {
     if (list.ls & (1 << i)) {
-      if (first_reg) { asm_format += RegNames[i]; first_reg = false; }
-      asm_format.append(" ,");
-      asm_format.append(RegNames[i]);
+      if (first_reg) {
+        asm_format += RegNames[i]; first_reg = false;
+      }
+      else {
+        asm_format.append(" ,");
+        asm_format.append(RegNames[i]);
+      }
     }
   }
   asm_format += "}\n";
@@ -269,7 +274,7 @@ void AsmPrinter::dumpMFunction(MFunction *mfunc) {
   // print frame info.
   for (int i = 0; i < mfunc->objects.size(); ++i)
     buffer += fmt::format("// #fi:{:d} stack:%{:d}, size = {:d}\n",
-                          i - mfunc->num_fix_object, i, mfunc->objects[i].Size);
+                          i - (int)mfunc->num_fix_object, i, mfunc->objects[i].Size);
   // dump Machine BB.
   if (!mfunc->refExternal) {
     for (auto &mbb : mfunc->block) {

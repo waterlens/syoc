@@ -31,8 +31,8 @@ void SimpleRA::rewrite(MFunction *MF, MInstHost *MHost) {
   std::vector<Register *> reg_def;
   MHost->clearInsertPoint();
   for (auto &MBB : MF->block) {
-    Register AuxReg {Register::r0, Register::Type::Int};
     for (auto &MI : MBB.insn) {
+      Register AuxReg {Register::r0, Register::Type::Int};
       getUse(&MI, reg_use);
       for (auto *reg : reg_use) {
         if (!reg->isVirtual())
@@ -80,7 +80,7 @@ void SimpleRA::trySpill(int RegId, LiveInterval Interval, MFunction *MF) {
   auto FurtherLive = occupied_intervals.begin();
   // Spill a reg in use.
   if (Interval.Out < FurtherLive->first.Out) {
-    vreg2preg[RegId] = vreg2preg[FurtherLive->second];
+    vreg2preg[RegId] = vreg2preg.at(FurtherLive->second);
     int FrameIndex = MF->CreateStackObject(nullptr, 4, true);
     spiller.insert(std::make_pair(FurtherLive->second,
                                   SpillInfo{FrameIndex}));
@@ -157,11 +157,13 @@ void SimpleRA::operator()(MInstHost &mhost) {
 
       int free_reg_id = getFreeReg(Register::Type::Int);
       if (free_reg_id != -1) {
+#ifndef NDEBUG
+        fmt::print("allocate vreg:{} to preg:{}\n", live.second, free_reg_id);
+#endif
         vreg2preg[live.second] = free_reg_id;
         occupied_intervals.insert(live);
       } else
         trySpill(live.second, live.first, mf);
-
     }
     rewrite(mf, &mhost);
     // A no-use CalleeSaved Info.

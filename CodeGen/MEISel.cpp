@@ -207,26 +207,6 @@ static Type getAddressType(Value *V) {
   throw std::runtime_error("Expect address as GlobalVariable, Argument or Instruction");
 }
 
-bool MEISel::selectMemoryAccess(Instruction *I) {
-  Value *Address = I->getOperand(0);
-  Opcode opcode = getMachineOpcode(I->op, getAddressType(Address));
-  Register Rd;
-  if (I->op == OP_Store) {
-    Rd = RegisterOrImm(I->getOperand(1)); // store addr, value
-  } else {
-    Rd = CreateVirtualRegister(I); // value = load addr
-  }
-
-  if (function->isFrameObject(Address)) {
-    int stack_fi = function->GetFrameObject(Address);
-    machine->RdRnImm(opcode, Rd, stack_fi, 0);
-  } else {
-    Register AddrReg = RegisterOrImm(Address);
-    machine->RdRnImm(opcode, Rd, AddrReg, 0);
-  }
-  return true;
-}
-
 
 bool MEISel::selectComparison(Instruction *I) {
   // compare
@@ -297,7 +277,25 @@ bool MEISel::selectOP_Le(Instruction *I) { return selectComparison(I); }
 bool MEISel::selectOP_Ge(Instruction *I) { return selectComparison(I); }
 bool MEISel::selectOP_Eq(Instruction *I) { return selectComparison(I); }
 bool MEISel::selectOP_Ne(Instruction *I) { return selectComparison(I); }
+bool MEISel::selectMemoryAccess(Instruction *I) {
+  Value *Address = I->getOperand(0);
+  Opcode opcode = getMachineOpcode(I->op, getAddressType(Address));
+  Register Rd;
+  if (I->op == OP_Store) {
+    Rd = RegisterOrImm(I->getOperand(1)); // store addr, value
+  } else {
+    Rd = CreateVirtualRegister(I); // value = load addr
+  }
 
+  if (function->isFrameObject(Address)) {
+    int stack_fi = function->GetFrameObject(Address);
+    machine->RdRnImm(opcode, Rd, stack_fi, 0);
+  } else {
+    Register AddrReg = RegisterOrImm(Address);
+    machine->RdRnImm(opcode, Rd, AddrReg, 0);
+  }
+  return true;
+}
 // memory access
 bool MEISel::selectOP_Store(Instruction *I) { return selectMemoryAccess(I); }
 bool MEISel::selectOP_Load(Instruction *I)  { return selectMemoryAccess(I); }
@@ -397,6 +395,14 @@ bool MEISel::selectOP_Call(Instruction *I) {
   auto *Callee = I->getOperand(0)->as<Function *>();
   // SysY compiles sylib in thumb code.
   Opcode opcode = isRuntimeFunction(Callee->name) ? Opcode::BLX : Opcode::BL;
+  // more than 4 args, spill to stack;
+  // and protect volatile registers.
+  Register Sp {Register::sp, Register::Type::Int};
+  for (size_t i = Callee->arg.size(); i-- > 4;) {
+    Register SrcReg = RegisterOrImm(I->getOperand(i + 1));
+    int32_t Offset = (i - 4) * 4;
+    machine->RdRnImm(Opcode::STR, SrcReg, Sp, Offset);
+  }
   // Pass argument by r0~r3
   for (size_t i = std::min((size_t)4, Callee->arg.size());
        i-- > 0;) {
@@ -406,17 +412,12 @@ bool MEISel::selectOP_Call(Instruction *I) {
     machine->RdRm(Opcode::CPY, Register{(int)i}, SrcReg);
     machine->Other(Opcode::CLEARUSE);
   }
-  // more than 4 args, spill to stack;
-  // and protect volatile registers.
-  Register Sp {Register::sp, Register::Type::Int};
-  for (size_t i = Callee->arg.size(); i-- > 4;) {
-    Register SrcReg = RegisterOrImm(I->getOperand(i + 1));
-    int32_t Offset = (i - 4) * 4;
-    machine->RdRnImm(Opcode::STR, SrcReg, Sp, Offset);
-  }
   // Update stack size needed for push argument.
   MFunction *mfunc = machine->root->GetMFunction(Callee);
-  mfunc->call_stack_args = std::max(mfunc->call_stack_args, Callee->arg.size() - 4);
+  if (Callee->arg.size() > 4) {
+    mfunc->call_stack_args =
+      std::max(mfunc->call_stack_args, Callee->arg.size() - 4);
+  }
   machine->Label(opcode, mfunc);
   // Copy the return value to a virtual register.
   if (!I->type.isVoid()) {

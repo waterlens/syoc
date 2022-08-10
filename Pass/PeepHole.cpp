@@ -1,6 +1,5 @@
 
 #include "PeepHole.hpp"
-
 using namespace SyOC::ARMv7a;
 
 
@@ -9,11 +8,9 @@ void PeepHole::mergeCopy(MBasicBlock *MBB, MInstHost *Host) {
   for (auto I = MBB->insn.begin(), E = MBB->insn.end();
        I != E && I->next() != E.base(); ++I)
   {
-    Format IF = get_op_format(I->op);
-    if (IF == Format::IF_RdRmRnRa || IF == Format::IF_RdRnRm)
-      continue;
     auto *NextI = I->next();
-    if (NextI->op == Opcode::CPY && NextI->rb.id == I->ra.id)  {
+    if (NextI->op == Opcode::CPY && NextI->rb.id == I->ra.id
+        && I->op != Opcode::STR) {
       I->ra.id = NextI->ra.id;
       work_list.push_back(NextI);
       ++I;
