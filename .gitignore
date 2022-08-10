@@ -40,5 +40,7 @@ current.txt
 manifest.txt
 Binary/
 Output/
-/dump.*
+dump.*
+dump-asm*
+mir.s
 Deploy/
