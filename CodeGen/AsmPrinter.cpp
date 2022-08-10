@@ -257,11 +257,13 @@ void AsmPrinter::dumpMBasicBlock(MBasicBlock *mbb) {
 }
 
 void AsmPrinter::dumpMFunction(MFunction *mfunc) {
+  if (isEABIFunction(mfunc->name))
+    return;
   static size_t func_count = 0;
   // align 2 targets arm 32bit
   // align 1 targets thumb 16bit
-  if (isRuntimeFunction(mfunc->name)) buffer += "\t.align  1\n";
-  else buffer += "\t.align  2\n";
+  if (isRuntimeFunction(mfunc->name)) buffer += "\t.p2align  1\n";
+  else buffer += "\t.p2align  2\n";
   buffer += fmt::format("\t.global {}\n", mfunc->name);
   // use unified GNU ARM asm syntax and arm code.
   // GCC generate thumb code by default.

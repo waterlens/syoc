@@ -1,4 +1,5 @@
 #include "Parser/Parser.hpp"
+#include "Pass/IRLegalize.hpp"
 #include "Pass/DeadCodeElimination.hpp"
 #include "Pass/Dump.hpp"
 #include "Pass/PassCollection.hpp"
@@ -81,6 +82,8 @@ void putfarray(int n, float a[]);
 
 void starttime();
 void stoptime();
+int __aeabi_idivmod(int a, int b);
+int __aeabi_idiv(int a, int b);
 )" + fileContent;
   }
 
@@ -101,6 +104,7 @@ void stoptime();
                          SyOC::InstCombine, SyOC::ConstantFolding, SyOC::SimplifyCFG,
                          SyOC::SimpleAllocationElimination,
                          SyOC::DeadCodeElimination,
+                         SyOC::IRLegalize,
                          SyOC::IRDump>();
   // instruction selection
   SyOC::ARMv7a::AsmPrinter out;

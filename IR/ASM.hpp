@@ -299,6 +299,10 @@ inline bool isRuntimeFunction(std::string_view name) {
           name == "starttime" || name == "stoptime");
 }
 
+inline bool isEABIFunction(std::string_view name) {
+  return (name == "__aeabi_idiv" || name == "__aeabi_idivmod");
+}
+
 // Get Register Uses and Defs.
 inline void
 getUse(MInstruction *inst_iter, std::vector<Register *> &reg_use) {

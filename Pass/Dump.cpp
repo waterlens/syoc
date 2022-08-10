@@ -191,6 +191,7 @@ void IDominatorDump::operator()(IRHost &host) {
 }
 
 void IDFDump::operator()(IRHost &host) {
+#ifndef NDEBUG
   GraphHelper g;
   IteratedDominanceFrontierAnalysis idfa;
 
@@ -202,6 +203,7 @@ void IDFDump::operator()(IRHost &host) {
 
   static int idf_count = 0;
   g.outputToFile(fmt::format("dump.idf.{}.dot", idf_count++), "IDF");
+#endif
 }
 
 void IDFDump::dumpFunctionIDF(GraphHelper &cfg, Function &func,
