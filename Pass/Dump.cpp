@@ -148,6 +148,7 @@ void CFGDump::dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb) {
 }
 
 void CFGDump::operator()(IRHost &host) {
+#ifndef NDEBUG
   GraphHelper cfg;
   assignIdentity(host);
 
@@ -161,6 +162,7 @@ void CFGDump::operator()(IRHost &host) {
 
   static int cfg_count = 0;
   cfg.outputToFile(fmt::format("dump.cfg.{}.dot", cfg_count++), "CFG");
+#endif
 }
 
 void IDominatorDump::operator()(IRHost &host) {

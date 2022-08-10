@@ -106,7 +106,8 @@ int __aeabi_idiv(int a, int b);
                          SyOC::DeadCodeElimination,
                          SyOC::IRLegalize,
                          SyOC::FixTimeMeasurement,
-                         SyOC::IRDump>();
+                         SyOC::IRDump,
+                         SyOC::CFGDump>();
   // instruction selection
   SyOC::ARMv7a::AsmPrinter out;
   static int asm_count = 0;
