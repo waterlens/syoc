@@ -75,7 +75,7 @@ Tree2SSA::generateShortCircuit(TreeBinaryExpr *binary) {
   host->setInsertPoint(rhs_eval_bb);
   auto [rhs_ty, rhs] = generateRValue(binary->rhs);
   host->createInstruction(OP_Store, PredefinedType::Void, {tmp_var, rhs});
-  rhs_eval_bb->linkByJump(next_bb);
+  host->getInsertPoint()->linkByJump(next_bb);
 
   host->setInsertPoint(next_bb);
   auto *final = host->createInstruction(OP_Load, lhs_ty.first, {tmp_var});
