@@ -48,11 +48,12 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
 
 Tree2SSA::TypeDimensionValue
 Tree2SSA::generateShortCircuit(TreeBinaryExpr *binary) {
-  auto [lhs_ty, lhs] = generateRValue(binary->lhs);
-  lhs_ty.first.pointer++;
+   auto [lhs_ty, lhs] = generateRValue(binary->lhs);
+  auto ty = lhs_ty.first;
+  ty.pointer++;
 
   auto *tmp_var = host->createInstruction(
-    OP_Allocate, lhs_ty.first,
+    OP_Allocate, ty,
     {ConstantInteger::create(calculateArrayTotalLength(lhs_ty))},
     current_alloca_bb);
 
@@ -232,7 +233,8 @@ void Tree2SSA::generateListInitializer(TreeInitListExpr *init,
         offset->addInput(ConstantInteger::create(dim[i]));
         offset->addInput(ConstantInteger::create(array_idx[i]));
       }
-      offset->addInput(ConstantInteger::create(calculateArrayBaseUnitSize(th.first)));
+      offset->addInput(
+        ConstantInteger::create(calculateArrayBaseUnitSize(th.first)));
       generateStore(expr, offset);
       adjust_array_index();
       idx++;
@@ -428,8 +430,7 @@ void Tree2SSA::functionGeneration(TreeFunctionDeclaration *decl) {
     if (!is_void) {
       auto *retval = host->createInstruction(
         OP_Load, current_function->return_type, {current_retval});
-      host->createInstruction(OP_Return, PredefinedType::Void,
-                              {retval});
+      host->createInstruction(OP_Return, PredefinedType::Void, {retval});
     } else {
       host->createInstruction(OP_Return, PredefinedType::Void);
     }
