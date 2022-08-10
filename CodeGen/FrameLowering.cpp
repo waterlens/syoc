@@ -72,11 +72,11 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
           /// may produce wrong code:
           /// 	add 	r5, sp, #4
           ///	add 	r5, r5, r5
-          auto *minst = host->RdRm(Opcode::CPY, Rd,
-                                           RegOffset);
+          auto *minst = host->RdRnOperand2(Opcode::ADD, Rd, StackBase,
+                                           Shift::GetDefaultShift(RegOffset));
           I->insert_before(minst);
           minst = host->RdRnOperand2(Opcode::ADD, Rd,
-                                     StackBase, Shift::GetImm(Imm));
+                                     Rd, Shift::GetImm(Imm));
           I->insert_before(minst);
         } else {
           // frame + imm

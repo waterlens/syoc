@@ -417,6 +417,7 @@ bool MEISel::selectOP_Branch(Instruction *I) {
 bool MEISel::selectOP_Call(Instruction *I) {
   // follow calling conventions.
   auto *Callee = I->getOperand(0)->as<Function *>();
+  fmt::print("Call: {}\n", Callee->name);
   // SysY compiles sylib in thumb code.
   Opcode opcode = isRuntimeFunction(Callee->name) ? Opcode::BLX : Opcode::BL;
   // more than 4 args, spill to stack;
@@ -437,9 +438,7 @@ bool MEISel::selectOP_Call(Instruction *I) {
     machine->Other(Opcode::CLEARUSE);
   }
   // Update stack size needed for push argument.
-  MFunction *MFCaller =
-    machine->root->GetMFunction(
-    I->refParent()->as<BasicBlock *>()->refParent()->as<Function *>());
+  MFunction *MFCaller = this->function;
   if (Callee->arg.size() > 4) {
     MFCaller->call_stack_args =
       std::max(MFCaller->call_stack_args, Callee->arg.size() - 4);
@@ -485,16 +484,15 @@ bool MEISel::selectOP_Offset(Instruction *I) {
   Register SizeTemp = CreateVirtualRegister(nullptr);
   Register IndexTemp = CreateVirtualRegister(nullptr);
   Register Rd = CreateVirtualRegister(I);
+  Rd = CreateImmLoad(0, Rd.id);
+
   Sizes.push_back(1);
-  bool FirstIndex = false;
+  bool hasRegOffset = false;
   for (size_t i = 0; i < Indexes.size(); ++i) {
     if (auto *ImmIndex = Indexes[i]->as<ConstantInteger *>()) {
       TotalImmOffset += ImmIndex->value * Sizes[i + 1];
     } else {
-      if (!FirstIndex) {
-        Rd = CreateImmLoad(0, Rd.id);
-        FirstIndex = true;
-      }
+      hasRegOffset = true;
       IndexTemp = RegisterOrImm(Indexes[i], IndexTemp.id);
       if (Sizes[i + 1] != 1) {
         // Hint Load non-constant index into our temp register.
@@ -505,19 +503,21 @@ bool MEISel::selectOP_Offset(Instruction *I) {
     }
   }
   // considering pure Imm offset and variable offsets.
-  Register OffsetReg {(FirstIndex) ? Rd.id : -1, Register::Type::Int};
-  if (FirstIndex) {
+  // Now Rd contains all RegOffset.
+  if (hasRegOffset) {
     Register WidthReg = RegisterOrImm(Width);
     machine->RdRnRm(Opcode::MUL, Rd, Rd, WidthReg);
   }
 
   if (function->isFrameObject(Ptr) && !Ptr->is<Argument>()) {
     int stack_fi = function->GetFrameObject(Ptr);
-    machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, OffsetReg, TotalImmOffset * width);
+    machine->FrameAddr(Opcode::FRAME, Rd, stack_fi, Rd,
+                         TotalImmOffset * width);
   } else {
     Register Base = RegisterOrImm(Ptr);
-    machine->RdRnOperand2(Opcode::ADD, Rd, Base,
-                               Shift::GetImm(TotalImmOffset * width));
+    // has reg offset Rd.
+    machine->RdRnOperand2(Opcode::ADD, Rd, Base, Shift::GetDefaultShift(Rd));
+    machine->RdRnOperand2(Opcode::ADD, Rd, Rd, Shift::GetImm(TotalImmOffset * width));
   }
   // Now Rd holds the final address.
   CreateVirtualRegister(I, Rd.id);

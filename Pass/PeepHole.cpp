@@ -79,7 +79,11 @@ void PeepHole::operator()(MInstHost &host) {
       continue;
     for (auto &MBB : MF->block) {
       work_list.clear();
-      mergeCopy(&MBB, &host);
+      /// @attention
+      /// movw r0, xxx
+      /// movwt r0, xxx
+      /// cpy  xx, r0
+      // mergeCopy(&MBB, &host);
       removeMemoryAccess(&MBB, &host);
     }
   }
