@@ -56,7 +56,7 @@ struct Parser {
   inline static std::unordered_map<std::string_view, int> bin_op_precedence = {
     {"*", 120}, {"/", 120}, {"%", 120}, {"+", 110}, {"-", 110},
     {"<", 90},  {">", 90},  {"<=", 90}, {">=", 90}, {"==", 60},
-    {"!=", 80}, {"&&", 30}, {"||", 30},
+    {"!=", 80}, {"&&", 30}, {"||", 20},
   };
 
   inline static std::unordered_map<std::string_view, OpType> bin_op_code = {
