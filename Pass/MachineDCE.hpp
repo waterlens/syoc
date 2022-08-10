@@ -7,7 +7,8 @@ namespace ARMv7a {
 
 class MachineDCE {
   std::vector<MInstruction *> work_list;
-  void removeDeadMov(MInstHost &host);
+  void removeDeadMov(MFunction *, MInstHost &host);
+  void removeDeadArithmetic(MFunction *, MInstHost &host);
 public:
   static std::string_view getName() { return "Machine DCE"; }
   void operator()(MInstHost &host);

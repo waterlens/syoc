@@ -22,8 +22,24 @@ MFunction *MFunction::create(Function *func, MModule *module) {
   F->refExternal = func->refExternal();
   for (auto B = func->block.begin(), BE = func->block.end();
        B != BE; ++B) {
-    auto MBB = MBasicBlock::create(F);
+    auto *MBB = MBasicBlock::create(F);
     F->bb_map.insert({B.base(), MBB});
+  }
+  // create succ and pred for MBB;
+  for (auto B = func->block.begin(), BE = func->block.end();
+       B != BE; ++B)
+  {
+    auto *ThisMBB = F->bb_map.at(B.base());
+    // preds.
+    for (auto &BBEdge : B->getPredecessor()) {
+      auto *PredMBB = F->bb_map.at(BBEdge.from);
+      ThisMBB->pred.push_back(PredMBB);
+    }
+    // succs.
+    for (auto &BBEdge : BasicBlock::SuccessorView {B->getSuccessorHead()}) {
+      auto *SuccBB = F->bb_map.at(BBEdge.to);
+      ThisMBB->succ.push_back(SuccBB);
+    }
   }
   module->function.push_back(F);
   module->func_map.insert(std::make_pair(func, F));

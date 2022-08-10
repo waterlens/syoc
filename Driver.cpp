@@ -117,7 +117,6 @@ int __aeabi_idiv(int a, int b);
   transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA,
                                     SyOC::ARMv7a::PeepHole,
                                     SyOC::ARMv7a::MachineDCE,
-
                                     SyOC::ARMv7a::FrameLowering
                                     >();
   std::string asmFileName;

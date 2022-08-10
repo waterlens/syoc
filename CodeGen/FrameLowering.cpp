@@ -207,14 +207,16 @@ void inline CreateLongImmLoad(uint32_t Imm, Register::Type type,
 void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
   MHost->clearInsertPoint();
   Register Aux {Register::r12, Register::Type::Int};
+  std::vector<MInstruction *> work_list;
   for (auto &BB : MF->block) {
+    work_list.clear();
     for (auto I = BB.insn.begin(), E = BB.insn.end();
          I != E; ++I)
     {
        if (I->op == Opcode::STR &&
          std::holds_alternative<int32_t>(I->rc.offset_or_else)) {
          int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
-         if (!test_Imm8(Imm)) {
+         if (!test_LDR_STR_Imm_Offset(Imm)) {
            CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
            I->op = Opcode::STR_REG;
            I->rb = std::get<Register>(I->rc.base);
@@ -224,7 +226,7 @@ void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
        if (I->op == Opcode::LDR &&
          std::holds_alternative<int32_t>(I->rc.offset_or_else)) {
          int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
-         if (!test_Imm8(Imm)) {
+         if (!test_LDR_STR_Imm_Offset(Imm)) {
            CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
            I->op = Opcode::LDR_REG;
            I->rb = std::get<Register>(I->rc.base);
@@ -238,6 +240,16 @@ void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
            I->rc.offset_or_else = Shift::GetDefaultShift(Aux);
          }
        }
+       if (I->op == Opcode::MOV &&
+           std::holds_alternative<int32_t>(I->rc.offset_or_else)) {
+         int32_t Imm = std::get<int32_t>(I->rc.offset_or_else);
+         if (!test_Imm8(Imm)) {
+           CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
+           work_list.push_back(I.base());
+         }
+       }
     }
+    for (auto *DeadI : work_list)
+      DeadI->release(true);
   }
 }

@@ -498,8 +498,10 @@ bool MEISel::selectOP_Offset(Instruction *I) {
         // Hint Load non-constant index into our temp register.
         SizeTemp = CreateImmLoad(Sizes[i + 1], SizeTemp.id);
         machine->RdRmRnRa(Opcode::MLA, Rd, SizeTemp, IndexTemp, Rd);
+      } else {
+        machine->RdRnOperand2(Opcode::ADD, Rd, Rd,
+                              Shift::GetDefaultShift(IndexTemp));
       }
-      machine->RdRnOperand2(Opcode::ADD, Rd, Rd, Shift::GetDefaultShift(IndexTemp));
     }
   }
   // considering pure Imm offset and variable offsets.

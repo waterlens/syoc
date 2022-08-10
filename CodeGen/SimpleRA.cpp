@@ -195,7 +195,8 @@ void SimpleRA::getRawLiveness(MFunction *mfunc) {
         assert(map_iter != temp_liveness.end());
         int cur_out = map_iter->second.Out;
         if (cur_out < inst_iter->id)
-          map_iter->second.Out = inst_iter->id;
+          map_iter->second.Out = //inst_iter->id;
+            std::numeric_limits<size_t>::max();
       }
       getDef(inst_iter.base(), reg_defs);
       for (auto *reg : reg_defs) {
