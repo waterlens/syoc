@@ -112,6 +112,9 @@ Register MEISel::CreateImmLoad(uint32_t Imm, int RegHint, Register::Type type) {
   if (test_Imm8(Imm)) {
     machine->RdOperand2(Opcode::MOV, Rd, Shift::GetImm(Imm));
   }
+  else if (test_Imm8(~Imm)) {
+    machine->RdOperand2(Opcode::MVN, Rd, Shift::GetImm(~Imm));
+  }
   else if (test_Imm16(Imm)) {
     machine->RdImm(Opcode::MOVW, Rd, Imm & 0xffffU);
   }

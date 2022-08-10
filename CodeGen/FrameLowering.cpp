@@ -52,8 +52,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
           mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset +
           total_stack_offset;
         int32_t FpImm = BaseImm +
-           mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset -
-           total_stack_offset;
+           mfunc->objects[FrameIndex + mfunc->num_fix_object].Offset;
         // choose the nearest sp/fp as the addressing base reg.
         Register StackBase {(abs(SpImm) > abs(FpImm)) ? Register::fp : Register::sp,
                           Register::Type::Int};
@@ -95,7 +94,7 @@ void FrameLowering::lowering(MFunction *mfunc, MInstHost *host) {
       }
     }
   }
-  final_stack_size = total_stack_offset;
+  final_stack_size = total_stack_offset - num_callee_saved * 4;
 }
 
 // push callee saved register and sub sp.
@@ -114,11 +113,9 @@ void FrameLowering::emitPrologue(MFunction *mfunc, MInstHost *host) {
     FirstMInst->insert_before(push);
   }
   // add r11, sp, #imm
-  if (mfunc->num_fix_object != 0) {
-    auto *get_fp = host->RdRnOperand2(
-      Opcode::ADD, Fp, Sp, Shift::GetImm(mfunc->callee_saved.size() * 4));
-    FirstMInst->insert_before(get_fp);
-  }
+  auto *get_fp = host->RdRnOperand2(
+    Opcode::ADD, Fp, Sp, Shift::GetImm(mfunc->callee_saved.size() * 4));
+  FirstMInst->insert_before(get_fp);
   // sub sp, sp #imm
   if (list != 0) {
     auto *reduce_sp =
@@ -199,7 +196,8 @@ void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
          if (!test_Imm8(Imm)) {
            CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
            I->op = Opcode::STR_REG;
-           I->rc.offset_or_else = Aux;
+           I->rb = std::get<Register>(I->rc.base);
+           I->rc.base = Aux;
          }
        }
        if (I->op == Opcode::LDR &&
@@ -208,7 +206,8 @@ void FrameLowering::legalizeOffset(MFunction *MF, MInstHost *MHost) {
          if (!test_Imm8(Imm)) {
            CreateLongImmLoad(Imm, Register::Type::Int, I.base(), MHost);
            I->op = Opcode::LDR_REG;
-           I->rc.offset_or_else = Aux;
+           I->rb = std::get<Register>(I->rc.base);
+           I->rc.base = Aux;
          }
        }
        if (I->op == Opcode::ADD || I->op == Opcode::SUB) {

@@ -134,10 +134,11 @@ static std::string dumpIF_RnOperand2(MInstruction *minst) {
 
 static std::string dumpIF_RdRnRm(MInstruction *minst) {
   Register rm = std::get<Register>(minst->rc.base);
-  if (minst->op == Opcode::STR_REG)
-    return fmt::format("\t{}{}\t{}, [{}, {}]\n",
-                       getMInstName(minst->op), getCondName(minst->cond),
-                       getRegName(minst->ra), getRegName(minst->rb), getRegName(rm));
+  if (minst->op == Opcode::STR_REG || minst->op == Opcode::LDR_REG) {
+    return fmt::format("\t{}{}\t{}, [{}, {}]\n", getMInstName(minst->op),
+                       getCondName(minst->cond), getRegName(minst->ra),
+                       getRegName(minst->rb), getRegName(rm));
+  }
   return fmt::format("\t{}{}\t{}, {}, {}\n",
                      getMInstName(minst->op), getCondName(minst->cond),
                      getRegName(minst->ra), getRegName(minst->rb), getRegName(rm));
