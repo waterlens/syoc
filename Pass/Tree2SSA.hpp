@@ -6,8 +6,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <climits>
+#include <cstddef>
 #include <functional>
 #include <limits>
 #include <numeric>
@@ -55,7 +55,7 @@ class Tree2SSA final {
            (td.first.primitive_type == Type::PrimitiveType::Void ? 0 : 1);
   }
   TypeDimensionValue findInScope(std::string_view name);
-  TypeDimensionValue generateLValue(ExprPtr expr);
+  TypeDimensionValue generateLValue(ExprPtr expr, bool raise_exception = false);
   TypeDimensionValue generateShortCircuit(TreeBinaryExpr *binary);
   TypeDimensionValue generateRValue(ExprPtr expr);
   TypeDimensionValue generateArgumentValue(ExprPtr expr);

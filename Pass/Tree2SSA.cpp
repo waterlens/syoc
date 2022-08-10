@@ -1,4 +1,5 @@
 #include "Tree2SSA.hpp"
+#include "IR/IR.hpp"
 #include <stdexcept>
 
 namespace SyOC {
@@ -18,7 +19,8 @@ Tree2SSA::TypeDimensionValue Tree2SSA::findInScope(std::string_view name) {
   return r;
 }
 
-Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
+Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr,
+                                                      bool raise_exception) {
   if (auto *arr_sub = expr->as<TreeArraySubscriptExpr *>()) {
     auto [arr_ty, arr] = generateLValue(arr_sub->array);
     auto [idx_ty, idx] = generateRValue(arr_sub->subscript);
@@ -43,12 +45,14 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateLValue(ExprPtr expr) {
     host->createInstruction(OP_Store, PredefinedType::Void, {lhs, rhs});
     return {lhs_ty, lhs};
   }
-  throw std::runtime_error("not a supported expression");
+  if (raise_exception)
+    throw std::runtime_error("not a supported expression");
+  return {{PredefinedType::Void, {}}, nullptr};
 }
 
 Tree2SSA::TypeDimensionValue
 Tree2SSA::generateShortCircuit(TreeBinaryExpr *binary) {
-   auto [lhs_ty, lhs] = generateRValue(binary->lhs);
+  auto [lhs_ty, lhs] = generateRValue(binary->lhs);
   auto ty = lhs_ty.first;
   ty.pointer++;
 
@@ -138,13 +142,14 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
 }
 
 Tree2SSA::TypeDimensionValue Tree2SSA::generateArgumentValue(ExprPtr expr) {
-  if (auto *ref = expr->as<TreeRefExpr *>()) {
-    auto th = findInScope(ref->name);
-    // if it's an array, we don't load it
-    if (!th.first.second.empty())
-      return th;
+  // if it's an array, we don't load it
+  auto [ty, val] = generateLValue(expr);
+  if (val == nullptr)
+    return generateRValue(expr);
+  if (ty.second.empty()) {
+    return generateLoad(ty, val);
   }
-  return generateRValue(expr);
+  return {ty, val};
 }
 void Tree2SSA::arrayZeroInitializer(const Tree2SSA::TypeDimensionValue &th) {
   // target should be the array head element pointer
