@@ -7,27 +7,12 @@ on:
   pull_request:
 jobs:
   check-tests:
-<<<<<<< HEAD
-    runs-on: ubuntu-latest
-=======
     runs-on: ubuntu-20.04
->>>>>>> 2fdadaf (correct jobs' name)
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: 'recursive'
-          lfs: 'true'
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-      - name: Setup Clang
-        uses: egor-tensin/setup-clang@v1
-        with:
-          version: latest
-          platform: x64
-          cc: 1
       - name: Configure
         run: |
           cmake -DCMAKE_BUILD_TYPE:STRING=Debug \

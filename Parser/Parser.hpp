@@ -34,6 +34,7 @@ enum class TokenType {
 struct Token {
   TokenType token_type;
   std::string_view text;
+  unsigned line_pos;
 };
 
 struct Parser {
@@ -65,9 +66,15 @@ struct Parser {
     {"||", OP_Lor},
   };
 
-  void skipWhitespace() {
-    for (; index < input.size() && isspace(input[index]) != 0; index++)
-      ;
+  unsigned skipWhitespace() {
+    unsigned new_lines = 0;
+    for (; index < input.size() && isspace(input[index]) != 0; index++) {
+      if ((index + 1 < input.size() && input[index] == '\r' &&
+           input[index + 1] == '\n') ||
+          input[index] == '\r' || input[index] == '\n')
+        new_lines++;
+    }
+    return new_lines;
   }
 
   bool startWith(std::string_view s) {
@@ -121,19 +128,34 @@ struct Parser {
     while (index < input.length() && input[index] != '\n') index++;
   }
 
-  void skipBlockComment() {
+  unsigned skipBlockComment() {
+    unsigned new_lines = 0;
+    bool found = false;
     index += 2;
-    const auto *begin = input.c_str() + index;
-    const auto *closed = strstr(begin, "*/");
-    if (closed == nullptr)
+
+    for (; index < input.size(); index++) {
+      if ((index + 1 < input.size() && input[index] == '\r' &&
+           input[index + 1] == '\n') ||
+          input[index] == '\r' || input[index] == '\n')
+        new_lines++;
+      if (index + 1 < input.size() && input[index] == '*' &&
+          input[index + 1] == '/') {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
       throw std::runtime_error("block comment doesn't have a close tag");
-    index += closed - begin;
+
     index += 2;
+    return new_lines;
   }
 
   void tokenize() {
+    unsigned lineno = 1;
     while (index != input.length()) {
-      skipWhitespace();
+      lineno += skipWhitespace();
       auto start = index;
       size_t len;
       size_t len2;
@@ -141,35 +163,36 @@ struct Parser {
       if (startWith("//")) {
         skipLineComment();
       } else if (startWith("/*")) {
-        skipBlockComment();
+        lineno += skipBlockComment();
       } else if ((len = delimitIdentifier()) != 0U) {
         index += len;
         auto id = input_view.substr(start, len);
         tokens.push_back({keywords.count(id) != 0U ? TokenType::Keyword
                                                    : TokenType::Identifier,
-                          id});
+                          id, lineno});
       } else if ((len = delimitOperator()) != 0U) {
         index += len;
-        tokens.push_back({TokenType::Operator, input_view.substr(start, len)});
+        tokens.push_back(
+          {TokenType::Operator, input_view.substr(start, len), lineno});
       } else if ((len = delimitFloatConstant()) +
                    (len2 = delimitIntegerConstant()) !=
                  0U) {
         // NOTICE: don't short circuit here
         if (len2 >= len) {
           index += len2;
-          tokens.push_back(
-            {TokenType::IntegerConstant, input_view.substr(start, len2)});
+          tokens.push_back({TokenType::IntegerConstant,
+                            input_view.substr(start, len2), lineno});
         } else {
           index += len;
           tokens.push_back(
-            {TokenType::FloatConstant, input_view.substr(start, len)});
+            {TokenType::FloatConstant, input_view.substr(start, len), lineno});
         }
       } else if (index != input.length())
         throw std::runtime_error(
           fmt::format("unexpected token {} ...", input_view.substr(start, 16)));
     }
 
-    tokens.push_back({TokenType::EndOfFile, std::string_view("@EOF")});
+    tokens.push_back({TokenType::EndOfFile, std::string_view("@EOF"), lineno});
   }
 
   bool peek(std::string_view s) {
@@ -640,7 +663,6 @@ struct Parser {
 
   NodePtr parse() { return translationUnit(); }
 
-  Parser(const std::string &input)
-    : input(input), input_view(input)  {}
+  Parser(const std::string &input) : input(input), input_view(input) {}
 };
 } // namespace SyOC

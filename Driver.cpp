@@ -82,8 +82,12 @@ void putfarray(int n, float a[]);
 
 void starttime();
 void stoptime();
+
 int __aeabi_idivmod(int a, int b);
 int __aeabi_idiv(int a, int b);
+
+void _sysy_starttime(int lineno);
+void _sysy_stoptime(int lineno);
 )" + fileContent;
   }
 
@@ -95,6 +99,7 @@ int __aeabi_idiv(int a, int b);
     .doTreeTransformation<SyOC::ConstantInitializerFold, SyOC::TypeCheck>();
   // from tree gen ssa ir
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
+
   // opt passes
   transformer
     .doSSATransformation<SyOC::SimplifyCFG,
@@ -126,5 +131,6 @@ int __aeabi_idiv(int a, int b);
     asmFileName = fmt::format("dump-asm-{:d}.s", asm_count);
   }
   out.print(asmFileName, transformer.getMIR());
+
   return 0;
 }
