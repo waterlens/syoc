@@ -119,6 +119,25 @@ Instruction *Instruction::create(OpType op, Type type,
   return p;
 }
 
+Instruction *Instruction::create(OpType op, Type type,
+                                 const std::vector<Value *> &Vec,
+                                 BasicBlock *bb) {
+  auto *p = new Instruction();
+  p->op = op;
+  p->type = type;
+  p->parent = bb;
+  p->m_next = nullptr;
+  p->m_prev = nullptr;
+  for (auto *input : Vec) {
+    p->input.emplace_back(nullptr, p);
+    p->input.back() = input;
+  }
+  if (bb != nullptr) {
+    bb->getInstruction().push_back(p);
+  }
+  return p;
+}
+
 BasicBlock *BasicBlock::create(Function *f) {
   auto *p = new BasicBlock();
   p->parent = f;
@@ -144,6 +163,7 @@ BasicBlock::~BasicBlock() {
     // then to node will destruct the edge
     // which will call removeSuccessor of this
   }
+  /// @attention duplicated remove from list.
   remove_from_list();
 }
 

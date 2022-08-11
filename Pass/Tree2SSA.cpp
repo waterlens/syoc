@@ -5,7 +5,7 @@
 namespace SyOC {
 void Tree2SSA::setupGlobalInitializerFunction() {
   auto *init =
-    Function::create(PredefinedType::Void, "__syoc@init", host->getModule());
+    Function::create(PredefinedType::Void, "__syoc_init", host->getModule());
   auto *bb = BasicBlock::create(init);
 
   init->refExternal() = false;
@@ -295,6 +295,7 @@ void Tree2SSA::generateStatement(NodePtr stmt) {
   case ND_LocalDeclaration: {
     auto *decl = stmt->as_unchecked<TreeLocalDeclaration *>();
     auto addr_ty = convertType(decl->type);
+    // Pointer nesting levels counting.
     addr_ty.first.reference();
     auto *var = host->createInstruction(
       OP_Allocate, addr_ty.first,
@@ -466,6 +467,7 @@ void Tree2SSA::functionGeneration(TreeFunctionDeclaration *decl) {
       }
     }
   }
+  // Generate Function Body.
   if (!is_external) {
     scopes.enter();
     generateStatement(decl->body);

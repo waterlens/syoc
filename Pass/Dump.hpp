@@ -57,9 +57,11 @@ public:
   IRDump() = default;
   [[nodiscard]] static std::string_view getName() { return "IR Dump"; }
   void operator()(IRHost &host) {
+#ifndef NDEBUG
     buffer.clear();
     buffer.reserve(32 * 1024ULL);
     dumpIRText(host);
+#endif
   }
 };
 

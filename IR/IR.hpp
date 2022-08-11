@@ -41,9 +41,14 @@ struct Type {
   enum class PrimitiveType : uint16_t {
     Void,
     Integer,
+    Float,
   } primitive_type;
   uint8_t width;
   uint8_t pointer;
+
+  inline bool isInt() { return primitive_type == PrimitiveType::Integer; }
+  inline bool isFloat() { return primitive_type == PrimitiveType::Float; }
+  inline bool isVoid() { return primitive_type == PrimitiveType::Void; }
   Type &reference(uint8_t n = 1) {
     pointer += n;
     return *this;
@@ -68,9 +73,12 @@ struct Type {
 };
 
 struct PredefinedType {
-  static inline const Type Void = {Type::PrimitiveType::Void, 0, 0};
-  static inline const Type Int32 = {Type::PrimitiveType::Integer, 32, 0};
-  static inline const Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
+  static constexpr Type Void = {Type::PrimitiveType::Void, 0, 0};
+  static constexpr Type VoidPtr = {Type::PrimitiveType::Void, 32, 1};
+  static constexpr Type Int32 = {Type::PrimitiveType::Integer, 32, 0};
+  static constexpr Type IntPtr = {Type::PrimitiveType::Integer, 32, 1};
+  static constexpr Type Float = {Type::PrimitiveType::Float, 32, 0};
+  static constexpr Type FloatPtr = { Type::PrimitiveType::Float, 32, 1};
 };
 
 struct UseEdge final : public ListNode<UseEdge> {
@@ -170,8 +178,14 @@ struct Instruction : public Value, public ListNode<Instruction> {
   static Instruction *create(OpType op, Type type,
                              std::initializer_list<Value *> inputs = {},
                              BasicBlock *bb = nullptr);
+  static Instruction *create(OpType op, Type type,
+                             const std::vector<Value *> &Vec,
+                             BasicBlock *bb = nullptr);
   [[nodiscard]] const auto &getInput() const { return input; }
   auto &getInput() { return input; }
+  UseEdge &getInput(size_t num) { return input[num]; }
+  Value *getOperand(size_t num) { return input[num].from; }
+  size_t getNumOperands() const { return input.size(); }
 
   static inline auto addEdgeAction = [](UseEdge *edge, Value *from, Value *) {
     from->addEdge(edge);
@@ -180,6 +194,15 @@ struct Instruction : public Value, public ListNode<Instruction> {
   void addInput(Value *value) {
     input.emplace_back(nullptr, this);
     input.back() = value;
+  }
+
+  [[nodiscard]] bool isMemoryAccessInst() const {
+      return (op == OP_Load || op == OP_Store);
+  }
+
+  [[nodiscard]] bool isCompareInst() const {
+    return (op == OP_Gt || op == OP_Ge || op == OP_Lt || op == OP_Le
+            || op == OP_Eq || op == OP_Ne);
   }
 
   [[nodiscard]] bool isControlInstruction() const {
@@ -216,6 +239,7 @@ public:
   [[nodiscard]] auto end() { return insn.end(); }
   auto &getInstruction() { return insn; }
   auto &getPredecessor() { return pred; }
+  size_t getNumPredecessor() const { return pred.size(); }
   auto &getSuccessorHead() { return succ; }
   void removeSuccessor(BasicBlockEdge *edge) {
     if (edge == getSuccessorHead().base())
@@ -249,6 +273,12 @@ public:
   };
 
   SuccessorView getSuccessor() { return SuccessorView{getSuccessorHead()}; }
+
+  Instruction *getTerminator() const {
+    if (insn.empty() || !insn.back().isControlInstruction())
+      return nullptr;
+    return &insn.back();
+  }
 
   [[nodiscard]] bool isNormalBasicBlock() const {
     return insn.back().op == OP_Jump || insn.back().op == OP_Branch;

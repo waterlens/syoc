@@ -251,6 +251,9 @@ def main():
     dy = subparser.add_parser(
         'deploy', help='generate the files for deployment')
 
+    dy = subparser.add_parser(
+        'deploy', help='generate the files for deployment')
+
     args = parser.parse_args()
 
     os.environ['ASAN_OPTIONS'] = 'detect_leaks=0'

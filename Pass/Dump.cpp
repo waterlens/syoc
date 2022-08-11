@@ -45,7 +45,7 @@ std::string IRDump::dumpInstructionInput(Value *value) {
   if (value == nullptr)
     return "<nullptr>";
   if (auto *ci = value->as<ConstantInteger *>())
-    return fmt::format("{}", ci->value);
+    return fmt::format("{:d}", static_cast<int64_t>(ci->value));
   if (auto *insn = value->as<Instruction *>())
     return fmt::format("{} %{}", dumpType(insn->type), insn->getIdentity());
   if (auto *arg = value->as<Argument *>())
@@ -148,6 +148,7 @@ void CFGDump::dumpBasicBlock(GraphHelper &cfg, BasicBlock *bb) {
 }
 
 void CFGDump::operator()(IRHost &host) {
+#ifndef NDEBUG
   GraphHelper cfg;
   assignIdentity(host);
 
@@ -161,6 +162,7 @@ void CFGDump::operator()(IRHost &host) {
 
   static int cfg_count = 0;
   cfg.outputToFile(fmt::format("dump.cfg.{}.dot", cfg_count++), "CFG");
+#endif
 }
 
 void IDominatorDump::operator()(IRHost &host) {
@@ -191,6 +193,7 @@ void IDominatorDump::operator()(IRHost &host) {
 }
 
 void IDFDump::operator()(IRHost &host) {
+#ifndef NDEBUG
   GraphHelper g;
   IteratedDominanceFrontierAnalysis idfa;
 
@@ -202,6 +205,7 @@ void IDFDump::operator()(IRHost &host) {
 
   static int idf_count = 0;
   g.outputToFile(fmt::format("dump.idf.{}.dot", idf_count++), "IDF");
+#endif
 }
 
 void IDFDump::dumpFunctionIDF(GraphHelper &cfg, Function &func,

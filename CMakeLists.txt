@@ -17,6 +17,7 @@ add_subdirectory(Transformer)
 add_subdirectory(ThirdParty)
 add_subdirectory(Util)
 add_subdirectory(Pass)
+add_subdirectory(CodeGen)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -50,7 +51,7 @@ function(get_relative_sources variable target directory)
 endfunction()
 
 function(create_deployment_configure file directory)
-    foreach(arg ${ARGN}) 
+    foreach(arg ${ARGN})
         get_relative_sources(arg_srcs ${arg} ${directory})
         list(APPEND srcs ${arg_srcs})
     endforeach()

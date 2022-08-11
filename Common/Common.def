@@ -23,7 +23,7 @@
 #endif
 
 #ifndef ConditionTypeDefine
-#define ConditionTypeDefine(x, v)
+#define ConditionTypeDefine(x, y, v)
 #endif
 
 #ifndef ARMv7aOpcodeDefine
@@ -62,6 +62,7 @@ OpcodeDefine(OP_Offset,     "offset")
 OpcodeDefine(OP_Return,     "ret")
 OpcodeDefine(OP_Memset0,    "memset0")
 OpcodeDefine(OP_End, "")
+// OpcodeDefine(OP_COPYREG, "COPYREG") // special IR node used to eliminate Phi node.
 
 TypeSpecifierDefine(TS_None,  0)
 TypeSpecifierDefine(TS_Void,  1 << 0)
@@ -109,64 +110,108 @@ ShiftTypeDefine(SF_ASR,  "ASR")
 ShiftTypeDefine(SF_ROR,  "ROR")
 ShiftTypeDefine(SF_RRX,  "RRX")
 
-ConditionTypeDefine(CT_EQ,  0)
-ConditionTypeDefine(CT_NE,  1)
-ConditionTypeDefine(CT_CS,  2)
-ConditionTypeDefine(CT_CC,  3)
-ConditionTypeDefine(CT_MI,  4)
-ConditionTypeDefine(CT_PL,  5)
-ConditionTypeDefine(CT_VS,  6)
-ConditionTypeDefine(CT_VC,  7)
-ConditionTypeDefine(CT_HI,  8)
-ConditionTypeDefine(CT_LS,  9)
-ConditionTypeDefine(CT_GE,  10)
-ConditionTypeDefine(CT_LT,  11)
-ConditionTypeDefine(CT_GT,  12)
-ConditionTypeDefine(CT_LE,  13)
-ConditionTypeDefine(CT_Any, 14)
+ConditionTypeDefine(CT_EQ,  "eq", 0)
+ConditionTypeDefine(CT_NE,  "ne", 1)
+ConditionTypeDefine(CT_CS,  "cs", 2)
+ConditionTypeDefine(CT_CC,  "cc", 3)
+ConditionTypeDefine(CT_MI,  "mi", 4)
+ConditionTypeDefine(CT_PL,  "pl", 5)
+ConditionTypeDefine(CT_VS,  "vs", 6)
+ConditionTypeDefine(CT_VC,  "vc", 7)
+ConditionTypeDefine(CT_HI,  "hi", 8)
+ConditionTypeDefine(CT_LS,  "ls", 9)
+ConditionTypeDefine(CT_GE,  "ge", 10)
+ConditionTypeDefine(CT_LT,  "lt", 11)
+ConditionTypeDefine(CT_GT,  "gt", 12)
+ConditionTypeDefine(CT_LE,  "le", 13)
+ConditionTypeDefine(CT_Any, " ", 14)
 
 ARMv7aInsnFormatDefine(IF_Other)
 ARMv7aInsnFormatDefine(IF_RdRnRm)
 ARMv7aInsnFormatDefine(IF_RdRm)
-ARMv7aInsnFormatDefine(IF_RdRmRs)
-ARMv7aInsnFormatDefine(IF_RdRmRsRn)
-ARMv7aInsnFormatDefine(IF_RdLoRdHiRmRs)
+// ARMv7aInsnFormatDefine(IF_RdRmRs)
+ARMv7aInsnFormatDefine(IF_RdRmRnRa)
+ARMv7aInsnFormatDefine(IF_RdLoRdHiRnRm)
 ARMv7aInsnFormatDefine(IF_RdRnOperand2)
 ARMv7aInsnFormatDefine(IF_RdOperand2)
 ARMv7aInsnFormatDefine(IF_RnOperand2)
 ARMv7aInsnFormatDefine(IF_Label)
+ARMv7aInsnFormatDefine(IF_RdImm)
+ARMv7aInsnFormatDefine(IF_Rm) // bx(s)
+ARMv7aInsnFormatDefine(IF_RdRnImm) // temporarily no pre-index/post-index
+ARMv7aInsnFormatDefine(IF_Reglist)
+ARMv7aInsnFormatDefine(IF_FrameAddr)
 
+// arithmetic operations
 ARMv7aOpcodeDefine(NOP,     "nop",  IF_Other)
 ARMv7aOpcodeDefine(ADD,     "add",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ADC,     "adc",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SUB,     "sub",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(SDC,     "sdc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2)
+ARMv7aOpcodeDefine(RSB,     "rsb",  IF_RdRnOperand2) // rsb{s} rd = op2 - rn
 ARMv7aOpcodeDefine(RSC,     "rsc",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRmRs)
-ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRs)
-ARMv7aOpcodeDefine(MLS,     "mla",  IF_RdRmRsRn)
-ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(SMULL,   "smull",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(SMLAL,   "smlal",IF_RdLoRdHiRmRs)
-ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm)
+ARMv7aOpcodeDefine(MUL,     "mul",  IF_RdRnRm) // mul{s}{cond} rd = rm * rs
+ARMv7aOpcodeDefine(MLA,     "mla",  IF_RdRmRnRa) // mla{s}{cond} rd = rm * rs + rn
+ARMv7aOpcodeDefine(MLS,     "mls",  IF_RdRmRnRa) // mls{cond} rd = rn - rm * rs
+ARMv7aOpcodeDefine(UMULL,   "umull",IF_RdLoRdHiRnRm) // umull{s}{cond} RdHi:RdLo = Rm * Rs
+ARMv7aOpcodeDefine(UMLAL,   "umlal",IF_RdLoRdHiRnRm) // umlal{s}{cond} RdHi:RdLo += Rm * Rs
+ARMv7aOpcodeDefine(UMAAL,   "umaal",IF_RdLoRdHiRnRm) // umall{cond} RdHi:RdLo = RdHi + RdLo + Rm * Rs
+ARMv7aOpcodeDefine(SMULL,   "smull",IF_RdLoRdHiRnRm)
+ARMv7aOpcodeDefine(SMLAL,   "smlal",IF_RdLoRdHiRnRm)
+ARMv7aOpcodeDefine(SDIV,    "sdiv", IF_RdRnRm) // sdiv{cond} Rd = Rn / Rm
 ARMv7aOpcodeDefine(UDIV,    "udiv", IF_RdRnRm)
-ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2)
-ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2)
-ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)
-ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2)
-ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2)
-ARMv7aOpcodeDefine(TST,     "tst",  IF_RnOperand2)
-ARMv7aOpcodeDefine(TEQ,     "teq",  IF_RnOperand2)
+
+// load/store value to registers
+ARMv7aOpcodeDefine(CPY,     "cpy",  IF_RdRm)
+ARMv7aOpcodeDefine(MOV,     "mov",  IF_RdOperand2) // dst = op2, pseudo cpy will be translated to mov
+ARMv7aOpcodeDefine(MVN,     "mvn",  IF_RdOperand2) // dst = ~op2
+ARMv7aOpcodeDefine(MOVW,    "movw", IF_RdImm) // rd = zext(imm)
+ARMv7aOpcodeDefine(MOVT,    "movt", IF_RdImm) // rd[31:16] = Imm
+ARMv7aOpcodeDefine(LDR,     "ldr",  IF_RdRnImm)
+ARMv7aOpcodeDefine(LDR_PC,  "ldr",  IF_RdImm) // we use pc relative as a pseudo-asm like ldr r0, =0xdeadbeef, may need .ltorg to allocate literal pools
+ARMv7aOpcodeDefine(LDR_REG, "ldr",  IF_RdRnRm) // e.g. ldr r0, [r0, r1]
+ARMv7aOpcodeDefine(STR,     "str",  IF_RdRnImm)
+ARMv7aOpcodeDefine(STR_REG, "str",  IF_RdRnRm) // e.g. str r0, [r0, r1]
+
+
+ARMv7aOpcodeDefine(ASR,     "asr",  IF_RdRnImm)    // asr{s}{cond} actually rd, rn, #sh (1~32)
+ARMv7aOpcodeDefine(LSL,     "lsl",  IF_RdRnImm)    // lsl{s}{cond} actually rd, rn, #sh (1~32)
+ARMv7aOpcodeDefine(CLZ,     "clz",  IF_RdRm)       // cls{cond} counting leading zeros
+ARMv7aOpcodeDefine(CMP,     "cmp",  IF_RnOperand2) // cmp{cond} same as subs
+ARMv7aOpcodeDefine(CMN,     "cmn",  IF_RnOperand2) // cmn{cond} same as adds
+ARMv7aOpcodeDefine(TST,     "tst",  IF_RnOperand2) // tst{cond} same as ands
+ARMv7aOpcodeDefine(TEQ,     "teq",  IF_RnOperand2) // teq{cond} same as eors
 ARMv7aOpcodeDefine(AND,     "and",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(EOR,     "eor",  IF_RdRnOperand2)
 ARMv7aOpcodeDefine(ORR,     "orr",  IF_RdRnOperand2)
-ARMv7aOpcodeDefine(BIC,     "bic",  IF_RdRnOperand2)
+ARMv7aOpcodeDefine(BIC,     "bic",  IF_RdRnOperand2) // bic{s}{cond} rd = rn & ~op2
 ARMv7aOpcodeDefine(SEL,     "sel",  IF_RdRnRm)
-ARMv7aOpcodeDefine(B,       "b",    IF_Label)
+
+// branch operations
+ARMv7aOpcodeDefine(B,       "b",    IF_Label) // b{cond}
 ARMv7aOpcodeDefine(BL,      "bl",   IF_Label)
+ARMv7aOpcodeDefine(BX,      "bx",   IF_Rm) // bx{s} jump to rd and switch arm/thumb mode
+ARMv7aOpcodeDefine(BLX,     "blx",  IF_Label)
+
+ARMv7aOpcodeDefine(PUSH,    "push", IF_Reglist)
+ARMv7aOpcodeDefine(POP,     "pop",  IF_Reglist)
+
+
+// Special Opcode need lowering later
+ARMv7aOpcodeDefine(FRAME,   "frame", IF_FrameAddr)
+/// Get Stack Addrs: Rd = Reg + FrameObject + Imm
+/// @example scalar local variable/argument (argument need add manual ldr)
+///     Rd = FrameObject
+///     1. embedded in ldr/str
+///     2. pass Rd as a pointer argument
+/// @example array local variable/argument + Imm offset
+///     Rd = FrameObject + Imm
+///     after constant folding, IR Offset Node can produce this type
+/// @example array local variable/argument + Reg offset
+///     Rd = FrameObject + Reg
+ARMv7aOpcodeDefine(CLEARUSE, "clearuse", IF_Other)
+/// a hint that inform Register Allocator at this program point
+/// other volatile registers is free now.
 
 #undef OpcodeDefine
 #undef TypeSpecifierDefine

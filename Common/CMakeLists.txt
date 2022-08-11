@@ -1,1 +1,1 @@
-target_sources(syoc PRIVATE Common.def)
+target_sources(syoc PRIVATE Common.def TargetInfo.def)
