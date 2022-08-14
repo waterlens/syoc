@@ -16,6 +16,9 @@ std::string IRDump::dumpType(const Type &ty) {
   case Type::PrimitiveType::Integer:
     buffer += fmt::format("i{}", ty.width);
     break;
+  case Type::PrimitiveType::Float:
+    buffer += fmt::format("f{}", ty.width);
+    break;
   }
   buffer += std::string(ty.pointer, '*');
   return buffer;
@@ -44,6 +47,8 @@ IRDump::dumpFunctionParameterList(const std::vector<Argument *> &param) {
 std::string IRDump::dumpInstructionInput(Value *value) {
   if (value == nullptr)
     return "<nullptr>";
+  if (auto *ci = value->as<ConstantFloat *>())
+    return fmt::format("{}", static_cast<float>(ci->value));
   if (auto *ci = value->as<ConstantInteger *>())
     return fmt::format("{:d}", static_cast<int64_t>(ci->value));
   if (auto *insn = value->as<Instruction *>())
