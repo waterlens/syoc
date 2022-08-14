@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IR/IR.hpp"
+#include "Tree/Tree.hpp"
 #include "Util/Scope.hpp"
 #include "Util/TrivialValueVector.hpp"
 
@@ -36,8 +37,12 @@ class Tree2SSA final {
     TypeDimension ty_dim;
     if (ty.spec == TS_Int)
       ty_dim.first = PredefinedType::Int32;
+    else if (ty.spec == TS_Float)
+      ty_dim.first = PredefinedType::Float;
     else if (ty.spec == TS_Void)
       ty_dim.first = PredefinedType::Void;
+    else
+      throw std::runtime_error("unrecognized type specifier");
     for (auto *dim : ty.dim) {
       auto v = dim->as<TreeIntegerLiteral *>()->value;
       if (v == std::numeric_limits<decltype(v)>::max())

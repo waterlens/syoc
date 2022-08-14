@@ -1,5 +1,6 @@
 #include "Tree2SSA.hpp"
 #include "IR/IR.hpp"
+#include "Tree/Tree.hpp"
 #include <stdexcept>
 
 namespace SyOC {
@@ -88,6 +89,11 @@ Tree2SSA::TypeDimensionValue Tree2SSA::generateRValue(ExprPtr expr) {
     auto *lit = ConstantInteger::create(
       expr->as_unchecked<TreeIntegerLiteral *>()->value);
     return {{PredefinedType::Int32, {}}, lit};
+  }
+  case ND_FloatLiteral: {
+    auto *lit =
+      ConstantFloat::create(expr->as_unchecked<TreeFloatLiteral *>()->value);
+    return {{PredefinedType::Float, {}}, lit};
   }
   case ND_UnaryExpr: {
     auto *unary = expr->as_unchecked<TreeUnaryExpr *>();
