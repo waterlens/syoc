@@ -3,6 +3,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/os.h>
+#include <stdexcept>
 using namespace SyOC::ARMv7a;
 
 // register names
@@ -18,6 +19,7 @@ static const char *getMInstName(Opcode Op) {
   case Opcode::type: return name;
 #include "Common/Common.def"
   }
+  throw std::runtime_error("unreachable");
 }
 
 static const char *getCondName(Condition cond) {
@@ -26,6 +28,7 @@ static const char *getCondName(Condition cond) {
   case Condition::type: return name;
 #include "Common/Common.def"
   }
+  throw std::runtime_error("unreachable");
 }
 
 static const char *getShiftName(Shift::Type stype) {
@@ -34,6 +37,7 @@ static const char *getShiftName(Shift::Type stype) {
   case Shift::Type::type: return name;
 #include "Common/Common.def"
   }
+  throw std::runtime_error("unreachable");
 }
 
 static std::string getRegName(Register &reg) {

@@ -46,9 +46,9 @@ struct Type {
   uint8_t width;
   uint8_t pointer;
 
-  inline bool isInt() { return primitive_type == PrimitiveType::Integer; }
-  inline bool isFloat() { return primitive_type == PrimitiveType::Float; }
-  inline bool isVoid() { return primitive_type == PrimitiveType::Void; }
+  [[nodiscard]] inline bool isInt() const { return primitive_type == PrimitiveType::Integer; }
+  [[nodiscard]] inline bool isFloat() const { return primitive_type == PrimitiveType::Float; }
+  [[nodiscard]] inline bool isVoid() const { return primitive_type == PrimitiveType::Void; }
   Type &reference(uint8_t n = 1) {
     pointer += n;
     return *this;
@@ -185,7 +185,7 @@ struct Instruction : public Value, public ListNode<Instruction> {
   auto &getInput() { return input; }
   UseEdge &getInput(size_t num) { return input[num]; }
   Value *getOperand(size_t num) { return input[num].from; }
-  size_t getNumOperands() const { return input.size(); }
+  [[nodiscard]] auto getNumOperands() const { return input.size(); }
 
   static inline auto addEdgeAction = [](UseEdge *edge, Value *from, Value *) {
     from->addEdge(edge);
@@ -239,7 +239,7 @@ public:
   [[nodiscard]] auto end() { return insn.end(); }
   auto &getInstruction() { return insn; }
   auto &getPredecessor() { return pred; }
-  size_t getNumPredecessor() const { return pred.size(); }
+  [[nodiscard]] auto getNumPredecessor() const { return pred.size(); }
   auto &getSuccessorHead() { return succ; }
   void removeSuccessor(BasicBlockEdge *edge) {
     if (edge == getSuccessorHead().base())
@@ -274,7 +274,7 @@ public:
 
   SuccessorView getSuccessor() { return SuccessorView{getSuccessorHead()}; }
 
-  Instruction *getTerminator() const {
+  [[nodiscard]] Instruction *getTerminator() const {
     if (insn.empty() || !insn.back().isControlInstruction())
       return nullptr;
     return &insn.back();
@@ -314,6 +314,19 @@ struct ConstantInteger : public Value {
     return p;
   }
 };
+
+struct ConstantFloat : public Value {
+  THIS(SV_ConstantFloat);
+  float value;
+  ConstantFloat() : Value{this_type} {}
+  static ConstantFloat *create(float value) {
+    auto *p = new ConstantFloat();
+    p->value = value;
+    p->parent = nullptr;
+    return p;
+  }
+};
+
 
 struct Argument : public Value {
   THIS(SV_Argument);

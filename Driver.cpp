@@ -1,19 +1,19 @@
-#include "Parser/Parser.hpp"
-#include "Pass/IRLegalize.hpp"
-#include "Pass/DeadCodeElimination.hpp"
-#include "Pass/Dump.hpp"
-#include "Pass/PassCollection.hpp"
-#include "Pass/SimplifyCFG.hpp"
-#include "Pass/InstCombine.hpp"
-#include "Pass/ConstantFolding.hpp"
-#include "Transformer/Transformer.hpp"
-#include "Tree/Tree.hpp"
+#include "CodeGen/AsmPrinter.hpp"
+#include "CodeGen/FrameLowering.hpp"
 #include "CodeGen/MEISel.hpp"
 #include "CodeGen/SimpleRA.hpp"
-#include "CodeGen/FrameLowering.hpp"
-#include "CodeGen/AsmPrinter.hpp"
+#include "Parser/Parser.hpp"
+#include "Pass/ConstantFolding.hpp"
+#include "Pass/DeadCodeElimination.hpp"
+#include "Pass/Dump.hpp"
+#include "Pass/IRLegalize.hpp"
+#include "Pass/InstCombine.hpp"
 #include "Pass/MachineDCE.hpp"
+#include "Pass/PassCollection.hpp"
 #include "Pass/PeepHole.hpp"
+#include "Pass/SimplifyCFG.hpp"
+#include "Transformer/Transformer.hpp"
+#include "Tree/Tree.hpp"
 #include "Util/OptionParser.hpp"
 #include "Util/RuntimeStackUtil.hpp"
 #include "Util/TrivialValueVector.hpp"
@@ -101,34 +101,26 @@ void _sysy_stoptime(int lineno);
   transformer.doTree2SSATransformation<SyOC::Tree2SSA>();
 
   // opt passes
-  transformer
-    .doSSATransformation<SyOC::SimplifyCFG,
-                         SyOC::SimpleAllocationElimination,
-                         SyOC::IRDump,
-                         // SyOC::PromoteMem2Reg,
-                         SyOC::InstCombine, SyOC::ConstantFolding, SyOC::SimplifyCFG,
-                         SyOC::SimpleAllocationElimination,
-                         SyOC::DeadCodeElimination,
-                         SyOC::IRLegalize,
-                         SyOC::FixTimeMeasurement,
-                         SyOC::IRDump,
-                         SyOC::CFGDump>();
+  transformer.doSSATransformation<
+    SyOC::SimplifyCFG, SyOC::SimpleAllocationElimination, SyOC::IRDump,
+    // SyOC::PromoteMem2Reg,
+    SyOC::InstCombine, SyOC::ConstantFolding, SyOC::SimplifyCFG,
+    SyOC::SimpleAllocationElimination, SyOC::DeadCodeElimination,
+    SyOC::IRLegalize, SyOC::FixTimeMeasurement, SyOC::IRDump, SyOC::CFGDump>();
   // instruction selection
   SyOC::ARMv7a::AsmPrinter out;
-  static int asm_count = 0;
   transformer.doSSA2MInstTransformation<SyOC::MEISel>();
   out.print("mir.s", transformer.getMIR());
 
-  transformer.doMInstTransformation<SyOC::ARMv7a::SimpleRA,
-                                    SyOC::ARMv7a::PeepHole,
-                                    SyOC::ARMv7a::MachineDCE,
-                                    SyOC::ARMv7a::FrameLowering
-                                    >();
+  transformer.doMInstTransformation<
+    SyOC::ARMv7a::SimpleRA, SyOC::ARMv7a::PeepHole, SyOC::ARMv7a::MachineDCE,
+    SyOC::ARMv7a::FrameLowering>();
+
   std::string asmFileName;
   if (optParser.has("-o")) {
     asmFileName = optParser["-o"].as<std::string_view>();
   } else {
-    asmFileName = fmt::format("dump-asm-{:d}.s", asm_count);
+    asmFileName = fileName + ".s";
   }
   out.print(asmFileName, transformer.getMIR());
 

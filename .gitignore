@@ -42,5 +42,4 @@ Binary/
 Output/
 Deploy/
 /dump.*
-dump-asm-*.s
-mir.s
+*.s
