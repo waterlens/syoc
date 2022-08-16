@@ -289,6 +289,17 @@ inline int32_t Imm_Lowbit(int32_t Imm) {
   return Imm & (-Imm);
 }
 
+
+inline bool test_VFP_Imm(float Imm) {
+  // +- n * 2^-r
+  float ScaledImm = Imm;
+  for (int r = 0; r <= 7; ++r) {
+    if (16 <= ScaledImm && ScaledImm <= 31) return true;
+    ScaledImm *= 2.0F;
+  }
+  return false;
+}
+
 // As compiled runtime library is compiled by thumb
 // We should use blx to make appropriate function call.
 inline bool isRuntimeFunction(std::string_view name) {

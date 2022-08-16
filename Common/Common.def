@@ -197,6 +197,23 @@ ARMv7aOpcodeDefine(BLX,     "blx",  IF_Label)
 ARMv7aOpcodeDefine(PUSH,    "push", IF_Reglist)
 ARMv7aOpcodeDefine(POP,     "pop",  IF_Reglist)
 
+// floating version instructions
+ARMv7aOpcodeDefine(VADD,    "vadd.f32", IF_RdRnRm)
+ARMv7aOpcodeDefine(VSUB,    "vsub.f32", IF_RdRnRm)
+ARMv7aOpcodeDefine(VNEG,    "vneg",     IF_RdRm)
+ARMv7aOpcodeDefine(VDIV,    "vdiv.f32", IF_RdRnRm)
+ARMv7aOpcodeDefine(VMUL,    "vmul.f32", IF_RdRnRm)
+ARMv7aOpcodeDefine(VCMP,    "vcmp.f32", IF_RdOperand2) // a vfp register or imm #0
+ARMv7aOpcodeDefine(VLDR,    "vldr", IF_RdRnImm)
+ARMv7aOpcodeDefine(VLDR_PC, "vldr", IF_RdImm) // vldr Fd, Label
+ARMv7aOpcodeDefine(VCVTi2f, "vcvt.f32.s32", IF_RdRm)
+ARMv7aOpcodeDefine(VCVTf2i, "vcvt.s32.f32", IF_RdRm)
+ARMv7aOpcodeDefine(VSTR,    "vstr", IF_RdRnImm)
+ARMv7aOpcodeDefine(VMOV_REG, "vmov.f32", IF_RdRm)
+ARMv7aOpcodeDefine(VMOV_IMM, "vmov.f32", IF_RdImm) // Any number that can be expressed as +/–n * 2^–r,where n and r are integers, 16 <= n <= 31, 0 <= r <= 7.
+ARMv7aOpcodeDefine(VMOV_CPY, "vmov", IF_RdRm)
+
+
 
 // Special Opcode need lowering later
 ARMv7aOpcodeDefine(FRAME,   "frame", IF_FrameAddr)

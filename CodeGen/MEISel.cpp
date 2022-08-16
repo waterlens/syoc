@@ -23,8 +23,15 @@ static Opcode getMachineIntOpcode(OpType Op) {
 }
 
 static Opcode getMachineFloatOpcode(OpType Op) {
-  // Not implemented.
-  return Opcode::NOP;
+  switch (Op) {
+  case OP_Add: return Opcode::VADD;
+  case OP_Sub: return Opcode::VSUB;
+  case OP_Mul: return Opcode::VDIV;
+  case OP_Div: return Opcode::VDIV;
+  case OP_Neg: return Opcode::VNEG;
+  default:
+    throw std::runtime_error("No mapped machine opcode");
+  }
 }
 
 static Opcode getMachineVoidOpcode(OpType Op) {
